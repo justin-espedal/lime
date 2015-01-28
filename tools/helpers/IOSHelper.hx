@@ -198,19 +198,58 @@ class IOSHelper {
 			}
 			
 			var family = "iphone";
+			var tall = "";
+			var retina = "";	
+			var altCommand = false;
 			
 			if (project.targetFlags.exists ("ipad")) {
 				
 				family = "ipad";
+				tall = "com.apple.CoreSimulator.SimDeviceType.iPad-2";
+				altCommand = true;
+			}
+
+			if (project.targetFlags.exists ("retina")) 
+			{
+				if(project.targetFlags.exists ("ipad"))
+				{
+					tall = "com.apple.CoreSimulator.SimDeviceType.iPad-Air";
+				}
 				
+				else
+				{
+					tall = "com.apple.CoreSimulator.SimDeviceType.iPhone-4s";
+					altCommand = true;
+				}
 			}
 			
-			var templatePaths = [ PathHelper.combine (PathHelper.getHaxelib (new Haxelib ("lime")), "templates") ].concat (project.templatePaths);
-			var launcher = PathHelper.findTemplate (templatePaths, "bin/ios-sim");
+			if (project.targetFlags.exists ("tall")) {
+				tall = "com.apple.CoreSimulator.SimDeviceType.iPhone-5s";	
+				altCommand = true;
+			}
+			
+			if (project.targetFlags.exists ("tall47")) {
+				tall = "com.apple.CoreSimulator.SimDeviceType.iPhone-6";
+				altCommand = true;
+			}
+			
+			if (project.targetFlags.exists ("tall55")) {
+				tall = "com.apple.CoreSimulator.SimDeviceType.iPhone-6-Plus";
+				altCommand = true;
+			}
+			
+			var launcher = PathHelper.findTemplate (project.templatePaths, "bin/ios-sim");
 			Sys.command ("chmod", [ "+x", launcher ]);
 			
-			ProcessHelper.runCommand ("", launcher, [ "launch", FileSystem.fullPath (applicationPath), /*"--sdk", project.environment.get ("IPHONE_VER"), "--family", family,*/ "--timeout", "60" ] );
+			if(altCommand)
+			{
+				ProcessHelper.runCommand ("", launcher, [ "launch", FileSystem.fullPath (applicationPath), "--sdk", project.environment.get ("IPHONE_VER"), "--devicetypeid", tall, "--timeout", "30", "--stdout", project.environment.get ("IPHONE_STDOUT")]  );
+			}
 			
+			else
+			{
+				ProcessHelper.runCommand ("", launcher, [ "launch", FileSystem.fullPath (applicationPath), "--sdk", project.environment.get ("IPHONE_VER"), "--family", family, retina, tall, "--timeout", "30", "--stdout", project.environment.get ("IPHONE_STDOUT")]  );
+			}
 		} else {
 			
 			var applicationPath = "";
@@ -268,7 +307,7 @@ class IOSHelper {
 			
 		}
 		
-		var commands = [ "-s", identity ];
+        var commands = [ "--no-strict", "-f", "-s", identity ];
 		
 		if (entitlementsPath != null) {
 			
