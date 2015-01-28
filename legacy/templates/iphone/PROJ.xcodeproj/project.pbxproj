@@ -308,7 +308,7 @@
 					::foreach frameworkSearchPaths:: "\"::__current__::\"",
 					::end::
 				);
-				GCC_PRECOMPILE_PREFIX_HEADER = YES;
+				GCC_PRECOMPILE_PREFIX_HEADER = NO;
 				GCC_PREFIX_HEADER = "::APP_FILE::/::APP_FILE::-Prefix.pch";
 				INFOPLIST_FILE = "::APP_FILE::/::APP_FILE::-Info.plist";
 				"LIBRARY_SEARCH_PATHS[arch=arm64]" = (
@@ -360,7 +360,7 @@
 					::foreach frameworkSearchPaths:: "\"::__current__::\"",
 					::end::
 				);
-				GCC_PRECOMPILE_PREFIX_HEADER = YES;
+				GCC_PRECOMPILE_PREFIX_HEADER = NO;
 				GCC_PREFIX_HEADER = "::APP_FILE::/::APP_FILE::-Prefix.pch";
 				INFOPLIST_FILE = "::APP_FILE::/::APP_FILE::-Info.plist";
 				"LIBRARY_SEARCH_PATHS[arch=arm64]" = (
