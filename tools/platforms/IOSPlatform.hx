@@ -560,7 +560,7 @@ class IOSPlatform extends PlatformTarget {
 		
 		if (project.command == "update" && PlatformHelper.hostPlatform == Platform.MAC) {
 			
-			ProcessHelper.runCommand ("", "open", [ targetDirectory + "/" + project.app.file + ".xcodeproj" ] );
+			//ProcessHelper.runCommand ("", "open", [ targetDirectory + "/" + project.app.file + ".xcodeproj" ] );
 			
 		}
 		
