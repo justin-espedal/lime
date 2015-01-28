@@ -112,7 +112,14 @@ class AndroidHelper {
 			if (FileSystem.exists (tempFile)) {
 				
 				var output = File.getContent (tempFile);
-				FileSystem.deleteFile (tempFile);
+				try
+				{
+					FileSystem.deleteFile (tempFile);
+				}
+				catch(ex:Dynamic)
+				{
+					Sys.println("Exception: " + ex);
+				}
 				return Std.parseInt (output);
 				
 			}
@@ -284,22 +291,21 @@ class AndroidHelper {
 		var devices = new Array <String> ();
 		var output = "";
 		
-		if (PlatformHelper.hostPlatform == Platform.MAC) {
+		var tempFile = PathHelper.getTemporaryFile ();
 			
-			var tempFile = PathHelper.getTemporaryFile ();
+		ProcessHelper.runCommand (adbPath, adbName, [ "devices", ">", tempFile ], true, true);
 			
-			ProcessHelper.runCommand (adbPath, adbName, [ "devices", ">", tempFile ], true, true);
+		if (FileSystem.exists (tempFile)) {
 			
-			if (FileSystem.exists (tempFile)) {
-				
-				output = File.getContent (tempFile);
+			output = File.getContent (tempFile);
+			try
+			{
 				FileSystem.deleteFile (tempFile);
-				
 			}
-			
-		} else {
-			
-			ProcessHelper.runCommand (adbPath, adbName, [ "devices" ], true, true);
+			catch(ex:Dynamic)
+			{
+				Sys.println("Exception: " + ex);
+			}
 			
 		}
 		
