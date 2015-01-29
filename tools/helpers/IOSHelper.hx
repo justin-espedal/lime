@@ -238,7 +238,8 @@ class IOSHelper {
 				altCommand = true;
 			}
 			
-			var launcher = PathHelper.findTemplate (project.templatePaths, "bin/ios-sim");
+			var templatePaths = [ PathHelper.combine (PathHelper.getHaxelib (new Haxelib ("lime")), "templates") ].concat (project.templatePaths);
+			var launcher = PathHelper.findTemplate (templatePaths, "bin/ios-sim");
 			Sys.command ("chmod", [ "+x", launcher ]);
 			
 			if(altCommand)
