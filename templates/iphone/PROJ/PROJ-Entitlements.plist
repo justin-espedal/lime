@@ -4,5 +4,7 @@
 <dict>
     <key>get-task-allow</key>
     <true/>
+    <key>beta-reports-active</key>
+	<true/>
 </dict>
 </plist>
