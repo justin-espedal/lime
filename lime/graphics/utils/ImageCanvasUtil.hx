@@ -4,6 +4,7 @@ package lime.graphics.utils;
 import haxe.format.JsonParser;
 import lime.graphics.Image;
 import lime.graphics.ImageBuffer;
+import lime.graphics.PixelFormat;
 import lime.math.ColorMatrix;
 import lime.math.Rectangle;
 import lime.math.Vector2;
@@ -45,6 +46,11 @@ class ImageCanvasUtil {
 			
 			buffer.__srcImage = null;
 			
+		} else if (buffer.data != null && buffer.__srcCanvas == null) {
+			
+			createCanvas (image, buffer.width, buffer.height);
+			createImageData (image);
+			
 		}
 		
 	}
@@ -56,6 +62,7 @@ class ImageCanvasUtil {
 		if (image.buffer.data == null) {
 			
 			convertToCanvas (image);
+			sync (image);
 			createImageData (image);
 			
 			image.buffer.__srcCanvas = null;
@@ -80,6 +87,12 @@ class ImageCanvasUtil {
 	
 	
 	public static function copyPixels (image:Image, sourceImage:Image, sourceRect:Rectangle, destPoint:Vector2, alphaImage:Image = null, alphaPoint:Vector2 = null, mergeAlpha:Bool = false):Void {
+		
+		if (destPoint.x >= image.width || destPoint.y >= image.height) {
+			
+			return;
+			
+		}
 		
 		if (alphaImage != null && alphaImage.transparent) {
 			
@@ -140,7 +153,7 @@ class ImageCanvasUtil {
 			
 			untyped (buffer.__srcContext).mozImageSmoothingEnabled = false;
 			untyped (buffer.__srcContext).webkitImageSmoothingEnabled = false;
-			buffer.__srcContext.imageSmoothingEnabled = false;
+			untyped (buffer.__srcContext).imageSmoothingEnabled = false;
 			
 		}
 		#end
@@ -150,33 +163,40 @@ class ImageCanvasUtil {
 	
 	public static function createImageData (image:Image):Void {
 		
+		#if (js && html5)
+		
 		var buffer = image.buffer;
 		
-		if (buffer.data == null) {
+		if (buffer.__srcImageData == null) {
 			
-			buffer.__srcImageData = buffer.__srcContext.getImageData (0, 0, buffer.width, buffer.height);
+			if (buffer.data == null) {
+				
+				buffer.__srcImageData = buffer.__srcContext.getImageData (0, 0, buffer.width, buffer.height);
+				
+			} else {
+				
+				buffer.__srcImageData = buffer.__srcContext.createImageData (buffer.width, buffer.height);
+				buffer.__srcImageData.data.set (cast buffer.data);
+				
+			}
 			
-			// TODO: Better solution?
-			
-			#if (js && html5 && !dom)
-			buffer.data = cast buffer.__srcImageData.data;
-			#else
-			buffer.data = new UInt8Array (buffer.__srcImageData.data);
-			#end
+			buffer.data = new UInt8Array (cast buffer.__srcImageData.data.buffer);
 			
 		}
+		
+		#end
 		
 	}
 	
 	
-	public static function fillRect (image:Image, rect:Rectangle, color:Int):Void {
+	public static function fillRect (image:Image, rect:Rectangle, color:Int, format:PixelFormat):Void {
 		
 		convertToCanvas (image);
 		sync (image);
 		
 		if (rect.x == 0 && rect.y == 0 && rect.width == image.width && rect.height == image.height) {
 			
-			if (image.transparent && ((color & 0xFF000000) == 0)) {
+			if (image.transparent && ((color & 0xFF) == 0)) {
 				
 				image.buffer.__srcCanvas.width = image.buffer.width;
 				return;
@@ -185,10 +205,23 @@ class ImageCanvasUtil {
 			
 		}
 		
-		var a = (image.transparent) ? ((color & 0xFF000000) >>> 24) : 0xFF;
-		var r = (color & 0x00FF0000) >>> 16;
-		var g = (color & 0x0000FF00) >>> 8;
-		var b = (color & 0x000000FF);
+		var r, g, b, a;
+		
+		if (format == ARGB32) {
+			
+			r = (color >> 16) & 0xFF;
+			g = (color >> 8) & 0xFF;
+			b = color & 0xFF;
+			a = (image.transparent) ? (color >> 24) & 0xFF : 0xFF;
+			
+		} else {
+			
+			r = (color >> 24) & 0xFF;
+			g = (color >> 16) & 0xFF;
+			b = (color >> 8) & 0xFF;
+			a = (image.transparent) ? color & 0xFF : 0xFF;
+			
+		}
 		
 		image.buffer.__srcContext.fillStyle = 'rgba(' + r + ', ' + g + ', ' + b + ', ' + (a / 255) + ')';
 		image.buffer.__srcContext.fillRect (rect.x + image.offsetX, rect.y + image.offsetY, rect.width + image.offsetX, rect.height + image.offsetY);
@@ -196,42 +229,42 @@ class ImageCanvasUtil {
 	}
 	
 	
-	public static function floodFill (image:Image, x:Int, y:Int, color:Int):Void {
+	public static function floodFill (image:Image, x:Int, y:Int, color:Int, format:PixelFormat):Void {
 		
 		convertToCanvas (image);
 		createImageData (image);
 		
-		ImageDataUtil.floodFill (image, x, y, color);
+		ImageDataUtil.floodFill (image, x, y, color, format);
 		
 	}
 	
 	
-	public static function getPixel (image:Image, x:Int, y:Int):Int {
+	public static function getPixel (image:Image, x:Int, y:Int, format:PixelFormat):Int {
 		
 		convertToCanvas (image);
 		createImageData (image);
 		
-		return ImageDataUtil.getPixel (image, x, y);
+		return ImageDataUtil.getPixel (image, x, y, format);
 		
 	}
 	
 	
-	public static function getPixel32 (image:Image, x:Int, y:Int):Int {
+	public static function getPixel32 (image:Image, x:Int, y:Int, format:PixelFormat):Int {
 		
 		convertToCanvas (image);
 		createImageData (image);
 		
-		return ImageDataUtil.getPixel32 (image, x, y);
+		return ImageDataUtil.getPixel32 (image, x, y, format);
 		
 	}
 	
 	
-	public static function getPixels (image:Image, rect:Rectangle):ByteArray {
+	public static function getPixels (image:Image, rect:Rectangle, format:PixelFormat):ByteArray {
 		
 		convertToCanvas (image);
 		createImageData (image);
 		
-		return ImageDataUtil.getPixels (image, rect);
+		return ImageDataUtil.getPixels (image, rect, format);
 		
 	}
 	
@@ -259,6 +292,7 @@ class ImageCanvasUtil {
 			
 		} else {
 			
+			sync (image);
 			var sourceCanvas = buffer.__srcCanvas;
 			buffer.__srcCanvas = null;
 			createCanvas (image, newWidth, newHeight);
@@ -269,32 +303,45 @@ class ImageCanvasUtil {
 	}
 	
 	
-	public static function setPixel (image:Image, x:Int, y:Int, color:Int):Void {
+	public static function scroll (image:Image, x:Int, y:Int):Void {
+		
+		if ((x % image.width == 0) && (y % image.height == 0)) return;
 		
 		convertToCanvas (image);
-		createImageData (image);
+		sync (image);
 		
-		ImageDataUtil.setPixel (image, x, y, color);
+		image.buffer.__srcContext.clearRect (x, y, image.width, image.height);
+		image.buffer.__srcContext.drawImage (image.buffer.__srcCanvas, x, y);
 		
 	}
 	
 	
-	public static function setPixel32 (image:Image, x:Int, y:Int, color:Int):Void {
+	public static function setPixel (image:Image, x:Int, y:Int, color:Int, format:PixelFormat):Void {
 		
 		convertToCanvas (image);
 		createImageData (image);
 		
-		ImageDataUtil.setPixel32 (image, x, y, color);
+		ImageDataUtil.setPixel (image, x, y, color, format);
 		
 	}
 	
 	
-	public static function setPixels (image:Image, rect:Rectangle, byteArray:ByteArray):Void {
+	public static function setPixel32 (image:Image, x:Int, y:Int, color:Int, format:PixelFormat):Void {
 		
 		convertToCanvas (image);
 		createImageData (image);
 		
-		ImageDataUtil.setPixels (image, rect, byteArray);
+		ImageDataUtil.setPixel32 (image, x, y, color, format);
+		
+	}
+	
+	
+	public static function setPixels (image:Image, rect:Rectangle, byteArray:ByteArray, format:PixelFormat):Void {
+		
+		convertToCanvas (image);
+		createImageData (image);
+		
+		ImageDataUtil.setPixels (image, rect, byteArray, format);
 		
 	}
 	
@@ -302,7 +349,7 @@ class ImageCanvasUtil {
 	public static function sync (image:Image):Void {
 		
 		#if (js && html5)
-		if (image.dirty && image.type != DATA) {
+		if (image.dirty && image.buffer.__srcImageData != null && image.type != DATA) {
 			
 			image.buffer.__srcContext.putImageData (image.buffer.__srcImageData, 0, 0);
 			image.buffer.data = null;

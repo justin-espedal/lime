@@ -161,6 +161,8 @@ class GLRenderContext {
 	public var ALPHA = 0x1906;
 	public var RGB = 0x1907;
 	public var RGBA = 0x1908;
+	public var BGR_EXT = 0x80E0;
+	public var BGRA_EXT = 0x80E1;
 	public var LUMINANCE = 0x1909;
 	public var LUMINANCE_ALPHA = 0x190A;
 	
@@ -1337,6 +1339,7 @@ class GLRenderContext {
 #else
 
 
+import js.html.CanvasElement;
 import lime.graphics.opengl.GLActiveInfo;
 import lime.graphics.opengl.GLBuffer;
 import lime.graphics.opengl.GLContextAttributes;
@@ -1350,7 +1353,7 @@ import lime.graphics.opengl.GLUniformLocation;
 
 
 @:native("WebGLRenderingContext")
-extern class GLRenderContext extends js.html.CanvasRenderingContext {
+extern class GLRenderContext {
 	
 	
 	var ACTIVE_ATTRIBUTES:Int;
@@ -1649,6 +1652,7 @@ extern class GLRenderContext extends js.html.CanvasRenderingContext {
 	var VIEWPORT:Int;
 	var ZERO:Int;
 	
+	var canvas (default, null):CanvasElement;
 	var drawingBufferHeight (default,null):Int;
 	var drawingBufferWidth (default,null):Int;
 	

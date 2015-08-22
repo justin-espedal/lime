@@ -24,8 +24,8 @@
 	<unset name="LEGACY_CURL" if="emscripten" />
 	<set name="LEGACY_SSL" value="1" />
 	<set name="LEGACY_SSL_EXTRA" value="_ssl" if="LEGACY_SSL" />
-	<set name="LEGACY_S3D" value="1" />
-	<set name="LEGACY_OPENAL" value="1" />
+	<!-- <set name="LEGACY_S3D" value="1" /> -->
+	<set name="LEGACY_OPENAL" value="1" unless="webos" />
 	<set name="LEGACY_OPENAL" value="1" if="iphone" />
 	<!-- <set name="LEGACY_CAMERA" value="1" unless="lime" /> -->
 	
@@ -106,7 +106,7 @@
 			<file name="${LEGACY_SRC_DIR}/blackberry/System.cpp" />
 			
 		</section>
-
+		
 		<section if="tizen">
 			
 			<compilerflag value="-I${TIZEN_PLATFORM}/usr/include/osp" />
@@ -117,6 +117,15 @@
 			<file name="${LEGACY_SRC_DIR}/tizen/TizenStage.cpp" />
 			<file name="${LEGACY_SRC_DIR}/tizen/TizenFrame.cpp" />
 			<file name="${LEGACY_SRC_DIR}/tizen/System.cpp" />
+			
+		</section>
+		
+		<section if="webos">
+			
+			<compilerflag value="-I${PalmPDK}/include/SDL" />
+			
+			<file name="${LEGACY_SRC_DIR}/linux/NativeFont.cpp"/>
+			<file name="${LEGACY_SRC_DIR}/webOS/System.cpp"/>
 			
 		</section>
 		
@@ -144,6 +153,7 @@
 			<compilerflag value="-DSDL_OGL" />
 			<compilerflag value="-DNME_MIXER" unless="LEGACY_OPENAL" />
 			<compilerflag value="-DNME_SDL2" />
+			<compilerflag value="-DNME_GLES" unless="windows || mac || linux" />
 			
 			<file name="${LEGACY_SRC_DIR}/sdl/SDLSound.cpp" unless="LEGACY_OPENAL" />
 			<file name="${LEGACY_SRC_DIR}/sdl2/SDL2Stage.cpp" />
@@ -249,12 +259,6 @@
 		<file name="${LEGACY_SRC_DIR}/common/poly2tri/Poly2Tri.cpp" />
 		-->
 		
-		<file name="${LEGACY_SRC_DIR}/lzma/LzFind.c" />
-		<file name="${LEGACY_SRC_DIR}/lzma/LzmaDec.c" />
-		<file name="${LEGACY_SRC_DIR}/lzma/LzmaEnc.c" />
-		<file name="${LEGACY_SRC_DIR}/lzma/LzFindMt.c" if="windows" />
-		<file name="${LEGACY_SRC_DIR}/lzma/Threads.c" if="windows" />
-		
 		<file name="${HXCPP}/project/libs/zlib/ZLib.cpp" if="ios" />
 		
 	</files>
@@ -265,7 +269,7 @@
 	<set name="LEGACY_POSTLIB" value="${LIBEXTRA}${LEGACY_SLIBEXT}" />
 	<set name="LEGACY_DEBUGEXTRA" value="-debug" if="fulldebug" />
 	
-	<target id="lime-legacy" output="${LIBPREFIX}lime${MSVC_LIB_VERSION}${LEGACY_DEBUGEXTRA}${LIBEXTRA}" tool="linker" toolid="${STD_MODULE_LINK}">
+	<target id="lime-legacy" output="${LIBPREFIX}lime-legacy${MSVC_LIB_VERSION}${LEGACY_DEBUGEXTRA}${LIBEXTRA}" tool="linker" toolid="${STD_MODULE_LINK}">
 		
 		<outdir name="${LEGACY_OUTPUT_DIR}/${BINDIR}" />
 		
@@ -274,6 +278,7 @@
 		<files id="native-toolkit-curl" if="LEGACY_CURL" />
 		<files id="native-toolkit-jpeg" />
 		<files id="native-toolkit-freetype" />
+		<files id="native-toolkit-lzma" />
 		<files id="native-toolkit-ogg" if="LEGACY_OPENAL" />
 		<files id="native-toolkit-openal" if="LEGACY_OPENAL" unless="android || ios || blackberry || tizen" />
 		<files id="native-toolkit-openal-android" if="android" />
@@ -339,19 +344,6 @@
 			
 			<ext value=".so" />
 			<ext value=".ndll" if="windows || mac || linux" />
-			
-			<!-- <lib name="${PRELIB}libfreetype${LIBEXTRA}${SLIBEXT}" if="iphone"/> -->
-			
-			<section if="LEGACY_SDL1" unless="blackberry">
-				
-				<lib name="-lSDL" />
-				<lib name="-lcurl" />
-				<lib name="-lpng" />
-				<lib name="-ljpeg" />
-				<lib name="-lfreetype" />
-				<lib name="-lz" />
-				
-			</section>
 			
 			<section if="windows">
 				
@@ -473,6 +465,14 @@
 				<lib name="-lopenal" />
 				<lib name="-losp-compat" />
 				<lib name="-lrt" />
+				
+			</section>
+			
+			<section if="webos">
+				
+				<lib name="-lSDL" />
+				<lib name="-lGLESv2" />
+				<lib name="-lpdl" />
 				
 			</section>
 			

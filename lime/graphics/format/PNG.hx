@@ -1,6 +1,7 @@
 package lime.graphics.format;
 
 
+import haxe.io.Bytes;
 import lime.graphics.Image;
 import lime.system.System;
 import lime.utils.ByteArray;
@@ -17,15 +18,75 @@ import haxe.io.BytesOutput;
 class PNG {
 	
 	
+	public static function decodeBytes (bytes:ByteArray, decodeData:Bool = true):Image {
+		
+		#if (cpp || neko || nodejs)
+		
+		var bufferData = lime_png_decode_bytes (bytes, decodeData);
+		
+		if (bufferData != null) {
+			
+			var buffer = new ImageBuffer (bufferData.data, bufferData.width, bufferData.height, bufferData.bpp, bufferData.format);
+			buffer.transparent = bufferData.transparent;
+			return new Image (buffer);
+			
+		}
+		
+		#end
+		
+		return null;
+		
+	}
+	
+	
+	public static function decodeFile (path:String, decodeData:Bool = true):Image {
+		
+		#if (cpp || neko || nodejs)
+		
+		var bufferData = lime_png_decode_file (path, decodeData);
+		
+		if (bufferData != null) {
+			
+			var buffer = new ImageBuffer (bufferData.data, bufferData.width, bufferData.height, bufferData.bpp, bufferData.format);
+			buffer.transparent = bufferData.transparent;
+			return new Image (buffer);
+			
+		}
+		
+		#end
+		
+		return null;
+		
+	}
+	
+	
 	public static function encode (image:Image):ByteArray {
+		
+		if (image.premultiplied || image.format != RGBA32) {
+			
+			// TODO: Handle encode from different formats
+			
+			image = image.clone ();
+			image.premultiplied = false;
+			image.format = RGBA32;
+			
+		}
 		
 		#if java
 		
 		#elseif (sys && (!disable_cffi || !format))
+		
+		if (!System.disableCFFI) {
 			
-			return lime_image_encode (image.buffer, 0, 0);
+			var data = lime_image_encode (image.buffer, 0, 0);
+			var bytes = @:privateAccess new Bytes (data.length, data.b);
+			return ByteArray.fromBytes (bytes);
 			
-		#elseif (!js && format)
+		}
+		
+		#if (!html5 && format)
+		
+		else {
 			
 			try {
 				
@@ -34,7 +95,7 @@ class PNG {
 				#if flash
 				var sourceBytes = Bytes.ofData (image.buffer.data.getByteBuffer ());
 				#else
-				var sourceBytes = image.buffer.data.getByteBuffer ();
+				var sourceBytes = cast image.buffer.data;
 				#end
 				
 				var sourceIndex:Int, index:Int;
@@ -64,8 +125,11 @@ class PNG {
 				return ByteArray.fromBytes (output.getBytes ());
 				#end
 				
-			} catch (e:Dynamic) {}
+			} catch (e:Dynamic) { }
 			
+		}
+		
+		#end
 		#end
 		
 		return null;
@@ -81,7 +145,9 @@ class PNG {
 	
 	
 	#if (cpp || neko || nodejs)
-	private static var lime_image_encode:ImageBuffer -> Int -> Int -> ByteArray = System.load ("lime", "lime_image_encode", 3);
+	private static var lime_png_decode_bytes:ByteArray -> Bool -> Dynamic = System.load ("lime", "lime_png_decode_bytes", 2);
+	private static var lime_png_decode_file = System.load ("lime", "lime_png_decode_file", 2);
+	private static var lime_image_encode = System.load ("lime", "lime_image_encode", 3);
 	#end
 	
 	

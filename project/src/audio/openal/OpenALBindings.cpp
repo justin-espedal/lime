@@ -7,7 +7,7 @@
 #endif
 
 #include <hx/CFFI.h>
-#include <utils/ByteArray.h>
+#include <utils/Bytes.h>
 
 
 namespace lime {
@@ -15,13 +15,13 @@ namespace lime {
 	
 	value lime_al_buffer_data (value buffer, value format, value data, value size, value freq) {
 		
-		ByteArray byteArray (data);
+		Bytes bytes (data);
 		//int arraySize = byteArray.Size ();
-		const float *bytes = (float *)byteArray.Bytes ();
+		const float *b = (float *)bytes.Data ();
 		//int elements = arraySize / sizeof (float);
 		int count = val_int (size);
 		
-		alBufferData (val_int (buffer), val_int (format), bytes, count, val_int (freq));
+		alBufferData (val_int (buffer), val_int (format), b, count, val_int (freq));
 		return alloc_null ();
 		
 	}
@@ -29,7 +29,7 @@ namespace lime {
 	
 	value lime_al_buffer3f (value buffer, value param, value value1, value value2, value value3) {
 		
-		alBuffer3f (val_int (buffer), val_int (param), val_float (value1), val_float (value2), val_float (value3));
+		alBuffer3f (val_int (buffer), val_int (param), val_number (value1), val_number (value2), val_number (value3));
 		return alloc_null ();
 		
 	}
@@ -45,7 +45,7 @@ namespace lime {
 	
 	value lime_al_bufferf (value buffer, value param, value value) {
 		
-		alBufferf (val_int (buffer), val_int (param), val_float (value));
+		alBufferf (val_int (buffer), val_int (param), val_number (value));
 		return alloc_null ();
 		
 	}
@@ -85,6 +85,28 @@ namespace lime {
 		}
 		
 		return alloc_null ();
+		
+	}
+	
+	
+	void lime_al_cleanup () {
+		
+		ALCcontext* alcContext = alcGetCurrentContext ();
+		
+		if (alcContext) {
+			
+			ALCdevice* alcDevice = alcGetContextsDevice (alcContext);
+			
+			alcMakeContextCurrent (0);
+			alcDestroyContext (alcContext);
+			
+			if (alcDevice) {
+				
+				alcCloseDevice (alcDevice);
+				
+			}
+			
+		}
 		
 	}
 	
@@ -147,7 +169,7 @@ namespace lime {
 	
 	value lime_al_distance_model (value distanceModel) {
 		
-		alDistanceModel (val_float (distanceModel));
+		alDistanceModel (val_number (distanceModel));
 		return alloc_null ();
 		
 	}
@@ -155,7 +177,7 @@ namespace lime {
 	
 	value lime_al_doppler_factor (value factor) {
 		
-		alDopplerFactor (val_float (factor));
+		alDopplerFactor (val_number (factor));
 		return alloc_null ();
 		
 	}
@@ -163,7 +185,7 @@ namespace lime {
 	
 	value lime_al_doppler_velocity (value velocity) {
 		
-		alDopplerVelocity (val_float (velocity));
+		alDopplerVelocity (val_number (velocity));
 		return alloc_null ();
 		
 	}
@@ -666,7 +688,7 @@ namespace lime {
 	
 	value lime_al_listener3f (value param, value value1, value value2, value value3) {
 		
-		alListener3f (val_int (param), val_float (value1), val_float (value2), val_float (value3));
+		alListener3f (val_int (param), val_number (value1), val_number (value2), val_number (value3));
 		return alloc_null ();
 		
 	}
@@ -682,7 +704,7 @@ namespace lime {
 	
 	value lime_al_listenerf (value param, value value1) {
 		
-		alListenerf (val_int (param), val_float (value1));
+		alListenerf (val_int (param), val_number (value1));
 		return alloc_null ();
 		
 	}
@@ -856,7 +878,7 @@ namespace lime {
 	
 	value lime_al_source3f (value source, value param, value value1, value value2, value value3) {
 		
-		alSource3f (val_int (source), val_int (param), val_float (value1), val_float (value2), val_float (value3));
+		alSource3f (val_int (source), val_int (param), val_number (value1), val_number (value2), val_number (value3));
 		return alloc_null ();
 		
 	}
@@ -872,7 +894,7 @@ namespace lime {
 	
 	value lime_al_sourcef (value source, value param, value value) {
 		
-		alSourcef (val_int (source), val_int (param), val_float (value));
+		alSourcef (val_int (source), val_int (param), val_number (value));
 		return alloc_null ();
 		
 	}
@@ -918,7 +940,7 @@ namespace lime {
 	
 	value lime_al_speed_of_sound (value speed) {
 		
-		alSpeedOfSound (val_float (speed));
+		alSpeedOfSound (val_number (speed));
 		return alloc_null ();
 		
 	}
@@ -939,6 +961,7 @@ namespace lime {
 		int* list = val_array_int (attrlist);
 		
 		ALCcontext *alcContext = alcCreateContext (alcDevice, list);
+		
 		return alloc_float ((intptr_t)alcContext);
 		
 	}
@@ -1028,7 +1051,10 @@ namespace lime {
 	
 	value lime_alc_open_device (value devicename) {
 		
-		ALCdevice* alcDevice = alcOpenDevice (devicename == val_null ? 0 : val_string (devicename));
+		ALCdevice* alcDevice = alcOpenDevice (val_is_null (devicename) ? 0 : val_string (devicename));
+		
+		atexit (lime_al_cleanup);
+		
 		return alloc_float ((intptr_t)alcDevice);
 		
 	}

@@ -3,6 +3,7 @@
 
 
 #include <hx/CFFI.h>
+#include <stdint.h>
 
 
 namespace lime {
@@ -13,10 +14,14 @@ namespace lime {
 		WINDOW_ACTIVATE,
 		WINDOW_CLOSE,
 		WINDOW_DEACTIVATE,
+		WINDOW_ENTER,
 		WINDOW_FOCUS_IN,
 		WINDOW_FOCUS_OUT,
+		WINDOW_LEAVE,
+		WINDOW_MINIMIZE,
 		WINDOW_MOVE,
-		WINDOW_RESIZE
+		WINDOW_RESIZE,
+		WINDOW_RESTORE,
 		
 	};
 	
@@ -35,6 +40,7 @@ namespace lime {
 			int height;
 			WindowEventType type;
 			int width;
+			uint32_t windowID;
 			int x;
 			int y;
 		

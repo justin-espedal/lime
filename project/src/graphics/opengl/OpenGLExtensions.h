@@ -12,6 +12,10 @@
 
 #include "OpenGLBindings.h"
 
+#ifdef LIME_SDL
+#include <SDL.h>
+#endif
+
 
 #ifdef DECLARE_EXTENSION
 
@@ -27,7 +31,14 @@
 
 #elif defined(GET_EXTENSION)
 
-#ifdef HX_WINDOWS
+#ifdef LIME_SDL
+   #define OGL_EXT(func,ret,args) \
+   {\
+      *(void **)&lime::func = (void *)SDL_GL_GetProcAddress(#func);\
+      if (!func) \
+         *(void **)&lime::func = (void *)SDL_GL_GetProcAddress(#func "ARB");\
+   }
+#elif HX_WINDOWS
    #define OGL_EXT(func,ret,args) \
    {\
       *(void **)&lime::func = (void *)wglGetProcAddress(#func);\
@@ -153,7 +164,7 @@ OGL_EXT(glBlendFunc,void, (GLenum sfactor, GLenum dfactor));
 OGL_EXT(glClear,void, (GLbitfield mask));
 OGL_EXT(glClearColor,void, (GLclampf red, GLclampf green, GLclampf blue, GLclampf alpha));
 //OGL_EXT(glClearColorx,void, (GLclampx red, GLclampx green, GLclampx blue, GLclampx alpha));
-OGL_EXT(glClearDepth,void, (GLclampf depth));
+OGL_EXT(glClearDepth,void, (GLclampd depth));
 //OGL_EXT(glClearDepthx,void, (GLclampx depth));
 OGL_EXT(glClearStencil,void, (GLint s));
 OGL_EXT(glClientActiveTexture,void, (GLenum texture));
@@ -169,7 +180,7 @@ OGL_EXT(glCullFace,void, (GLenum mode));
 OGL_EXT(glDeleteTextures,void, (GLsizei n, const GLuint *textures));
 OGL_EXT(glDepthFunc,void, (GLenum func));
 OGL_EXT(glDepthMask,void, (GLboolean flag));
-OGL_EXT(glDepthRange,void, (GLclampf zNear, GLclampf zFar));
+OGL_EXT(glDepthRange,void, (GLclampd zNear, GLclampd zFar));
 //OGL_EXT(glDepthRangex,void, (GLclampx zNear, GLclampx zFar));
 OGL_EXT(glDisable,void, (GLenum cap));
 OGL_EXT(glDisableClientState,void, (GLenum array));

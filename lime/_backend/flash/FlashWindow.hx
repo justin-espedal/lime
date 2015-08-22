@@ -1,24 +1,23 @@
 package lime._backend.flash;
 
 
-import flash.events.Event;
-import flash.events.FocusEvent;
+import flash.display.StageAlign;
+import flash.display.StageScaleMode;
 import flash.Lib;
 import lime.app.Application;
 import lime.graphics.Image;
-import lime.ui.KeyEventManager;
-import lime.ui.MouseEventManager;
-import lime.ui.TouchEventManager;
+import lime.system.Display;
+import lime.system.System;
 import lime.ui.Window;
 
-@:access(lime.ui.KeyEventManager)
-@:access(lime.ui.MouseEventManager)
-@:access(lime.ui.TouchEventManager)
+@:access(lime.app.Application)
+@:access(lime.ui.Window)
 
 
 class FlashWindow {
 	
 	
+	private var enableTextEvents:Bool;
 	private var parent:Window;
 	
 	
@@ -29,45 +28,33 @@ class FlashWindow {
 	}
 	
 	
-	public function create (application:Application):Void {
+	public function close ():Void {
 		
-		Lib.current.stage.addEventListener (Event.ACTIVATE, handleEvent);
-		Lib.current.stage.addEventListener (Event.DEACTIVATE, handleEvent);
-		Lib.current.stage.addEventListener (FocusEvent.FOCUS_IN, handleEvent);
-		Lib.current.stage.addEventListener (FocusEvent.FOCUS_OUT, handleEvent);
-		Lib.current.stage.addEventListener (Event.RESIZE, handleEvent);
+		parent.application.removeWindow (parent);
 		
 	}
 	
 	
-	private function handleEvent (event:Event):Void {
+	public function create (application:Application):Void {
 		
-		switch (event.type) {
-			
-			case Event.ACTIVATE:
-				
-				Window.onWindowActivate.dispatch ();
-			
-			case Event.DEACTIVATE:
-				
-				Window.onWindowDeactivate.dispatch ();
-			
-			case FocusEvent.FOCUS_IN:
-				
-				Window.onWindowFocusIn.dispatch ();
-			
-			case FocusEvent.FOCUS_OUT:
-				
-				Window.onWindowFocusOut.dispatch ();
-			
-			default:
-				
-				parent.width = Lib.current.stage.stageWidth;
-				parent.height = Lib.current.stage.stageHeight;
-				
-				Window.onWindowResize.dispatch (parent.width, parent.height);
-			
-		}
+		Lib.current.stage.align = StageAlign.TOP_LEFT;
+		Lib.current.stage.scaleMode = StageScaleMode.NO_SCALE;
+		
+		parent.id = 0;
+		
+	}
+	
+	
+	public function getDisplay ():Display {
+		
+		return System.getDisplay (0);
+		
+	}
+	
+	
+	public function getEnableTextEvents ():Bool {
+		
+		return enableTextEvents;
 		
 	}
 	
@@ -86,9 +73,37 @@ class FlashWindow {
 	}
 	
 	
+	public function setEnableTextEvents (value:Bool):Bool {
+		
+		return enableTextEvents = value;
+		
+	}
+	
+	
+	public function setFullscreen (value:Bool):Bool {
+		
+		return value;
+		
+	}
+	
+	
 	public function setIcon (image:Image):Void {
 		
 		
+		
+	}
+	
+	
+	public function setMinimized (value:Bool):Bool {
+		
+		return false;
+		
+	}
+	
+	
+	public function setTitle (value:String):String {
+		
+		return value;
 		
 	}
 	

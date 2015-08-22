@@ -2,21 +2,21 @@ package;
 
 
 import haxe.io.Path;
-import project.Haxelib;
+import lime.project.Haxelib;
 import sys.io.File;
 import sys.io.Process;
 import sys.FileSystem;
-import helpers.FileHelper;
-import helpers.LogHelper;
-import helpers.PathHelper;
-import helpers.PlatformHelper;
-import helpers.ProcessHelper;
+import lime.tools.helpers.FileHelper;
+import lime.tools.helpers.LogHelper;
+import lime.tools.helpers.PathHelper;
+import lime.tools.helpers.PlatformHelper;
+import lime.tools.helpers.ProcessHelper;
 
 
 class RunScript {
 	
 	
-	private static function rebuildTools ():Void {
+	private static function rebuildTools (rebuildBinaries = true):Void {
 		
 		var limeDirectory = PathHelper.getHaxelib (new Haxelib ("lime"), true);
 		var toolsDirectory = PathHelper.combine (limeDirectory, "tools");
@@ -35,6 +35,8 @@ class RunScript {
 			ProcessHelper.runCommand (toolsDirectory, "haxe", [ "tools.hxml" ]);
 			
 		//}
+		
+		if (!rebuildBinaries) return;
 		
 		var platforms = [ "Windows", "Mac", "Mac64", "Linux", "Linux64" ];
 		
@@ -179,6 +181,8 @@ class RunScript {
 				
 			}
 			
+			var rebuildBinaries = true;
+			
 			for (arg in args) {
 				
 				var equals = arg.indexOf ("=");
@@ -207,6 +211,10 @@ class RunScript {
 							
 							LogHelper.enableColor = false;
 						
+						case "-nocffi":
+							
+							rebuildBinaries = false;
+						
 						default:
 						
 					}
@@ -215,7 +223,7 @@ class RunScript {
 				
 			}
 			
-			rebuildTools ();
+			rebuildTools (rebuildBinaries);
 			
 		} else {
 			

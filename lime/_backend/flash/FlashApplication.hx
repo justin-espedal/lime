@@ -2,6 +2,7 @@ package lime._backend.flash;
 
 
 import flash.events.Event;
+import flash.events.FocusEvent;
 import flash.events.KeyboardEvent;
 import flash.events.MouseEvent;
 import flash.events.TouchEvent;
@@ -13,9 +14,8 @@ import lime.app.Config;
 import lime.audio.AudioManager;
 import lime.graphics.Renderer;
 import lime.ui.KeyCode;
-import lime.ui.KeyEventManager;
-import lime.ui.MouseEventManager;
-import lime.ui.TouchEventManager;
+import lime.ui.KeyModifier;
+import lime.ui.Touch;
 import lime.ui.Window;
 
 @:access(lime.app.Application)
@@ -25,46 +25,25 @@ import lime.ui.Window;
 class FlashApplication {
 	
 	
-	private static var registeredEvents:Bool;
-	
+	private var cacheTime:Int;
+	private var currentTouches = new Map<Int, Touch> ();
+	private var mouseLeft:Bool;
 	private var parent:Application;
+	private var unusedTouchesPool = new List<Touch> ();
 	
 	
 	public function new (parent:Application):Void {
 		
 		this.parent = parent;
 		
-		Application.__instance = parent;
+		Lib.current.stage.frameRate = 60;
 		
-		if (!registeredEvents) {
-			
-			registeredEvents = true;
-			
-			AudioManager.init ();
-			
-			Lib.current.stage.addEventListener (KeyboardEvent.KEY_DOWN, handleKeyEvent);
-			Lib.current.stage.addEventListener (KeyboardEvent.KEY_UP, handleKeyEvent);
-			
-			var events = [ "mouseDown", "mouseMove", "mouseUp", "mouseWheel", "middleMouseDown", "middleMouseMove", "middleMouseUp" #if ((!openfl && !disable_flash_right_click) || enable_flash_right_click) , "rightMouseDown", "rightMouseMove", "rightMouseUp" #end ];
-			
-			for (event in events) {
-				
-				Lib.current.stage.addEventListener (event, handleMouseEvent);
-				
-			}
-			
-			Multitouch.inputMode = MultitouchInputMode.TOUCH_POINT;
-			
-			Lib.current.stage.addEventListener (TouchEvent.TOUCH_BEGIN, handleTouchEvent);
-			Lib.current.stage.addEventListener (TouchEvent.TOUCH_MOVE, handleTouchEvent);
-			Lib.current.stage.addEventListener (TouchEvent.TOUCH_END, handleTouchEvent);
-			
-		}
+		AudioManager.init ();
 		
 	}
 	
 	
-	private static function convertKeyCode (keyCode:Int):KeyCode {
+	private function convertKeyCode (keyCode:Int):KeyCode {
 		
 		if (keyCode >= 65 && keyCode <= 90) {
 			
@@ -100,6 +79,7 @@ class FlashApplication {
 			case 105: return KeyCode.NUMPAD_9;
 			case 106: return KeyCode.NUMPAD_MULTIPLY;
 			case 107: return KeyCode.NUMPAD_PLUS;
+			case 108: return KeyCode.NUMPAD_ENTER;
 			case 109: return KeyCode.NUMPAD_MINUS;
 			case 110: return KeyCode.NUMPAD_PERIOD;
 			case 111: return KeyCode.NUMPAD_DIVIDE;
@@ -115,9 +95,21 @@ class FlashApplication {
 			case 121: return KeyCode.F10;
 			case 122: return KeyCode.F11;
 			case 123: return KeyCode.F12;
+			case 124: return KeyCode.F13;
+			case 125: return KeyCode.F14;
+			case 126: return KeyCode.F15;
 			case 144: return KeyCode.NUM_LOCK;
+			case 186: return KeyCode.SEMICOLON;
+			case 187: return KeyCode.EQUALS;
+			case 188: return KeyCode.COMMA;
+			case 189: return KeyCode.MINUS;
+			case 190: return KeyCode.PERIOD;
+			case 191: return KeyCode.SLASH;
+			case 192: return KeyCode.GRAVE;
 			case 219: return KeyCode.LEFT_BRACKET;
+			case 220: return KeyCode.BACKSLASH;
 			case 221: return KeyCode.RIGHT_BRACKET;
+			case 222: return KeyCode.SINGLE_QUOTE;
 			
 		}
 		
@@ -128,137 +120,296 @@ class FlashApplication {
 	
 	public function create (config:Config):Void {
 		
-		parent.config = config;
 		
-		KeyEventManager.onKeyDown.add (parent.onKeyDown);
-		KeyEventManager.onKeyUp.add (parent.onKeyUp);
-		
-		MouseEventManager.onMouseDown.add (parent.onMouseDown);
-		MouseEventManager.onMouseMove.add (parent.onMouseMove);
-		MouseEventManager.onMouseUp.add (parent.onMouseUp);
-		MouseEventManager.onMouseWheel.add (parent.onMouseWheel);
-		
-		TouchEventManager.onTouchStart.add (parent.onTouchStart);
-		TouchEventManager.onTouchMove.add (parent.onTouchMove);
-		TouchEventManager.onTouchEnd.add (parent.onTouchEnd);
-		
-		Renderer.onRenderContextLost.add (parent.onRenderContextLost);
-		Renderer.onRenderContextRestored.add (parent.onRenderContextRestored);
-		
-		Window.onWindowActivate.add (parent.onWindowActivate);
-		Window.onWindowClose.add (parent.onWindowClose);
-		Window.onWindowDeactivate.add (parent.onWindowDeactivate);
-		Window.onWindowFocusIn.add (parent.onWindowFocusIn);
-		Window.onWindowFocusOut.add (parent.onWindowFocusOut);
-		Window.onWindowMove.add (parent.onWindowMove);
-		Window.onWindowResize.add (parent.onWindowResize);
-		
-		var window = new Window (config);
-		var renderer = new Renderer (window);
-		
-		window.width = config.width;
-		window.height = config.height;
-		
-		parent.addWindow (window);
 		
 	}
 	
 	
 	public function exec ():Int {
 		
-		Lib.current.stage.addEventListener (Event.ENTER_FRAME, handleUpdateEvent);
+		Lib.current.stage.addEventListener (KeyboardEvent.KEY_DOWN, handleKeyEvent);
+		Lib.current.stage.addEventListener (KeyboardEvent.KEY_UP, handleKeyEvent);
+		
+		var events = [ "mouseDown", "mouseMove", "mouseUp", "mouseWheel", "middleMouseDown", "middleMouseMove", "middleMouseUp" #if ((!openfl && !disable_flash_right_click) || enable_flash_right_click) , "rightMouseDown", "rightMouseMove", "rightMouseUp" #end ];
+		
+		for (event in events) {
+			
+			Lib.current.stage.addEventListener (event, handleMouseEvent);
+			
+		}
+		
+		Multitouch.inputMode = MultitouchInputMode.TOUCH_POINT;
+		
+		Lib.current.stage.addEventListener (TouchEvent.TOUCH_BEGIN, handleTouchEvent);
+		Lib.current.stage.addEventListener (TouchEvent.TOUCH_MOVE, handleTouchEvent);
+		Lib.current.stage.addEventListener (TouchEvent.TOUCH_END, handleTouchEvent);
+		Lib.current.stage.addEventListener (Event.ACTIVATE, handleWindowEvent);
+		Lib.current.stage.addEventListener (Event.DEACTIVATE, handleWindowEvent);
+		Lib.current.stage.addEventListener (FocusEvent.FOCUS_IN, handleWindowEvent);
+		Lib.current.stage.addEventListener (FocusEvent.FOCUS_OUT, handleWindowEvent);
+		Lib.current.stage.addEventListener (Event.MOUSE_LEAVE, handleWindowEvent);
+		Lib.current.stage.addEventListener (Event.RESIZE, handleWindowEvent);
+		
+		cacheTime = Lib.getTimer ();
+		handleApplicationEvent (null);
+		
+		Lib.current.stage.addEventListener (Event.ENTER_FRAME, handleApplicationEvent);
 		
 		return 0;
 		
 	}
 	
 	
-	private static function handleKeyEvent (event:KeyboardEvent):Void {
+	public function exit ():Void {
 		
-		var keyCode = convertKeyCode (event.keyCode);
-		var modifier = 0;
 		
-		if (event.type == KeyboardEvent.KEY_DOWN) {
+		
+	}
+	
+	
+	public function getFrameRate ():Float {
+		
+		return Lib.current.stage.frameRate;
+		
+	}
+	
+	
+	private function handleApplicationEvent (event:Event):Void {
+		
+		var currentTime = Lib.getTimer ();
+		var deltaTime = currentTime - cacheTime;
+		cacheTime = currentTime;
+		
+		parent.onUpdate.dispatch (deltaTime);
+		
+		if (parent.renderer != null) {
 			
-			KeyEventManager.onKeyDown.dispatch (keyCode, 0);
-			
-		} else {
-			
-			KeyEventManager.onKeyUp.dispatch (keyCode, 0);
+			parent.renderer.onRender.dispatch ();
+			parent.renderer.flip ();
 			
 		}
 		
 	}
 	
 	
-	private static function handleMouseEvent (event:MouseEvent):Void {
+	private function handleKeyEvent (event:KeyboardEvent):Void {
 		
-		var button = switch (event.type) {
+		if (parent.window != null) {
 			
-			case "middleMouseDown", "middleMouseMove", "middleMouseUp": 1;
-			case "rightMouseDown", "rightMouseMove", "rightMouseUp": 2;
-			default: 0;
+			var keyCode = convertKeyCode (event.keyCode);
+			var modifier = (event.shiftKey ? (KeyModifier.SHIFT) : 0) | (event.ctrlKey ? (KeyModifier.CTRL) : 0) | (event.altKey ? (KeyModifier.ALT) : 0);
 			
-		}
-		
-		switch (event.type) {
-			
-			case "mouseDown", "middleMouseDown", "rightMouseDown":
+			if (event.type == KeyboardEvent.KEY_DOWN) {
 				
-				MouseEventManager.onMouseDown.dispatch (event.stageX, event.stageY, button);
-			
-			case "mouseMove", "middleMouseMove", "rightMouseMove":
+				parent.window.onKeyDown.dispatch (keyCode, modifier);
 				
-				MouseEventManager.onMouseMove.dispatch (event.stageX, event.stageY, button);
-			
-			case "mouseUp", "middleMouseUp", "rightMouseUp":
+				if (parent.window != null && parent.window.enableTextEvents) {
+					
+					parent.window.onTextInput.dispatch (String.fromCharCode (event.charCode));
+					
+				}
 				
-				MouseEventManager.onMouseUp.dispatch (event.stageX, event.stageY, button);
-			
-			case "mouseWheel":
+			} else {
 				
-				MouseEventManager.onMouseWheel.dispatch (0, event.delta);
-			
-			default:
+				parent.window.onKeyUp.dispatch (keyCode, modifier);
+				
+			}
 			
 		}
 		
 	}
 	
 	
-	private static function handleTouchEvent (event:TouchEvent):Void {
+	private function handleMouseEvent (event:MouseEvent):Void {
 		
-		var id = 0;
-		var x = event.stageX;
-		var y = event.stageY;
-		
-		switch (event.type) {
+		if (parent.window != null) {
 			
-			case TouchEvent.TOUCH_BEGIN:
+			var button = switch (event.type) {
 				
-				TouchEventManager.onTouchStart.dispatch (x, y, id);
+				case "middleMouseDown", "middleMouseUp": 1;
+				case "rightMouseDown", "rightMouseUp": 2;
+				default: 0;
+				
+			}
 			
-			case TouchEvent.TOUCH_MOVE:
+			switch (event.type) {
 				
-				TouchEventManager.onTouchMove.dispatch (x, y, id);
-			
-			case TouchEvent.TOUCH_END:
+				case "mouseDown", "middleMouseDown", "rightMouseDown":
+					
+					parent.window.onMouseDown.dispatch (event.stageX, event.stageY, button);
 				
-				TouchEventManager.onTouchEnd.dispatch (x, y, id);
+				case "mouseMove":
+					
+					if (mouseLeft) {
+						
+						mouseLeft = false;
+						parent.window.onEnter.dispatch ();
+						
+					}
+					
+					parent.window.onMouseMove.dispatch (event.stageX, event.stageY);
+				
+				case "mouseUp", "middleMouseUp", "rightMouseUp":
+					
+					parent.window.onMouseUp.dispatch (event.stageX, event.stageY, button);
+				
+				case "mouseWheel":
+					
+					parent.window.onMouseWheel.dispatch (0, event.delta);
+				
+				default:
+				
+			}
 			
 		}
 		
 	}
 	
 	
-	private static function handleUpdateEvent (event:Event):Void {
+	private function handleTouchEvent (event:TouchEvent):Void {
 		
-		// TODO: deltaTime
+		if (parent.window != null) {
+			
+			var x = event.stageX;
+			var y = event.stageY;
+			
+			switch (event.type) {
+				
+				case TouchEvent.TOUCH_BEGIN:
+					
+					var touch = unusedTouchesPool.pop ();
+					
+					if (touch == null) {
+						
+						touch = new Touch (x / parent.window.width, y / parent.window.height, event.touchPointID, 0, 0, event.pressure, 0);
+						
+					} else {
+						
+						touch.x = x / parent.window.width;
+						touch.y = y / parent.window.height;
+						touch.id = event.touchPointID;
+						touch.dx = 0;
+						touch.dy = 0;
+						touch.pressure = event.pressure;
+						touch.device = 0;
+						
+					}
+					
+					currentTouches.set (event.touchPointID, touch);
+					
+					Touch.onStart.dispatch (touch);
+					
+					if (event.isPrimaryTouchPoint) {
+						
+						parent.window.onMouseDown.dispatch (x, y, 0);
+						
+					}
+				
+				case TouchEvent.TOUCH_END:
+					
+					var touch = currentTouches.get (event.touchPointID);
+					
+					if (touch != null) {
+						
+						var cacheX = touch.x;
+						var cacheY = touch.y;
+						
+						touch.x = x / parent.window.width;
+						touch.y = y / parent.window.height;
+						touch.dx = touch.x - cacheX;
+						touch.dy = touch.y - cacheY;
+						touch.pressure = event.pressure;
+						
+						Touch.onEnd.dispatch (touch);
+						
+						currentTouches.remove (event.touchPointID);
+						unusedTouchesPool.add (touch);
+						
+						if (event.isPrimaryTouchPoint) {
+							
+							parent.window.onMouseUp.dispatch (x, y, 0);
+							
+						}
+						
+					}
+				
+				case TouchEvent.TOUCH_MOVE:
+					
+					var touch = currentTouches.get (event.touchPointID);
+					
+					if (touch != null) {
+						
+						var cacheX = touch.x;
+						var cacheY = touch.y;
+						
+						touch.x = x / parent.window.width;
+						touch.y = y / parent.window.height;
+						touch.dx = touch.x - cacheX;
+						touch.dy = touch.y - cacheY;
+						touch.pressure = event.pressure;
+						
+						Touch.onMove.dispatch (touch);
+						
+						if (event.isPrimaryTouchPoint) {
+							
+							parent.window.onMouseMove.dispatch (x, y);
+							
+						}
+						
+					}
+					
+				
+			}
+			
+		}
 		
-		Application.__instance.update (16);
-		Application.onUpdate.dispatch (16);
+	}
+	
+	
+	private function handleWindowEvent (event:Event):Void {
 		
-		Renderer.render ();
+		if (parent.window != null) {
+			
+			switch (event.type) {
+				
+				case Event.ACTIVATE:
+					
+					parent.window.onActivate.dispatch ();
+				
+				case Event.DEACTIVATE:
+					
+					parent.window.onDeactivate.dispatch ();
+				
+				case FocusEvent.FOCUS_IN:
+					
+					parent.window.onFocusIn.dispatch ();
+				
+				case FocusEvent.FOCUS_OUT:
+					
+					parent.window.onFocusOut.dispatch ();
+				
+				case Event.MOUSE_LEAVE:
+					
+					mouseLeft = true;
+					parent.window.onLeave.dispatch ();
+				
+				default:
+					
+					parent.window.width = Lib.current.stage.stageWidth;
+					parent.window.height = Lib.current.stage.stageHeight;
+					
+					parent.window.onResize.dispatch (parent.window.width, parent.window.height);
+				
+			}
+			
+		}
+		
+	}
+	
+	
+	public function setFrameRate (value:Float):Float {
+		
+		return Lib.current.stage.frameRate = value;
 		
 	}
 	

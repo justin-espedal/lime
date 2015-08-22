@@ -3,6 +3,7 @@
 
 
 #include <hx/CFFI.h>
+#include <stdint.h>
 
 
 namespace lime {
@@ -30,7 +31,10 @@ namespace lime {
 			static void Dispatch (MouseEvent* event);
 			
 			int button;
+			double movementX;
+			double movementY;
 			MouseEventType type;
+			uint32_t windowID;
 			double x;
 			double y;
 		

@@ -1,29 +1,32 @@
 package lime._backend.native;
 
 
-import lime.app.Application;
-import lime.graphics.opengl.GL;
+import lime.graphics.cairo.Cairo;
+import lime.graphics.cairo.CairoFormat;
+import lime.graphics.cairo.CairoImageSurface;
+import lime.graphics.cairo.CairoSurface;
+import lime.graphics.CairoRenderContext;
 import lime.graphics.ConsoleRenderContext;
 import lime.graphics.GLRenderContext;
-import lime.graphics.RenderContext;
 import lime.graphics.Renderer;
 import lime.system.System;
-import lime.ui.Window;
 
-@:access(lime.graphics.opengl.GL)
-@:access(lime.app.Application)
-@:access(lime.graphics.Renderer)
+@:access(lime.ui.Window)
 
 
 class NativeRenderer {
 	
 	
-	private static var eventInfo = new RenderEventInfo (RENDER);
-	private static var registered:Bool;
-	
 	public var handle:Dynamic;
 	
 	private var parent:Renderer;
+	private var useHardware:Bool;
+	
+	#if lime_cairo
+	private var cacheLock:Dynamic;
+	private var cairo:Cairo;
+	private var primarySurface:CairoSurface;
+	#end
 	
 	
 	public function new (parent:Renderer) {
@@ -38,79 +41,99 @@ class NativeRenderer {
 		handle = lime_renderer_create (parent.window.backend.handle);
 		
 		#if lime_console
-			parent.context = CONSOLE (new ConsoleRenderContext ());
-		#else
-			parent.context = OPENGL (new GLRenderContext ());
-		#end
 		
-		if (!registered) {
+		useHardware = true;
+		parent.context = CONSOLE (new ConsoleRenderContext ());
+		
+		#else
+		
+		var type = lime_renderer_get_type (handle);
+		
+		switch (type) {
 			
-			registered = true;
-			lime_render_event_manager_register (dispatch, eventInfo);
+			case "opengl":
+				
+				useHardware = true;
+				parent.context = OPENGL (new GLRenderContext ());
+			
+			default:
+				
+				useHardware = false;
+				
+				#if lime_cairo
+				render ();
+				parent.context = CAIRO (cairo);
+				#end
 			
 		}
 		
+		#end
 		
 	}
 	
 	
 	private function dispatch ():Void {
 		
-		switch (eventInfo.type) {
-			
-			case RENDER:
-				
-				if (!Application.__initialized) {
-					
-					Application.__initialized = true;
-					Application.__instance.init (parent.context);
-					
-				}
-				
-				Application.__instance.render (parent.context);
-				Renderer.onRender.dispatch (parent.context);
-				
-				flip ();
-				
-			case RENDER_CONTEXT_LOST:
-				
-				parent.context = null;
-				
-				Renderer.onRenderContextLost.dispatch ();
-			
-			case RENDER_CONTEXT_RESTORED:
-				
-				#if lime_console
-					parent.context = CONSOLE (new ConsoleRenderContext ());
-				#else
-					parent.context = OPENGL (new GLRenderContext ());
-				#end
-				
-				Renderer.onRenderContextRestored.dispatch (parent.context);
-			
-		}
+		
 		
 	}
 	
 	
 	public function flip ():Void {
 		
+		if (!useHardware) {
+			
+			#if lime_cairo
+			if (cairo != null) {
+				
+				primarySurface.flush ();
+				
+			}
+			#end
+			lime_renderer_unlock (handle);
+			
+		}
+		
 		lime_renderer_flip (handle);
 		
 	}
 	
 	
-	public static function render ():Void {
+	public function render ():Void {
 		
-		eventInfo.type = RENDER;
+		lime_renderer_make_current (handle);
 		
-		for (window in Application.__instance.windows) {
+		if (!useHardware) {
 			
-			if (window.currentRenderer != null) {
+			#if lime_cairo
+			var lock = lime_renderer_lock (handle);
+			
+			if (cacheLock == null || cacheLock.pixels != lock.pixels || cacheLock.width != lock.width || cacheLock.height != lock.height) {
 				
-				window.currentRenderer.backend.dispatch ();
+				if (primarySurface != null) {
+					
+					primarySurface.destroy ();
+					
+				}
+				
+				primarySurface = CairoImageSurface.create (lock.pixels, CairoFormat.ARGB32, lock.width, lock.height, lock.pitch);
+				
+				if (cairo != null) {
+					
+					cairo.recreate (primarySurface);
+					
+				} else {
+					
+					cairo = new Cairo (primarySurface);
+					
+				}
 				
 			}
+			
+			cacheLock = lock;
+			#else
+			parent.context = NONE;
+			#end
 			
 		}
 		
@@ -124,43 +147,15 @@ class NativeRenderer {
 	
 	
 	
-	private static var lime_render_event_manager_register = System.load ("lime", "lime_render_event_manager_register", 2);
 	private static var lime_renderer_create = System.load ("lime", "lime_renderer_create", 1);
 	private static var lime_renderer_flip = System.load ("lime", "lime_renderer_flip", 1);
+	private static var lime_renderer_get_context = System.load ("lime", "lime_renderer_get_context", 1);
+	private static var lime_renderer_get_type = System.load ("lime", "lime_renderer_get_type", 1);
+	private static var lime_renderer_lock = System.load ("lime", "lime_renderer_lock", 1);
+	private static var lime_renderer_make_current = System.load ("lime", "lime_renderer_make_current", 1);
+	private static var lime_renderer_unlock = System.load ("lime", "lime_renderer_unlock", 1);
 	
 	
 }
 
 
-private class RenderEventInfo {
-	
-	
-	public var context:RenderContext;
-	public var type:RenderEventType;
-	
-	
-	public function new (type:RenderEventType = null, context:RenderContext = null) {
-		
-		this.type = type;
-		this.context = context;
-		
-	}
-	
-	
-	public function clone ():RenderEventInfo {
-		
-		return new RenderEventInfo (type, context);
-		
-	}
-	
-	
-}
-
-
-@:enum private abstract RenderEventType(Int) {
-	
-	var RENDER = 0;
-	var RENDER_CONTEXT_LOST = 1;
-	var RENDER_CONTEXT_RESTORED = 2;
-	
-}

@@ -10,6 +10,7 @@ import lime.graphics.Renderer;
 @:access(lime.app.Application)
 @:access(lime.graphics.opengl.GL)
 @:access(lime.graphics.Renderer)
+@:access(lime.ui.Window)
 
 
 class HTML5Renderer {
@@ -51,7 +52,7 @@ class HTML5Renderer {
 			
 		} else if (parent.window.backend.canvas != null) {
 			
-			#if canvas
+			#if (canvas || munit)
 			
 			var webgl = null;
 			
@@ -59,10 +60,10 @@ class HTML5Renderer {
 			
 			var options = {
 				alpha: true,
-				antialias: parent.window.config.antialiasing > 0,
-				depth: parent.window.config.depthBuffer,
+				antialias: Reflect.hasField (parent.window.config, "antialiasing") ? parent.window.config.antialiasing > 0 : false,
+				depth: Reflect.hasField (parent.window.config, "depthBuffer") ? parent.window.config.depthBuffer : true,
 				premultipliedAlpha: true,
-				stencil: parent.window.config.stencilBuffer,
+				stencil: Reflect.hasField (parent.window.config, "stencilBuffer") ? parent.window.config.stencilBuffer : true,
 				preserveDrawingBuffer: false
 			};
 			
@@ -110,13 +111,13 @@ class HTML5Renderer {
 				event.preventDefault ();
 				parent.context = null;
 				
-				Renderer.onRenderContextLost.dispatch ();
+				parent.onContextLost.dispatch ();
 				
 			case "webglcontextrestored":
 				
 				createContext ();
 				
-				Renderer.onRenderContextRestored.dispatch (parent.context);
+				parent.onContextRestored.dispatch (parent.context);
 			
 			default:
 			
@@ -125,38 +126,9 @@ class HTML5Renderer {
 	}
 	
 	
-	public static function render ():Void {
+	public function render ():Void {
 		
-		for (window in Application.__instance.windows) {
-			
-			if (window.currentRenderer != null) {
-				
-				window.currentRenderer.backend.renderEvent ();
-				
-			}
-			
-		}
 		
-		#if stats
-		Application.__instance.windows[0].stats.end ();
-		#end
-		
-	}
-	
-	
-	private function renderEvent ():Void {
-		
-		if (!Application.__initialized) {
-			
-			Application.__initialized = true;
-			Application.__instance.init (parent.context);
-			
-		}
-		
-		Application.__instance.render (parent.context);
-		Renderer.onRender.dispatch (parent.context);
-		
-		flip ();
 		
 	}
 	

@@ -1,17 +1,18 @@
 package lime.app;
 
 
+import lime.app.Event;
 import lime.Assets;
 
 #if (js && html5)
 import js.html.Image;
+import js.html.SpanElement;
 import js.Browser;
 import lime.net.URLLoader;
 import lime.net.URLRequest;
 #elseif flash
 import flash.display.LoaderInfo;
 import flash.display.Sprite;
-import flash.events.Event;
 import flash.events.ProgressEvent;
 import flash.Lib;
 #end
@@ -21,7 +22,8 @@ class Preloader #if flash extends Sprite #end {
 	
 	
 	public var complete:Bool;
-	public var onComplete:Dynamic;
+	public var onComplete = new Event<Void->Void> ();
+	public var onProgress = new Event<Int->Int->Void> ();
 	
 	#if (js && html5)
 	public static var images = new Map<String, Image> ();
@@ -39,6 +41,8 @@ class Preloader #if flash extends Sprite #end {
 			
 		#end
 		
+		onProgress.add (update);
+		
 	}
 	
 	
@@ -46,15 +50,12 @@ class Preloader #if flash extends Sprite #end {
 		
 		#if flash
 			
-			Lib.current.stage.align = flash.display.StageAlign.TOP_LEFT;
-			Lib.current.stage.scaleMode = flash.display.StageScaleMode.NO_SCALE;
-			
 			Lib.current.addChild (this);
 			
-			Lib.current.loaderInfo.addEventListener (Event.COMPLETE, loaderInfo_onComplete);
-			Lib.current.loaderInfo.addEventListener (Event.INIT, loaderInfo_onInit);
+			Lib.current.loaderInfo.addEventListener (flash.events.Event.COMPLETE, loaderInfo_onComplete);
+			Lib.current.loaderInfo.addEventListener (flash.events.Event.INIT, loaderInfo_onInit);
 			Lib.current.loaderInfo.addEventListener (ProgressEvent.PROGRESS, loaderInfo_onProgress);
-			Lib.current.addEventListener (Event.ENTER_FRAME, current_onEnter);
+			Lib.current.addEventListener (flash.events.Event.ENTER_FRAME, current_onEnter);
 			
 		#end
 		
@@ -133,50 +134,12 @@ class Preloader #if flash extends Sprite #end {
 	#if (js && html5)
 	private function loadFont (font:String):Void {
 		
-		var node = Browser.document.createElement ("span");
-		node.innerHTML = "giItT1WQy@!-/#";
-		var style = node.style;
-		style.position = "absolute";
-		style.left = "-10000px";
-		style.top = "-10000px";
-		style.fontSize = "300px";
-		style.fontFamily = "sans-serif";
-		style.fontVariant = "normal";
-		style.fontStyle = "normal";
-		style.fontWeight = "normal";
-		style.letterSpacing = "0";
-		Browser.document.body.appendChild (node);
-		
-		var width = node.offsetWidth;
-		style.fontFamily = "'" + font + "', sans-serif";
-		
-		var interval:Null<Int> = null;
-		var found = false;
-		
-		var checkFont = function () {
+		if (untyped (Browser.document).fonts && untyped (Browser.document).fonts.load) {
 			
-			if (node.offsetWidth != width) {
-				
-				// Test font was still not available yet, try waiting one more interval?
-				if (!found) {
-					
-					found = true;
-					return false;
-					
-				}
+			untyped (Browser.document).fonts.load ("1em '" + font + "'").then (function (_) {
 				
 				loaded ++;
-				
-				if (interval != null) {
-					
-					Browser.window.clearInterval (interval);
-					
-				}
-				
-				node.parentNode.removeChild (node);
-				node = null;
-				
-				update (loaded, total);
+				onProgress.dispatch (loaded, total);
 				
 				if (loaded == total) {
 					
@@ -184,17 +147,74 @@ class Preloader #if flash extends Sprite #end {
 					
 				}
 				
-				return true;
+			});
+			
+		} else {
+			
+			var node:SpanElement = cast Browser.document.createElement ("span");
+			node.innerHTML = "giItT1WQy@!-/#";
+			var style = node.style;
+			style.position = "absolute";
+			style.left = "-10000px";
+			style.top = "-10000px";
+			style.fontSize = "300px";
+			style.fontFamily = "sans-serif";
+			style.fontVariant = "normal";
+			style.fontStyle = "normal";
+			style.fontWeight = "normal";
+			style.letterSpacing = "0";
+			Browser.document.body.appendChild (node);
+			
+			var width = node.offsetWidth;
+			style.fontFamily = "'" + font + "', sans-serif";
+			
+			var interval:Null<Int> = null;
+			var found = false;
+			
+			var checkFont = function () {
+				
+				if (node.offsetWidth != width) {
+					
+					// Test font was still not available yet, try waiting one more interval?
+					if (!found) {
+						
+						found = true;
+						return false;
+						
+					}
+					
+					loaded ++;
+					
+					if (interval != null) {
+						
+						Browser.window.clearInterval (interval);
+						
+					}
+					
+					node.parentNode.removeChild (node);
+					node = null;
+					
+					onProgress.dispatch (loaded, total);
+					
+					if (loaded == total) {
+						
+						start ();
+						
+					}
+					
+					return true;
+					
+				}
+				
+				return false;
 				
 			}
 			
-			return false;
-			
-		}
-		
-		if (!checkFont ()) {
-			
-			interval = Browser.window.setInterval (checkFont, 50);
+			if (!checkFont ()) {
+				
+				interval = Browser.window.setInterval (checkFont, 50);
+				
+			}
 			
 		}
 		
@@ -204,6 +224,8 @@ class Preloader #if flash extends Sprite #end {
 	
 	private function start ():Void {
 		
+		complete = true;
+		
 		#if flash
 		if (Lib.current.contains (this)) {
 			
@@ -212,11 +234,7 @@ class Preloader #if flash extends Sprite #end {
 		}
 		#end
 		
-		if (onComplete != null) {
-			
-			onComplete ();
-			
-		}
+		onComplete.dispatch ();
 		
 	}
 	
@@ -240,7 +258,7 @@ class Preloader #if flash extends Sprite #end {
 		
 		loaded++;
 		
-		update (loaded, total);
+		onProgress.dispatch (loaded, total);
 		
 		if (loaded == total) {
 			
@@ -255,7 +273,7 @@ class Preloader #if flash extends Sprite #end {
 		
 		loaded++;
 		
-		update (loaded, total);
+		onProgress.dispatch (loaded, total);
 		
 		if (loaded == total) {
 			
@@ -268,13 +286,20 @@ class Preloader #if flash extends Sprite #end {
 	
 	
 	#if flash
-	private function current_onEnter (event:Event):Void {
+	private function current_onEnter (event:flash.events.Event):Void {
+		
+		if (!complete && Lib.current.loaderInfo.bytesLoaded == Lib.current.loaderInfo.bytesTotal) {
+			
+			complete = true;
+			onProgress.dispatch (Lib.current.loaderInfo.bytesLoaded, Lib.current.loaderInfo.bytesTotal);
+			
+		}
 		
 		if (complete) {
 			
-			Lib.current.removeEventListener (Event.ENTER_FRAME, current_onEnter);
-			Lib.current.loaderInfo.removeEventListener (Event.COMPLETE, loaderInfo_onComplete);
-			Lib.current.loaderInfo.removeEventListener (Event.INIT, loaderInfo_onInit);
+			Lib.current.removeEventListener (flash.events.Event.ENTER_FRAME, current_onEnter);
+			Lib.current.loaderInfo.removeEventListener (flash.events.Event.COMPLETE, loaderInfo_onComplete);
+			Lib.current.loaderInfo.removeEventListener (flash.events.Event.INIT, loaderInfo_onInit);
 			Lib.current.loaderInfo.removeEventListener (ProgressEvent.PROGRESS, loaderInfo_onProgress);
 			
 			start ();
@@ -287,21 +312,21 @@ class Preloader #if flash extends Sprite #end {
 	private function loaderInfo_onComplete (event:flash.events.Event):Void {
 		
 		complete = true;
-		update (Lib.current.loaderInfo.bytesLoaded, Lib.current.loaderInfo.bytesTotal);
+		onProgress.dispatch (Lib.current.loaderInfo.bytesLoaded, Lib.current.loaderInfo.bytesTotal);
 		
 	}
 	
 	
 	private function loaderInfo_onInit (event:flash.events.Event):Void {
 		
-		update (Lib.current.loaderInfo.bytesLoaded, Lib.current.loaderInfo.bytesTotal);
+		onProgress.dispatch (Lib.current.loaderInfo.bytesLoaded, Lib.current.loaderInfo.bytesTotal);
 		
 	}
 	
 	
 	private function loaderInfo_onProgress (event:flash.events.ProgressEvent):Void {
 		
-		update (Lib.current.loaderInfo.bytesLoaded, Lib.current.loaderInfo.bytesTotal);
+		onProgress.dispatch (Lib.current.loaderInfo.bytesLoaded, Lib.current.loaderInfo.bytesTotal);
 		
 	}
 	#end

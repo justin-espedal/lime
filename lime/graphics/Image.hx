@@ -3,6 +3,7 @@ package lime.graphics;
 
 import haxe.crypto.BaseCode;
 import haxe.io.Bytes;
+import haxe.io.BytesData;
 import haxe.io.BytesInput;
 import haxe.io.BytesOutput;
 import lime.app.Application;
@@ -11,9 +12,13 @@ import lime.graphics.format.JPEG;
 import lime.graphics.format.PNG;
 import lime.graphics.utils.ImageCanvasUtil;
 import lime.graphics.utils.ImageDataUtil;
+import lime.math.color.ARGB;
+import lime.math.color.BGRA;
+import lime.math.color.RGBA;
 import lime.math.ColorMatrix;
 import lime.math.Rectangle;
 import lime.math.Vector2;
+import lime.utils.ArrayBuffer;
 import lime.utils.ByteArray;
 import lime.utils.UInt8Array;
 import lime.system.System;
@@ -34,9 +39,13 @@ import format.png.Reader;
 import format.png.Tools;
 import format.png.Writer;
 import format.tools.Deflate;
-#if (sys || nodejs)
+#if sys
 import sys.io.File;
 #end
+#end
+
+#if lime_console
+import lime.graphics.console.TextureData;
 #end
 
 @:allow(lime.graphics.util.ImageCanvasUtil)
@@ -45,6 +54,8 @@ import sys.io.File;
 @:access(lime.math.ColorMatrix)
 @:access(lime.math.Rectangle)
 @:access(lime.math.Vector2)
+
+@:autoBuild(lime.Assets.embedImage())
 
 
 class Image {
@@ -56,6 +67,7 @@ class Image {
 	public var buffer:ImageBuffer;
 	public var data (get, set):UInt8Array;
 	public var dirty:Bool;
+	public var format (get, set):PixelFormat;
 	public var height:Int;
 	public var offsetX:Int;
 	public var offsetY:Int;
@@ -66,9 +78,11 @@ class Image {
 	public var transparent (get, set):Bool;
 	public var type:ImageType;
 	public var width:Int;
+	public var x:Float;
+	public var y:Float;
 	
 	
-	public function new (buffer:ImageBuffer = null, offsetX:Int = 0, offsetY:Int = 0, width:Int = 0, height:Int = 0, color:Null<Int> = null, type:ImageType = null) {
+	public function new (buffer:ImageBuffer = null, offsetX:Int = 0, offsetY:Int = 0, width:Int = -1, height:Int = -1, color:Null<Int> = null, type:ImageType = null) {
 		
 		this.offsetX = offsetX;
 		this.offsetY = offsetY;
@@ -77,9 +91,9 @@ class Image {
 		
 		if (type == null) {
 			
-			if (Application.__instance != null && Application.__instance.window != null && Application.__instance.window.currentRenderer != null) {
+			if (Application.current != null && Application.current.renderer != null) {
 				
-				this.type = switch (Application.__instance.window.currentRenderer.context) {
+				this.type = switch (Application.current.renderer.context) {
 					
 					case DOM (_), CANVAS (_): CANVAS;
 					case FLASH (_): FLASH;
@@ -130,7 +144,7 @@ class Image {
 						
 						#if flash
 						this.buffer = new ImageBuffer (null, width, height);
-						this.buffer.src = new BitmapData (width, height, true, color);
+						this.buffer.src = new BitmapData (width, height, true, ((color & 0xFF) << 24) | (color >> 8));
 						#end
 					
 					default:
@@ -150,12 +164,26 @@ class Image {
 	
 	public function clone ():Image {
 		
-		#if (js && html5)
-		ImageCanvasUtil.sync (this);
-		#end
-		
-		var image = new Image (buffer.clone (), offsetX, offsetY, width, height, null, type);
-		return image;
+		if (buffer != null) {
+			
+			if (type == CANVAS && buffer.__srcImage == null) {
+				
+				ImageCanvasUtil.convertToCanvas (this);
+				ImageCanvasUtil.sync (this);
+				buffer.data = null;
+				buffer.__srcImageData = null;
+				
+			}
+			
+			var image = new Image (buffer.clone (), offsetX, offsetY, width, height, null, type);
+			image.dirty = dirty;
+			return image;
+			
+		} else {
+			
+			return new Image (null, offsetX, offsetY, width, height, null, type);
+			
+		}
 		
 	}
 	
@@ -196,7 +224,7 @@ class Image {
 		sourceRect = __clipRect (sourceRect);
 		if (buffer == null || sourceRect == null) return;
 		
-		if (destChannel == ImageChannel.ALPHA && !transparent) return;
+		if (destChannel == ALPHA && !transparent) return;
 		if (sourceRect.width <= 0 || sourceRect.height <= 0) return;
 		if (sourceRect.x + sourceRect.width > sourceImage.width) sourceRect.width = sourceImage.width - sourceRect.x;
 		if (sourceRect.y + sourceRect.height > sourceImage.height) sourceRect.height = sourceImage.height - sourceRect.y;
@@ -245,11 +273,40 @@ class Image {
 	
 	public function copyPixels (sourceImage:Image, sourceRect:Rectangle, destPoint:Vector2, alphaImage:Image = null, alphaPoint:Vector2 = null, mergeAlpha:Bool = false):Void {
 		
+		//fast fails -- if source or destination is null or of 0 dimensions, do nothing
 		if (buffer == null || sourceImage == null) return;
+		if (sourceRect.width <= 0 || sourceRect.height <= 0) return;
+		if (width <= 0 || height <= 0) return;
 		
+		//source rect expands too far right or too far below source image boundaries
 		if (sourceRect.x + sourceRect.width > sourceImage.width) sourceRect.width = sourceImage.width - sourceRect.x;
 		if (sourceRect.y + sourceRect.height > sourceImage.height) sourceRect.height = sourceImage.height - sourceRect.y;
-		if (sourceRect.width <= 0 || sourceRect.height <= 0) return;
+		
+		//source rect starts too far left or too far above source image boundaries
+		if (sourceRect.x < 0) {
+			sourceRect.width += sourceRect.x;	//shrink width by amount off canvas
+			sourceRect.x = 0;					//clamp rect to 0
+		}
+		if (sourceRect.y < 0) {
+			sourceRect.height += sourceRect.y;	//shrink height by amount off canvas
+			sourceRect.y = 0;					//clamp rect to 0
+		}
+		
+		//draw area expands too far right or too far below destination image boundaries
+		if (destPoint.x + sourceRect.width > width) sourceRect.width = width - destPoint.x;
+		if (destPoint.y + sourceRect.height > height) sourceRect.height = height - destPoint.y;
+		
+		//draw area starts too far left or too far above destination image boundaries
+		if (destPoint.x < 0) {
+			sourceRect.width += destPoint.x;	//shrink width by amount off canvas
+			sourceRect.x = -destPoint.x;		//adjust source rect to effective starting point
+			destPoint.x = 0;					//clamp destination point to 0
+		}
+		if (destPoint.y < 0) {
+			sourceRect.height += destPoint.y;	//shrink height by amount off canvas
+			sourceRect.y = -destPoint.y;		//adjust source rect to effective starting point
+			destPoint.y = 0;					//clamp destination point to 0
+		}
 		
 		switch (type) {
 			
@@ -316,7 +373,7 @@ class Image {
 	}
 	
 	
-	public function fillRect (rect:Rectangle, color:Int):Void {
+	public function fillRect (rect:Rectangle, color:Int, format:PixelFormat = null):Void {
 		
 		rect = __clipRect (rect);
 		if (buffer == null || rect == null) return;
@@ -325,7 +382,7 @@ class Image {
 			
 			case CANVAS:
 				
-				ImageCanvasUtil.fillRect (this, rect, color);
+				ImageCanvasUtil.fillRect (this, rect, color, format);
 			
 			case DATA:
 				
@@ -333,12 +390,21 @@ class Image {
 				ImageCanvasUtil.convertToData (this);
 				#end
 				
-				ImageDataUtil.fillRect (this, rect, color);
+				ImageDataUtil.fillRect (this, rect, color, format);
 			
 			case FLASH:
 				
 				rect.offset (offsetX, offsetY);
-				buffer.__srcBitmapData.fillRect (rect.__toFlashRectangle (), color);
+				
+				var argb:ARGB = switch (format) {
+					
+					case ARGB32: color;
+					case BGRA32: (color:BGRA);
+					default: (color:RGBA);
+					
+				}
+				
+				buffer.__srcBitmapData.fillRect (rect.__toFlashRectangle (), argb);
 				
 			default:
 			
@@ -347,7 +413,7 @@ class Image {
 	}
 	
 	
-	public function floodFill (x:Int, y:Int, color:Int):Void {
+	public function floodFill (x:Int, y:Int, color:Int, format:PixelFormat = null):Void {
 		
 		if (buffer == null) return;
 		
@@ -355,7 +421,7 @@ class Image {
 			
 			case CANVAS:
 				
-				ImageCanvasUtil.floodFill (this, x, y, color);
+				ImageCanvasUtil.floodFill (this, x, y, color, format);
 			
 			case DATA:
 				
@@ -363,11 +429,19 @@ class Image {
 				ImageCanvasUtil.convertToData (this);
 				#end
 				
-				ImageDataUtil.floodFill (this, x, y, color);
+				ImageDataUtil.floodFill (this, x, y, color, format);
 			
 			case FLASH:
 				
-				buffer.__srcBitmapData.floodFill (x + offsetX, y + offsetY, color);
+				var argb:ARGB = switch (format) {
+					
+					case ARGB32: color;
+					case BGRA32: (color:BGRA);
+					default: (color:RGBA);
+					
+				}
+				
+				buffer.__srcBitmapData.floodFill (x + offsetX, y + offsetY, argb);
 			
 			default:
 			
@@ -378,6 +452,7 @@ class Image {
 	
 	public static function fromBase64 (base64:String, type:String, onload:Image -> Void):Image {
 		
+		if (base64 == null) return null;
 		var image = new Image ();
 		image.__fromBase64 (base64, type, onload);
 		return image;
@@ -387,6 +462,7 @@ class Image {
 	
 	public static function fromBitmapData (bitmapData:#if flash BitmapData #else Dynamic #end):Image {
 		
+		if (bitmapData == null) return null;
 		var buffer = new ImageBuffer (null, bitmapData.width, bitmapData.height);
 		buffer.__srcBitmapData = bitmapData;
 		return new Image (buffer);
@@ -396,6 +472,7 @@ class Image {
 	
 	public static function fromBytes (bytes:ByteArray, onload:Image -> Void = null):Image {
 		
+		if (bytes == null) return null;
 		var image = new Image ();
 		image.__fromBytes (bytes, onload);
 		return image;
@@ -405,6 +482,7 @@ class Image {
 	
 	public static function fromCanvas (canvas:#if (js && html5) CanvasElement #else Dynamic #end):Image {
 		
+		if (canvas == null) return null;
 		var buffer = new ImageBuffer (null, canvas.width, canvas.height);
 		buffer.src = canvas;
 		return new Image (buffer);
@@ -423,76 +501,14 @@ class Image {
 	
 	public static function fromImageElement (image:#if (js && html5) ImageElement #else Dynamic #end):Image {
 		
+		if (image == null) return null;
 		var buffer = new ImageBuffer (null, image.width, image.height);
 		buffer.src = image;
 		return new Image (buffer);
 		
 	}
 	
-	
-	public function getPixel (x:Int, y:Int):Int {
-		
-		if (buffer == null || x < 0 || y < 0 || x >= width || y >= height) return 0;
-		
-		switch (type) {
-			
-			case CANVAS:
-				
-				return ImageCanvasUtil.getPixel (this, x, y);
-			
-			case DATA:
-				
-				#if (js && html5)
-				ImageCanvasUtil.convertToData (this);
-				#end
-				
-				return ImageDataUtil.getPixel (this, x, y);
-			
-			case FLASH:
-				
-				return buffer.__srcBitmapData.getPixel (x + offsetX, y + offsetY);
-			
-			default:
-				
-				return 0;
-			
-		}
-		
-	}
-	
-	
-	public function getPixel32 (x:Int, y:Int):Int {
-		
-		if (buffer == null || x < 0 || y < 0 || x >= width || y >= height) return 0;
-		
-		switch (type) {
-			
-			case CANVAS:
-				
-				return ImageCanvasUtil.getPixel32 (this, x, y);
-			
-			case DATA:
-				
-				#if (js && html5)
-				ImageCanvasUtil.convertToData (this);
-				#end
-				
-				return ImageDataUtil.getPixel32 (this, x, y);
-				
-			case FLASH:
-				
-				return buffer.__srcBitmapData.getPixel32 (x + offsetX, y + offsetY);
-			
-			default:
-				
-				return 0;
-			
-		}
-		
-	}
-	
-	
-	public function getPixels (rect:Rectangle):ByteArray {
+	public function getColorBoundsRect (mask:Int, color:Int, findColor:Bool = true, format:PixelFormat = null):Rectangle {
 		
 		if (buffer == null) return null;
 		
@@ -500,7 +516,37 @@ class Image {
 			
 			case CANVAS:
 				
-				return ImageCanvasUtil.getPixels (this, rect);
+				#if (js && html5)
+				ImageCanvasUtil.convertToData (this);
+				#end
+				
+				return ImageDataUtil.getColorBoundsRect (this, mask, color, findColor, format);
+			
+			case DATA:
+				
+				return ImageDataUtil.getColorBoundsRect (this, mask, color, findColor, format);
+			
+			case FLASH:
+				
+				var rect = buffer.__srcBitmapData.getColorBoundsRect (mask, color, findColor);
+				return new Rectangle (rect.x, rect.y, rect.width, rect.height);
+			
+			default:
+				
+				return null;
+		}
+		
+	}
+	
+	public function getPixel (x:Int, y:Int, format:PixelFormat = null):Int {
+		
+		if (buffer == null || x < 0 || y < 0 || x >= width || y >= height) return 0;
+		
+		switch (type) {
+			
+			case CANVAS:
+				
+				return ImageCanvasUtil.getPixel (this, x, y, format);
 			
 			case DATA:
 				
@@ -508,12 +554,127 @@ class Image {
 				ImageCanvasUtil.convertToData (this);
 				#end
 				
-				return ImageDataUtil.getPixels (this, rect);
+				return ImageDataUtil.getPixel (this, x, y, format);
+			
+			case FLASH:
+				
+				var color:ARGB = buffer.__srcBitmapData.getPixel (x + offsetX, y + offsetY);
+				
+				switch (format) {
+					
+					case ARGB32: return color;
+					case BGRA32: var bgra:BGRA = color; return bgra;
+					default: var rgba:RGBA = color; return rgba;
+					
+				}
+			
+			default:
+				
+				return 0;
+			
+		}
+		
+	}
+	
+	
+	public function getPixel32 (x:Int, y:Int, format:PixelFormat = null):Int {
+		
+		if (buffer == null || x < 0 || y < 0 || x >= width || y >= height) return 0;
+		
+		switch (type) {
+			
+			case CANVAS:
+				
+				return ImageCanvasUtil.getPixel32 (this, x, y, format);
+			
+			case DATA:
+				
+				#if (js && html5)
+				ImageCanvasUtil.convertToData (this);
+				#end
+				
+				return ImageDataUtil.getPixel32 (this, x, y, format);
+				
+			case FLASH:
+				
+				var color:ARGB = buffer.__srcBitmapData.getPixel32 (x + offsetX, y + offsetY);
+				
+				switch (format) {
+					
+					case ARGB32: return color;
+					case BGRA32: var bgra:BGRA = color; return bgra;
+					default: var rgba:RGBA = color; return rgba;
+					
+				}
+			
+			default:
+				
+				return 0;
+			
+		}
+		
+	}
+	
+	
+	public function getPixels (rect:Rectangle, format:PixelFormat = null):ByteArray {
+		
+		if (buffer == null) return null;
+		
+		switch (type) {
+			
+			case CANVAS:
+				
+				return ImageCanvasUtil.getPixels (this, rect, format);
+			
+			case DATA:
+				
+				#if (js && html5)
+				ImageCanvasUtil.convertToData (this);
+				#end
+				
+				return ImageDataUtil.getPixels (this, rect, format);
 			
 			case FLASH:
 				
 				rect.offset (offsetX, offsetY);
-				return buffer.__srcBitmapData.getPixels (rect.__toFlashRectangle ());
+				var byteArray = buffer.__srcBitmapData.getPixels (rect.__toFlashRectangle ());
+				
+				switch (format) {
+					
+					case ARGB32: // do nothing
+					case BGRA32:
+						
+						var color:BGRA;
+						var length = Std.int (byteArray.length / 4);
+						
+						for (i in 0...length) {
+							
+							color = (byteArray.readUnsignedInt ():ARGB);
+							byteArray.position -= 4;
+							byteArray.writeUnsignedInt (color);
+							
+						}
+						
+						byteArray.position = 0;
+					
+					default:
+						
+						var color:RGBA;
+						var length = Std.int (byteArray.length / 4);
+						
+						for (i in 0...length) {
+							
+							color = (byteArray.readUnsignedInt ():ARGB);
+							byteArray.position -= 4;
+							byteArray.writeUnsignedInt (color);
+							
+						}
+						
+						byteArray.position = 0;
+					
+				}
+				
+				return cast byteArray;
 			
 			default:
 				
@@ -595,27 +756,29 @@ class Image {
 	}
 	
 	
-	public function setPixel (x:Int, y:Int, color:Int):Void {
+	public function scroll (x:Int, y:Int):Void {
 		
-		if (buffer == null || x < 0 || y < 0 || x >= width || y >= height) return;
+		if (buffer == null) return;
 		
 		switch (type) {
 			
 			case CANVAS:
 				
-				ImageCanvasUtil.setPixel (this, x, y, color);
+				ImageCanvasUtil.scroll (this, x, y);
 			
 			case DATA:
 				
-				#if (js && html5)
-				ImageCanvasUtil.convertToData (this);
-				#end
+				//#if (js && html5)
+				//ImageCanvasUtil.convertToData (this);
+				//#end
 				
-				ImageDataUtil.setPixel (this, x, y, color);
+				//ImageDataUtil.scroll (this, x, y);
+				
+				copyPixels (this, rect, new Vector2 (x, y));
 			
 			case FLASH:
 				
-				buffer.__srcBitmapData.setPixel (x + offsetX, y + offsetX, color);
+				buffer.__srcBitmapData.scroll (x + offsetX, y + offsetX);
 			
 			default:
 			
@@ -624,7 +787,7 @@ class Image {
 	}
 	
 	
-	public function setPixel32 (x:Int, y:Int, color:Int):Void {
+	public function setPixel (x:Int, y:Int, color:Int, format:PixelFormat = null):Void {
 		
 		if (buffer == null || x < 0 || y < 0 || x >= width || y >= height) return;
 		
@@ -632,7 +795,7 @@ class Image {
 			
 			case CANVAS:
 				
-				ImageCanvasUtil.setPixel32 (this, x, y, color);
+				ImageCanvasUtil.setPixel (this, x, y, color, format);
 			
 			case DATA:
 				
@@ -640,11 +803,19 @@ class Image {
 				ImageCanvasUtil.convertToData (this);
 				#end
 				
-				ImageDataUtil.setPixel32 (this, x, y, color);
+				ImageDataUtil.setPixel (this, x, y, color, format);
 			
 			case FLASH:
 				
-				buffer.__srcBitmapData.setPixel32 (x + offsetX, y + offsetY, color);
+				var argb:ARGB = switch (format) {
+					
+					case ARGB32: color;
+					case BGRA32: (color:BGRA);
+					default: (color:RGBA);
+					
+				}
+				
+				buffer.__srcBitmapData.setPixel (x + offsetX, y + offsetX, argb);
 			
 			default:
 			
@@ -653,7 +824,44 @@ class Image {
 	}
 	
 	
-	public function setPixels (rect:Rectangle, byteArray:ByteArray):Void {
+	public function setPixel32 (x:Int, y:Int, color:Int, format:PixelFormat = null):Void {
+		
+		if (buffer == null || x < 0 || y < 0 || x >= width || y >= height) return;
+		
+		switch (type) {
+			
+			case CANVAS:
+				
+				ImageCanvasUtil.setPixel32 (this, x, y, color, format);
+			
+			case DATA:
+				
+				#if (js && html5)
+				ImageCanvasUtil.convertToData (this);
+				#end
+				
+				ImageDataUtil.setPixel32 (this, x, y, color, format);
+			
+			case FLASH:
+				
+				var argb:ARGB = switch (format) {
+					
+					case ARGB32: color;
+					case BGRA32: (color:BGRA);
+					default: (color:RGBA);
+					
+				}
+				
+				buffer.__srcBitmapData.setPixel32 (x + offsetX, y + offsetY, argb);
+			
+			default:
+			
+		}
+		
+	}
+	
+	
+	public function setPixels (rect:Rectangle, byteArray:ByteArray, format:PixelFormat = null):Void {
 		
 		rect = __clipRect (rect);
 		if (buffer == null || rect == null) return;
@@ -662,7 +870,7 @@ class Image {
 			
 			case CANVAS:
 				
-				ImageCanvasUtil.setPixels (this, rect, byteArray);
+				ImageCanvasUtil.setPixels (this, rect, byteArray, format);
 			
 			case DATA:
 				
@@ -670,11 +878,59 @@ class Image {
 				ImageCanvasUtil.convertToData (this);
 				#end
 				
-				ImageDataUtil.setPixels (this, rect, byteArray);
+				ImageDataUtil.setPixels (this, rect, byteArray, format);
 			
 			case FLASH:
 				
 				rect.offset (offsetX, offsetY);
+				
+				switch (format) {
+					
+					case ARGB32: // do nothing
+					case BGRA32:
+						
+						var srcData = byteArray;
+						byteArray = new ByteArray ();
+						#if flash
+						byteArray.length = srcData.length;
+						#end
+						
+						var color:BGRA;
+						var length = Std.int (byteArray.length / 4);
+						
+						for (i in 0...length) {
+							
+							color = srcData.readUnsignedInt ();
+							byteArray.writeUnsignedInt (cast (color, ARGB));
+							
+						}
+						
+						srcData.position = 0;
+						byteArray.position = 0;
+					
+					default:
+						
+						var srcData = byteArray;
+						byteArray = new ByteArray ();
+						#if flash
+						byteArray.length = srcData.length;
+						#end
+						
+						var color:RGBA;
+						var length = Std.int (byteArray.length / 4);
+						
+						for (i in 0...length) {
+							
+							color = srcData.readUnsignedInt ();
+							byteArray.writeUnsignedInt (cast (color, ARGB));
+							
+						}
+						
+						srcData.position = 0;
+						byteArray.position = 0;
+					
+				}
+				
 				buffer.__srcBitmapData.setPixels (rect.__toFlashRectangle (), byteArray);
 			
 			default:
@@ -811,6 +1067,10 @@ class Image {
 			}
 			
 			__fromBase64 (__base64Encode (bytes), type, onload);
+
+		#elseif lime_console
+
+			throw "Image.fromBytes not implemented for console target";
 			
 		#elseif (cpp || neko || nodejs)
 			
@@ -818,7 +1078,7 @@ class Image {
 			
 			if (data != null) {
 				
-				__fromImageBuffer (new ImageBuffer (new UInt8Array (data.data), data.width, data.height, data.bpp));
+				__fromImageBuffer (new ImageBuffer (new UInt8Array (@:privateAccess new Bytes (data.data.length, data.data.b)), data.width, data.height, data.bitsPerPixel));
 				
 				if (onload != null) {
 					
@@ -878,21 +1138,72 @@ class Image {
 		#elseif (cpp || neko || nodejs || java)
 			
 			var buffer = null;
-				
-			#if (sys && (!disable_cffi || !format) && !java)
+
+			#if lime_console
+
+				var td = TextureData.fromFile (path);
+
+				if (td.valid) {
+
+					var w = td.width;
+					var h = td.height;
+					var data = new Array<cpp.UInt8> ();
+
+					#if 1
+
+						var size = w * h * 4;
+						cpp.NativeArray.setSize (data, size);
+
+						td.decode (cpp.Pointer.arrayElem (data, 0), size);
+/*	
+						{
+							var dest:cpp.Pointer<cpp.UInt32> = cast cpp.Pointer.arrayElem (data, 0);	
+							var src:cpp.Pointer<cpp.UInt32> = cast td.pointer;	
+							var n = w * h;
+							for (i in 0...n) {
+								dest[i] = src[i];
+							}
+						}
+*/
+						td.release ();
+
+					#else
+
+						// TODO(james4k): caveats here with every image
+						// pointing to the same piece of memory, and things may
+						// change with compressed textures. but, may be worth
+						// considering if game is hitting memory constraints.
+						// can we do this safely somehow? copy on write?
+						// probably too many people writing directly to the
+						// buffer...
+						cpp.NativeArray.setUnmanagedData (data, td.pointer, w*h*4);
+
+					#end
+
+					var array = new UInt8Array (ByteArray.fromBytes (Bytes.ofData (cast data)));
+					buffer = new ImageBuffer (array, w, h);
+					buffer.format = BGRA32;
+
+				}
+
+			#else
+			
+			if (#if (sys && (!disable_cffi || !format) && !java) true #else false #end && !System.disableCFFI) {
 				
 				var data = lime_image_load (path);
+				
 				if (data != null) {
-					var ba:ByteArray = cast(data.data, ByteArray);
-					#if nodejs
-					var u8a = ba.byteView;
-					#else
-					var u8a = new UInt8Array(ba);
-					#end
-					buffer = new ImageBuffer (u8a, data.width, data.height, data.bpp);
+					
+					var u8a = new UInt8Array (@:privateAccess new Bytes (data.data.length, data.data.b));
+					buffer = new ImageBuffer (u8a, data.width, data.height, data.bitsPerPixel);
+					
 				}
 				
-			#elseif format
+			}
+
+			#if format
+			
+			else {
 				
 				try {
 					
@@ -902,7 +1213,7 @@ class Image {
 					var data = Tools.extract32 (png);
 					var header = Tools.getHeader (png);
 					
-					var data = new UInt8Array (ByteArray.fromBytes (Bytes.ofData (data.getData ())));
+					var data = new UInt8Array (Bytes.ofData (data.getData ()));
 					var length = header.width * header.height;
 					var b, g, r, a;
 					
@@ -924,6 +1235,10 @@ class Image {
 					
 				} catch (e:Dynamic) {}
 				
+			}
+			
+			#end
+
 			#end
 			
 			if (buffer != null) {
@@ -953,13 +1268,13 @@ class Image {
 		
 		if (buffer != null) {
 			
-			if (width == 0) {
+			if (width == -1) {
 				
 				this.width = buffer.width;
 				
 			}
 			
-			if (height == 0) {
+			if (height == -1) {
 				
 				this.height = buffer.height;
 				
@@ -1015,12 +1330,13 @@ class Image {
 			#if (js && html5)
 				
 				ImageCanvasUtil.convertToCanvas (this);
+				ImageCanvasUtil.sync (this);
 				ImageCanvasUtil.createImageData (this);
 				
 			#elseif flash
 				
 				var pixels = buffer.__srcBitmapData.getPixels (buffer.__srcBitmapData.rect);
-				buffer.data = new UInt8Array (pixels);
+				buffer.data = new UInt8Array (Bytes.ofData (pixels));
 				
 			#end
 			
@@ -1034,6 +1350,34 @@ class Image {
 	private function set_data (value:UInt8Array):UInt8Array {
 		
 		return buffer.data = value;
+		
+	}
+	
+	
+	private function get_format ():PixelFormat {
+		
+		return buffer.format;
+		
+	}
+	
+	
+	private function set_format (value:PixelFormat):PixelFormat {
+		
+		if (buffer.format != value) {
+			
+			switch (type) {
+				
+				case DATA:
+					
+					ImageDataUtil.setFormat (this, value);
+				
+				default:
+				
+			}
+			
+		}
+		
+		return buffer.format = value;
 		
 	}
 	
@@ -1147,14 +1491,22 @@ class Image {
 	}
 	
 	
-	public function get_rect ():Rectangle {
+	private function get_rect ():Rectangle {
 		
 		return new Rectangle (0, 0, width, height);
 		
 	}
 	
 	
-	public function get_src ():Dynamic {
+	private function get_src ():Dynamic {
+		
+		#if (js && html5)
+		if (buffer.__srcCanvas == null) {
+			
+			ImageCanvasUtil.convertToCanvas (this);
+			
+		}
+		#end
 		
 		return buffer.src;
 		
@@ -1170,6 +1522,7 @@ class Image {
 	
 	private function get_transparent ():Bool {
 		
+		if (buffer == null) return false;
 		return buffer.transparent;
 		
 	}
@@ -1178,7 +1531,7 @@ class Image {
 	private function set_transparent (value:Bool):Bool {
 		
 		// TODO, modify data to set transparency
-		
+		if (buffer == null) return false;
 		return buffer.transparent = value;
 		
 	}
@@ -1196,15 +1549,5 @@ class Image {
 	private static var lime_image_load:Dynamic = System.load ("lime", "lime_image_load", 1);
 	#end
 	
-	
-}
-
-
-enum ImageChannel {
-	
-	RED;
-	GREEN;
-	BLUE;
-	ALPHA;
 	
 }

@@ -1,7 +1,12 @@
 #include "SDLApplication.h"
+#include "SDLGamepad.h"
 
 #ifdef HX_MACOS
 #include <CoreFoundation/CoreFoundation.h>
+#endif
+
+#ifdef EMSCRIPTEN
+#include "emscripten.h"
 #endif
 
 
@@ -9,28 +14,39 @@ namespace lime {
 	
 	
 	AutoGCRoot* Application::callback = 0;
-	
-	
-	double Application::GetTicks () {
-		
-		return SDL_GetTicks ();
-		
-	}
-	
+	SDLApplication* SDLApplication::currentApplication = 0;
+	std::map<int, std::map<int, int> > gamepadsAxisMap;
+	const int analogAxisDeadZone = 1000;
 	
 	SDLApplication::SDLApplication () {
 		
-		SDL_Init (SDL_INIT_VIDEO | SDL_INIT_TIMER);
+		if (SDL_Init (SDL_INIT_VIDEO | SDL_INIT_GAMECONTROLLER | SDL_INIT_TIMER | SDL_INIT_JOYSTICK) != 0) {
+			
+			printf ("Could not initialize SDL: %s.\n", SDL_GetError ());
+			
+		}
+		
+		currentApplication = this;
+		
+		framePeriod = 1000.0 / 60.0;
+		
+		#ifdef EMSCRIPTEN
+		emscripten_cancel_main_loop ();
+		emscripten_set_main_loop (UpdateFrame, 0, 0);
+		emscripten_set_main_loop_timing (EM_TIMING_RAF, 1);
+		#endif
 		
 		currentUpdate = 0;
 		lastUpdate = 0;
 		nextUpdate = 0;
 		
+		ApplicationEvent applicationEvent;
+		GamepadEvent gamepadEvent;
 		KeyEvent keyEvent;
 		MouseEvent mouseEvent;
 		RenderEvent renderEvent;
+		TextEvent textEvent;
 		TouchEvent touchEvent;
-		UpdateEvent updateEvent;
 		WindowEvent windowEvent;
 		
 		#ifdef HX_MACOS
@@ -60,6 +76,12 @@ namespace lime {
 		
 		Init ();
 		
+		#ifdef EMSCRIPTEN
+		
+		return 0;
+		
+		#else
+		
 		while (active) {
 			
 			Update ();
@@ -67,6 +89,8 @@ namespace lime {
 		}
 		
 		return Quit ();
+		
+		#endif
 		
 	}
 	
@@ -78,7 +102,8 @@ namespace lime {
 			case SDL_USEREVENT:
 				
 				currentUpdate = SDL_GetTicks ();
-				updateEvent.deltaTime = currentUpdate - lastUpdate;
+				applicationEvent.type = UPDATE;
+				applicationEvent.deltaTime = currentUpdate - lastUpdate;
 				lastUpdate = currentUpdate;
 				
 				while (nextUpdate <= currentUpdate) {
@@ -87,8 +112,36 @@ namespace lime {
 					
 				}
 				
-				UpdateEvent::Dispatch (&updateEvent);
+				ApplicationEvent::Dispatch (&applicationEvent);
 				RenderEvent::Dispatch (&renderEvent);
+				break;
+			
+			case SDL_APP_WILLENTERBACKGROUND:
+				
+				windowEvent.type = WINDOW_DEACTIVATE;
+				WindowEvent::Dispatch (&windowEvent);
+				break;
+			
+			case SDL_APP_WILLENTERFOREGROUND:
+				
+				windowEvent.type = WINDOW_ACTIVATE;
+				WindowEvent::Dispatch (&windowEvent);
+				break;
+			
+			case SDL_CONTROLLERAXISMOTION:
+			case SDL_CONTROLLERBUTTONDOWN:
+			case SDL_CONTROLLERBUTTONUP:
+			case SDL_CONTROLLERDEVICEADDED:
+			case SDL_CONTROLLERDEVICEREMOVED:
+				
+				ProcessGamepadEvent (event);
+				break;
+			
+			case SDL_FINGERMOTION:
+			case SDL_FINGERDOWN:
+			case SDL_FINGERUP:
+				
+				ProcessTouchEvent (event);
 				break;
 			
 			case SDL_JOYAXISMOTION:
@@ -116,15 +169,25 @@ namespace lime {
 				ProcessMouseEvent (event);
 				break;
 			
+			case SDL_TEXTINPUT:
+			case SDL_TEXTEDITING:
+				
+				ProcessTextEvent (event);
+				break;
+			
 			case SDL_WINDOWEVENT:
 				
 				switch (event->window.event) {
 					
+					case SDL_WINDOWEVENT_ENTER:
+					case SDL_WINDOWEVENT_LEAVE:
 					case SDL_WINDOWEVENT_SHOWN:
 					case SDL_WINDOWEVENT_HIDDEN:
 					case SDL_WINDOWEVENT_FOCUS_GAINED:
 					case SDL_WINDOWEVENT_FOCUS_LOST:
+					case SDL_WINDOWEVENT_MINIMIZED:
 					case SDL_WINDOWEVENT_MOVED:
+					case SDL_WINDOWEVENT_RESTORED:
 						
 						ProcessWindowEvent (event);
 						break;
@@ -143,7 +206,6 @@ namespace lime {
 					case SDL_WINDOWEVENT_CLOSE:
 						
 						ProcessWindowEvent (event);
-						active = false;
 						break;
 					
 				}
@@ -152,7 +214,6 @@ namespace lime {
 			
 			case SDL_QUIT:
 				
-				//quit
 				active = false;
 				break;
 			
@@ -161,12 +222,102 @@ namespace lime {
 	}
 	
 	
-	void SDLApplication::Init() {
+	void SDLApplication::Init () {
 		
-		framePeriod = 1000.0 / 60.0;
 		active = true;
 		lastUpdate = SDL_GetTicks ();
 		nextUpdate = lastUpdate;
+		
+	}
+	
+	
+	void SDLApplication::ProcessGamepadEvent (SDL_Event* event) {
+		
+		if (GamepadEvent::callback) {
+			
+			switch (event->type) {
+				
+				case SDL_CONTROLLERAXISMOTION:
+					
+					if (gamepadsAxisMap[event->caxis.which].empty ()) {
+						
+						gamepadsAxisMap[event->caxis.which][event->caxis.axis] = event->caxis.value;
+						
+					} else if (gamepadsAxisMap[event->caxis.which][event->caxis.axis] == event->caxis.value) {
+							
+						break;
+						
+					}
+					
+					gamepadEvent.type = AXIS_MOVE;
+					gamepadEvent.axis = event->caxis.axis;
+					gamepadEvent.id = event->caxis.which;
+					
+					if (event->caxis.value > -analogAxisDeadZone && event->caxis.value < analogAxisDeadZone) {
+						
+						if (gamepadsAxisMap[event->caxis.which][event->caxis.axis] != 0) {
+							
+							gamepadsAxisMap[event->caxis.which][event->caxis.axis] = 0;
+							gamepadEvent.axisValue = 0;
+							GamepadEvent::Dispatch (&gamepadEvent);
+							
+						}
+						
+						break;
+						
+					}
+					
+					gamepadsAxisMap[event->caxis.which][event->caxis.axis] = event->caxis.value;
+					gamepadEvent.axisValue = event->caxis.value / (event->caxis.value>0?32767.0:32768.0);
+					
+					GamepadEvent::Dispatch (&gamepadEvent);
+					break;
+				
+				case SDL_CONTROLLERBUTTONDOWN:
+					
+					gamepadEvent.type = BUTTON_DOWN;
+					gamepadEvent.button = event->cbutton.button;
+					gamepadEvent.id = event->cbutton.which;
+					
+					GamepadEvent::Dispatch (&gamepadEvent);
+					break;
+				
+				case SDL_CONTROLLERBUTTONUP:
+					
+					gamepadEvent.type = BUTTON_UP;
+					gamepadEvent.button = event->cbutton.button;
+					gamepadEvent.id = event->cbutton.which;
+					
+					GamepadEvent::Dispatch (&gamepadEvent);
+					break;
+				
+				case SDL_CONTROLLERDEVICEADDED:
+					
+					if (SDLGamepad::Connect (event->cdevice.which)) {
+						
+						gamepadEvent.type = CONNECT;
+						gamepadEvent.id = SDLGamepad::GetInstanceID (event->cdevice.which);
+						
+						GamepadEvent::Dispatch (&gamepadEvent);
+						
+					}
+					
+					break;
+				
+				case SDL_CONTROLLERDEVICEREMOVED: {
+					
+					gamepadEvent.type = DISCONNECT;
+					gamepadEvent.id = event->cdevice.which;
+					
+					GamepadEvent::Dispatch (&gamepadEvent);
+					SDLGamepad::Disconnect (event->cdevice.which);
+					break;
+					
+				}
+				
+			}
+			
+		}
 		
 	}
 	
@@ -184,6 +335,7 @@ namespace lime {
 			
 			keyEvent.keyCode = event->key.keysym.sym;
 			keyEvent.modifier = event->key.keysym.mod;
+			keyEvent.windowID = event->key.windowID;
 			
 			KeyEvent::Dispatch (&keyEvent);
 			
@@ -198,27 +350,71 @@ namespace lime {
 			
 			switch (event->type) {
 				
-				case SDL_MOUSEMOTION: mouseEvent.type = MOUSE_MOVE; break;
-				case SDL_MOUSEBUTTONDOWN: mouseEvent.type = MOUSE_DOWN; break;
-				case SDL_MOUSEBUTTONUP: mouseEvent.type = MOUSE_UP; break;
-				case SDL_MOUSEWHEEL: mouseEvent.type = MOUSE_WHEEL; break;
+				case SDL_MOUSEMOTION:
+					
+					mouseEvent.type = MOUSE_MOVE;
+					mouseEvent.x = event->motion.x;
+					mouseEvent.y = event->motion.y;
+					mouseEvent.movementX = event->motion.xrel;
+					mouseEvent.movementY = event->motion.yrel;
+					break;
+				
+				case SDL_MOUSEBUTTONDOWN:
+					
+					mouseEvent.type = MOUSE_DOWN;
+					mouseEvent.button = event->button.button - 1;
+					mouseEvent.x = event->button.x;
+					mouseEvent.y = event->button.y;
+					break;
+				
+				case SDL_MOUSEBUTTONUP:
+					
+					mouseEvent.type = MOUSE_UP;
+					mouseEvent.button = event->button.button - 1;
+					mouseEvent.x = event->button.x;
+					mouseEvent.y = event->button.y;
+					break;
+				
+				case SDL_MOUSEWHEEL:
+					
+					mouseEvent.type = MOUSE_WHEEL;
+					mouseEvent.x = event->wheel.x;
+					mouseEvent.y = event->wheel.y;
+					break;
 				
 			}
 			
-			if (event->type != SDL_MOUSEWHEEL) {
-				
-				mouseEvent.button = event->button.button - 1;
-				mouseEvent.x = event->button.x;
-				mouseEvent.y = event->button.y;
-				
-			} else {
-				
-				mouseEvent.x = event->wheel.x;
-				mouseEvent.y = event->wheel.y;
-				
-			}
-			
+			mouseEvent.windowID = event->button.windowID;
 			MouseEvent::Dispatch (&mouseEvent);
+			
+		}
+		
+	}
+	
+	
+	void SDLApplication::ProcessTextEvent (SDL_Event* event) {
+		
+		if (TextEvent::callback) {
+			
+			switch (event->type) {
+				
+				case SDL_TEXTINPUT:
+					
+					textEvent.type = TEXT_INPUT;
+					break;
+				
+				case SDL_TEXTEDITING:
+					
+					textEvent.type = TEXT_EDIT;
+					textEvent.start = event->edit.start;
+					textEvent.length = event->edit.length;
+					break;
+				
+			}
+			
+			strcpy (textEvent.text, event->text.text);
+			textEvent.windowID = event->text.windowID;
+			TextEvent::Dispatch (&textEvent);
 			
 		}
 		
@@ -227,7 +423,38 @@ namespace lime {
 	
 	void SDLApplication::ProcessTouchEvent (SDL_Event* event) {
 		
-		
+		if (TouchEvent::callback) {
+			
+			switch (event->type) {
+				
+				case SDL_FINGERMOTION:
+					
+					touchEvent.type = TOUCH_MOVE;
+					break;
+				
+				case SDL_FINGERDOWN:
+					
+					touchEvent.type = TOUCH_START;
+					break;
+				
+				case SDL_FINGERUP:
+					
+					touchEvent.type = TOUCH_END;
+					break;
+				
+			}
+			
+			touchEvent.x = event->tfinger.x;
+			touchEvent.y = event->tfinger.y;
+			touchEvent.id = event->tfinger.fingerId;
+			touchEvent.dx = event->tfinger.dx;
+			touchEvent.dy = event->tfinger.dy;
+			touchEvent.pressure = event->tfinger.pressure;
+			touchEvent.device = event->tfinger.touchId;
+			
+			TouchEvent::Dispatch (&touchEvent);
+			
+		}
 		
 	}
 	
@@ -241,8 +468,11 @@ namespace lime {
 				case SDL_WINDOWEVENT_SHOWN: windowEvent.type = WINDOW_ACTIVATE; break;
 				case SDL_WINDOWEVENT_CLOSE: windowEvent.type = WINDOW_CLOSE; break;
 				case SDL_WINDOWEVENT_HIDDEN: windowEvent.type = WINDOW_DEACTIVATE; break;
+				case SDL_WINDOWEVENT_ENTER: windowEvent.type = WINDOW_ENTER; break;
 				case SDL_WINDOWEVENT_FOCUS_GAINED: windowEvent.type = WINDOW_FOCUS_IN; break;
 				case SDL_WINDOWEVENT_FOCUS_LOST: windowEvent.type = WINDOW_FOCUS_OUT; break;
+				case SDL_WINDOWEVENT_LEAVE: windowEvent.type = WINDOW_LEAVE; break;
+				case SDL_WINDOWEVENT_MINIMIZED: windowEvent.type = WINDOW_MINIMIZE; break;
 				
 				case SDL_WINDOWEVENT_MOVED:
 					
@@ -258,8 +488,11 @@ namespace lime {
 					windowEvent.height = event->window.data2;
 					break;
 				
+				case SDL_WINDOWEVENT_RESTORED: windowEvent.type = WINDOW_RESTORE; break;
+				
 			}
 			
+			windowEvent.windowID = event->window.windowID;
 			WindowEvent::Dispatch (&windowEvent);
 			
 		}
@@ -269,12 +502,36 @@ namespace lime {
 	
 	int SDLApplication::Quit () {
 		
-		windowEvent.type = WINDOW_DEACTIVATE;
-		WindowEvent::Dispatch (&windowEvent);
+		applicationEvent.type = EXIT;
+		ApplicationEvent::Dispatch (&applicationEvent);
 		
 		SDL_Quit ();
 		
 		return 0;
+		
+	}
+	
+	
+	void SDLApplication::RegisterWindow (SDLWindow *window) {
+		
+		#ifdef IPHONE
+		SDL_iPhoneSetAnimationCallback (window->sdlWindow, 1, UpdateFrame, NULL);
+		#endif
+		
+	}
+	
+	
+	void SDLApplication::SetFrameRate (double frameRate) {
+		
+		if (frameRate > 0) {
+			
+			framePeriod = 1000.0 / frameRate;
+			
+		} else {
+			
+			framePeriod = 1000.0;
+			
+		}
 		
 	}
 	
@@ -309,6 +566,8 @@ namespace lime {
 		SDL_Event event;
 		event.type = -1;
 		
+		#if (!defined (IPHONE) && !defined (EMSCRIPTEN))
+		
 		if (active && (firstTime || SDL_WaitEvent (&event))) {
 			
 			firstTime = false;
@@ -318,14 +577,36 @@ namespace lime {
 			if (!active)
 				return active;
 			
-			if (SDL_PollEvent (&event)) {
+		#endif
+			
+			while (SDL_PollEvent (&event)) {
 				
 				HandleEvent (&event);
 				event.type = -1;
+				if (!active)
+					return active;
 				
 			}
 			
 			currentUpdate = SDL_GetTicks ();
+			
+		#if defined (IPHONE)
+			
+			if (currentUpdate >= nextUpdate) {
+				
+				event.type = SDL_USEREVENT;
+				HandleEvent (&event);
+				event.type = -1;
+				
+			}
+		
+		#elif defined (EMSCRIPTEN)
+			
+			event.type = SDL_USEREVENT;
+			HandleEvent (&event);
+			event.type = -1;
+		
+		#else
 			
 			if (currentUpdate >= nextUpdate) {
 				
@@ -341,7 +622,23 @@ namespace lime {
 			
 		}
 		
+		#endif
+		
 		return active;
+		
+	}
+	
+	
+	void SDLApplication::UpdateFrame () {
+		
+		currentApplication->Update ();
+		
+	}
+	
+	
+	void SDLApplication::UpdateFrame (void*) {
+		
+		UpdateFrame ();
 		
 	}
 	

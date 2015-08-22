@@ -34,3 +34,12 @@
 [submodule "project/lib/openal-android"]
 	path = project/lib/openal-android
 	url = https://github.com/native-toolkit/openal-android
+[submodule "project/lib/cairo"]
+	path = project/lib/cairo
+	url = https://github.com/native-toolkit/cairo
+[submodule "project/lib/pixman"]
+	path = project/lib/pixman
+	url = https://github.com/native-toolkit/pixman
+[submodule "project/lib/lzma"]
+	path = project/lib/lzma
+	url = https://github.com/native-toolkit/lzma

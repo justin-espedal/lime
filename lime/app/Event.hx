@@ -51,17 +51,15 @@ class Event<T> {
 			
 			var listeners = $ethis.listeners;
 			var repeat = $ethis.repeat;
-			var length = listeners.length;
 			var i = 0;
 			
-			while (i < length) {
+			while (i < listeners.length) {
 				
 				listeners[i] ($a{args});
 				
 				if (!repeat[i]) {
 					
 					$ethis.remove (listeners[i]);
-					length--;
 					
 				} else {
 					
@@ -76,15 +74,32 @@ class Event<T> {
 	}
 	
 	
+	public function has (listener:T):Bool {
+		
+		for (l in listeners) {
+			
+			if (Reflect.compareMethods (l, listener)) return true;
+			
+		}
+		
+		return false;
+		
+	}
+	
+	
 	public function remove (listener:T):Void {
 		
-		var index = listeners.indexOf (listener);
+		var i = listeners.length;
 		
-		if (index > -1) {
+		while (--i >= 0) {
 			
-			listeners.splice (index, 1);
-			priorities.splice (index, 1);
-			repeat.splice (index, 1);
+			if (Reflect.compareMethods (listeners[i], listener)) {
+				
+				listeners.splice (i, 1);
+				priorities.splice (i, 1);
+				repeat.splice (i, 1);
+				
+			}
 			
 		}
 		

@@ -2,7 +2,7 @@
 #define LIME_GRAPHICS_OPENGL_OPENGL_H
 
 
-#if defined (BLACKBERRY) || defined (ANDROID) || defined (WEBOS) || defined (GPH) || defined (RASPBERRYPI) || defined (EMSCRIPTEN)
+#if defined (BLACKBERRY) || defined (ANDROID) || defined (WEBOS) || defined (GPH) || defined (EMSCRIPTEN)
 
 #define LIME_GLES
 #include <GLES2/gl2.h>
@@ -60,6 +60,7 @@
 #include <gl/GL.h>
 typedef ptrdiff_t GLsizeiptrARB;
 #define NEED_EXTENSIONS
+#define DYNAMIC_OGL
 #include <SDL_opengl.h>
 #include <SDL_opengl_glext.h>
 

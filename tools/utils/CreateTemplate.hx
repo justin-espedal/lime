@@ -1,12 +1,14 @@
 package utils;
 
 
-import helpers.FileHelper;
-import helpers.LogHelper;
-import helpers.PathHelper;
-import project.Haxelib;
-import project.HXProject;
+import lime.tools.helpers.FileHelper;
+import lime.tools.helpers.LogHelper;
+import lime.tools.helpers.PathHelper;
+import lime.project.Haxelib;
+import lime.project.HXProject;
 import sys.FileSystem;
+
+@:access(lime.project.HXProject)
 
 
 class CreateTemplate {
@@ -75,7 +77,7 @@ class CreateTemplate {
 	}
 	
 	
-	public static function createProject (words:Array <String>, userDefines:Map<String, Dynamic>):Void {
+	public static function createProject (words:Array <String>, userDefines:Map<String, Dynamic>, overrides:HXProject):Void {
 		
 		var colonIndex = words[0].indexOf (":");
 		
@@ -138,22 +140,6 @@ class CreateTemplate {
 			
 			if (project != null) {
 				
-				var id = [ "com", "sample", "project" ];
-				
-				/*if (colonIndex != -1 && words.length > 1 || ) {
-					
-					var name = words[1];
-					name = new EReg ("[^a-zA-Z0-9.]", "g").replace (name, "");
-					id = name.split (".");
-					
-					if (id.length < 3) {
-						
-						id = [ "com", "example" ].concat (id);
-						
-					}
-					
-				}*/
-				
 				var company = "Company Name";
 				
 				/*if (words.length > 2) {
@@ -194,13 +180,66 @@ class CreateTemplate {
 					
 				}
 				
+				var file = StringTools.replace (title, " ", "");
+				
+				var id = [ "com", "sample", file.toLowerCase () ];
+				
+				/*if (colonIndex != -1 && words.length > 1 || ) {
+					
+					var name = words[1];
+					name = new EReg ("[^a-zA-Z0-9.]", "g").replace (name, "");
+					id = name.split (".");
+					
+					if (id.length < 3) {
+						
+						id = [ "com", "example" ].concat (id);
+						
+					}
+					
+				}*/
+				
 				var packageName = id.join (".").toLowerCase ();
+				var version = "1.0.0";
+				
+				if (overrides != null) {
+					
+					if (overrides.meta.packageName != overrides.defaultMeta.packageName) {
+						
+						packageName = overrides.meta.packageName;
+						
+					}
+					
+					if (overrides.meta.title != overrides.defaultMeta.title) {
+						
+						title = overrides.meta.title;
+						
+					}
+					
+					if (overrides.meta.version != overrides.defaultMeta.version) {
+						
+						version = overrides.meta.version;
+						
+					}
+					
+					if (overrides.meta.company != overrides.defaultMeta.company) {
+						
+						company = overrides.meta.company;
+						
+					}
+					
+					if (overrides.app.file != overrides.defaultApp.file) {
+						
+						file = overrides.app.file;
+						
+					}
+					
+				}
 				
 				context.title = title;
 				context.packageName = packageName;
-				context.version = "1.0.0";
+				context.version = version;
 				context.company = company;
-				context.file = StringTools.replace (title, " ", "");
+				context.file = file;
 				
 				for (define in userDefines.keys ()) {
 					
@@ -375,6 +414,7 @@ class CreateTemplate {
 					for (samplePath in samplePaths) {
 						
 						var path = PathHelper.tryFullPath (samplePath);
+						if (!FileSystem.exists (path)) continue;
 						
 						for (name in FileSystem.readDirectory (path)) {
 							
@@ -412,14 +452,22 @@ class CreateTemplate {
 		
 		LogHelper.println ("\x1b[1mYou must specify a template when using the 'create' command.\x1b[0m");
 		LogHelper.println ("");
-		LogHelper.println (" " + LogHelper.accentColor + "Usage:\x1b[0m \x1b[1m" + CommandLineTools.commandName + "\x1b[0m create extension \"ExtensionName\"");
-		LogHelper.println (" " + LogHelper.accentColor + "Usage:\x1b[0m \x1b[1m" + CommandLineTools.commandName + "\x1b[0m create " + projectName + " project \x1b[3;37m\"OutputDirectory\"\x1b[0m");
-		LogHelper.println (" " + LogHelper.accentColor + "Usage:\x1b[0m \x1b[1m" + CommandLineTools.commandName + "\x1b[0m create " + projectName + " (sample) \x1b[3;37m\"OutputDirectory\"\x1b[0m");
+		
+		if (projectName == CommandLineTools.commandName) {
+			
+			LogHelper.println (" " + LogHelper.accentColor + "Usage:\x1b[0m \x1b[1m" + CommandLineTools.commandName + "\x1b[0m create project (directory)");
+			LogHelper.println (" " + LogHelper.accentColor + "Usage:\x1b[0m \x1b[1m" + CommandLineTools.commandName + "\x1b[0m create extension (directory)");
+			
+		}
+		
+		LogHelper.println (" " + LogHelper.accentColor + "Usage:\x1b[0m \x1b[1m" + CommandLineTools.commandName + "\x1b[0m create " + (projectName != CommandLineTools.commandName ? projectName : "") + "<sample> (directory)");
+		
+		
 		
 		if (templates.length > 0) {
 			
 			LogHelper.println ("");
-			LogHelper.println (" " + LogHelper.accentColor + "Available Samples:\x1b[0m");
+			LogHelper.println (" " + LogHelper.accentColor + "Available samples:\x1b[0m");
 			LogHelper.println ("");
 			
 			for (template in templates) {

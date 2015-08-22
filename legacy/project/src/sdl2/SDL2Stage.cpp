@@ -268,7 +268,7 @@ public:
       }
       mPrimarySurface->IncRef();
      
-      #if defined(WEBOS) || defined(BLACKBERRY)
+      #if defined(WEBOS) || defined(BLACKBERRY) || defined(HX_LINUX) || defined(HX_WINDOWS)
       mMultiTouch = true;
       #else
       mMultiTouch = false;
@@ -363,7 +363,7 @@ public:
             mode.h = sgDesktopHeight;
             SDL_SetWindowDisplayMode(mSDLWindow, &mode);
             
-            SDL_SetWindowFullscreen(mSDLWindow, SDL_WINDOW_FULLSCREEN /*SDL_WINDOW_FULLSCREEN_DESKTOP*/);
+            SDL_SetWindowFullscreen(mSDLWindow, SDL_WINDOW_FULLSCREEN_DESKTOP /*SDL_WINDOW_FULLSCREEN_DESKTOP*/);
          }
          else
          {
@@ -392,7 +392,7 @@ public:
       mode.h = inHeight;
       SDL_SetWindowFullscreen(mSDLWindow, 0);
       SDL_SetWindowDisplayMode(mSDLWindow, &mode);
-      SDL_SetWindowFullscreen(mSDLWindow, SDL_WINDOW_FULLSCREEN);
+      SDL_SetWindowFullscreen(mSDLWindow, SDL_WINDOW_FULLSCREEN_DESKTOP);
    }
    
 
@@ -519,7 +519,7 @@ public:
       }
       SDL_SetWindowFullscreen(mSDLWindow, 0);
       SDL_SetWindowDisplayMode(mSDLWindow, &mode);
-      SDL_SetWindowFullscreen(mSDLWindow, SDL_WINDOW_FULLSCREEN);
+      SDL_SetWindowFullscreen(mSDLWindow, SDL_WINDOW_FULLSCREEN_DESKTOP);
    }
     
    
@@ -534,7 +534,7 @@ public:
          inEvent.type = etQuit;
       }
       #endif
-      
+
       #if defined(WEBOS) || defined(BLACKBERRY)
       if (inEvent.type == etMouseMove || inEvent.type == etMouseDown || inEvent.type == etMouseUp)
       {
@@ -682,8 +682,8 @@ public:
    
    
    bool getMultitouchSupported()
-   { 
-      #if defined(WEBOS) || defined(BLACKBERRY)
+   {
+      #if defined(WEBOS) || defined(BLACKBERRY) || defined(HX_LINUX) || defined(HX_WINDOWS)
       return true;
       #else
       return false;
@@ -696,7 +696,7 @@ public:
    
    bool getMultitouchActive()
    {
-      #if defined(WEBOS) || defined(BLACKBERRY)
+      #if defined(WEBOS) || defined(BLACKBERRY) || defined(HX_LINUX) || defined(HX_WINDOWS)
       return mMultiTouch;
       #else
       return false;
@@ -1259,6 +1259,30 @@ void ProcessEvent(SDL_Event &inEvent)
          sgSDLFrame->ProcessEvent(mouse);
          break;
       }
+      case SDL_FINGERMOTION:
+      {
+         SDL_TouchFingerEvent inFingerEvent = inEvent.tfinger;
+         Event finger(etTouchMove, inFingerEvent.x, inFingerEvent.y, 0, 0, 0, 1.0f, 1.0f, inFingerEvent.dx, inFingerEvent.dy);
+         finger.value = inFingerEvent.fingerId;
+         sgSDLFrame->ProcessEvent(finger);
+         break;
+      }
+      case SDL_FINGERDOWN:
+      {
+         SDL_TouchFingerEvent inFingerEvent = inEvent.tfinger;
+         Event finger(etTouchBegin, inFingerEvent.x, inFingerEvent.y);
+         finger.value = inFingerEvent.fingerId;
+         sgSDLFrame->ProcessEvent(finger);
+         break;
+      }
+      case SDL_FINGERUP:
+      {
+         SDL_TouchFingerEvent inFingerEvent = inEvent.tfinger;
+         Event finger(etTouchEnd, inFingerEvent.x, inFingerEvent.y);
+         finger.value = inFingerEvent.fingerId;
+         sgSDLFrame->ProcessEvent(finger);
+         break;
+      }
       case SDL_KEYDOWN:
       case SDL_KEYUP:
       {
@@ -1360,9 +1384,9 @@ void ProcessEvent(SDL_Event &inEvent)
          int joyId = -1;
          for (int i = 0; i < sgJoysticksId.size(); i++)
          {
-            if (sgJoysticksIndex[i] == i)
+            if (sgJoysticksIndex[i] == inEvent.jdevice.which)
             {
-               joyId = i;
+               joyId = inEvent.jdevice.which;
                break;
             }
          }
@@ -1371,6 +1395,36 @@ void ProcessEvent(SDL_Event &inEvent)
             Event joystick(etJoyDeviceAdded);
             sgJoystick = SDL_JoystickOpen(inEvent.jdevice.which); //which: joystick device index
             joystick.id = SDL_JoystickInstanceID(sgJoystick);
+            //get string id
+            const char * gamepadstring = SDL_JoystickName(sgJoystick);
+            if (strcmp (gamepadstring, "PLAYSTATION(R)3 Controller") == 0)  //PS3 controller
+            {
+                joystick.x = 1;
+            }
+            else if (strcmp (gamepadstring, "Wireless Controller") == 0)    //PS4 controller
+            {
+                joystick.x = 2;
+            }
+            else if (strcmp (gamepadstring, "OUYA Game Controller") == 0)   //OUYA controller
+            {
+                joystick.x = 3;
+            }
+            else if (strcmp (gamepadstring, "Mayflash WIIMote PC Adapter") == 0)   //MayFlash WIIMote PC Adapter
+            {
+                joystick.x = 4;
+            }
+            else if (strcmp (gamepadstring, "Nintendo RVL-CNT-01-TR") == 0)   //Nintendo WIIMote MotionPlus, used directly
+            {
+                joystick.x = 5;
+            }
+            else if (strcmp (gamepadstring, "Nintendo RVL-CNT-01") == 0)      //Nintendo WIIMote w/o MotionPlus attachment, used directly
+            {
+                joystick.x = 6;
+            }
+            else    //default (XBox 360, basically)
+            {
+                joystick.x = 0;
+            }
             sgJoysticks.push_back(sgJoystick);
             sgJoysticksId.push_back(joystick.id);
             sgJoysticksIndex.push_back(inEvent.jdevice.which);
@@ -1455,7 +1509,7 @@ void CreateMainFrame(FrameCreationCallback inOnFrame, int inWidth, int inHeight,
    if (opengl) requestWindowFlags |= SDL_WINDOW_OPENGL;
    if (resizable) requestWindowFlags |= SDL_WINDOW_RESIZABLE;
    if (borderless) requestWindowFlags |= SDL_WINDOW_BORDERLESS;
-   if (fullscreen) requestWindowFlags |= SDL_WINDOW_FULLSCREEN; //SDL_WINDOW_FULLSCREEN_DESKTOP;
+   if (fullscreen) requestWindowFlags |= SDL_WINDOW_FULLSCREEN_DESKTOP; //SDL_WINDOW_FULLSCREEN_DESKTOP;
    
    if (opengl)
    {
@@ -1481,6 +1535,8 @@ void CreateMainFrame(FrameCreationCallback inOnFrame, int inWidth, int inHeight,
          SDL_GL_SetAttribute(SDL_GL_MULTISAMPLEBUFFERS, true);
          SDL_GL_SetAttribute(SDL_GL_MULTISAMPLESAMPLES, 2);
       }
+
+      //requestWindowFlags |= SDL_WINDOW_ALLOW_HIGHDPI;
    }
    
    #ifdef HX_LINUX
@@ -1503,21 +1559,21 @@ void CreateMainFrame(FrameCreationCallback inOnFrame, int inWidth, int inHeight,
          window = NULL;
       }
 
-      window = SDL_CreateWindow (inTitle, SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, setWidth, setHeight, requestWindowFlags);
+      window = SDL_CreateWindow(inTitle, SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, setWidth, setHeight, requestWindowFlags);
       
       #ifdef HX_WINDOWS
-      HINSTANCE handle = ::GetModuleHandle (nullptr);
-      HICON icon = ::LoadIcon (handle, MAKEINTRESOURCE (1));
+      HINSTANCE handle = ::GetModuleHandle(0);
+      HICON icon = ::LoadIcon(handle, MAKEINTRESOURCE (1));
       
-      if (icon != nullptr)
+      if (icon)
       {
          SDL_SysWMinfo wminfo;
          SDL_VERSION (&wminfo.version);
          
-         if (SDL_GetWindowWMInfo (window, &wminfo) == 1)
+         if (SDL_GetWindowWMInfo(window, &wminfo) == 1)
          {
             HWND hwnd = wminfo.info.win.window;
-            ::SetClassLong (hwnd, GCL_HICON, reinterpret_cast<LONG>(icon));
+            ::SetClassLong(hwnd, GCL_HICON, reinterpret_cast<LONG>(icon));
          }
       }
       #endif
@@ -1592,20 +1648,9 @@ void CreateMainFrame(FrameCreationCallback inOnFrame, int inWidth, int inHeight,
    
    sgSDLFrame = new SDLFrame(window, renderer, windowFlags, opengl, width, height);
    inOnFrame(sgSDLFrame);
-
+   
    int numJoysticks = SDL_NumJoysticks();
-   if (sgJoystickEnabled && numJoysticks > 0) {
-      SDL_JoystickEventState(SDL_TRUE);
-      for (int i = 0; i < numJoysticks; i++) {
-         sgJoystick = SDL_JoystickOpen(i);
-         Event joystick(etJoyDeviceAdded);
-         joystick.id = SDL_JoystickInstanceID(sgJoystick);
-         sgJoysticks.push_back(sgJoystick);
-         sgJoysticksId.push_back(joystick.id);
-         sgJoysticksIndex.push_back(i);
-         sgSDLFrame->ProcessEvent(joystick);
-      }
-   }
+   SDL_JoystickEventState(SDL_TRUE);
    
    StartAnimation();
 }
