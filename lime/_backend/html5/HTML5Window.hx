@@ -190,6 +190,13 @@ class HTML5Window {
 	}
 	
 	
+	public function focus ():Void {
+		
+		
+		
+	}
+	
+	
 	public function getDisplay ():Display {
 		
 		return System.getDisplay (0);

@@ -230,6 +230,13 @@ class Window {
 	}
 	
 	
+	public function focus ():Void {
+		
+		backend.focus ();
+		
+	}
+	
+	
 	public function move (x:Int, y:Int):Void {
 		
 		backend.move (x, y);

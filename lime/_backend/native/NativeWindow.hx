@@ -92,6 +92,17 @@ class NativeWindow {
 	}
 	
 	
+	public function focus ():Void {
+		
+		if (handle != null) {
+			
+			lime_window_focus (handle);
+			
+		}
+		
+	}
+	
+	
 	public function getDisplay ():Display {
 		
 		var center = new Vector2 (parent.__x + (parent.__width / 2), parent.__y + (parent.__height / 2));
@@ -221,6 +232,7 @@ class NativeWindow {
 	
 	private static var lime_window_close = System.load ("lime", "lime_window_close", 1);
 	private static var lime_window_create = System.load ("lime", "lime_window_create", 5);
+	private static var lime_window_focus = System.load ("lime", "lime_window_focus", 1);
 	private static var lime_window_get_enable_text_events = System.load ("lime", "lime_window_get_enable_text_events", 1);
 	private static var lime_window_get_height = System.load ("lime", "lime_window_get_height", 1);
 	private static var lime_window_get_id = System.load ("lime", "lime_window_get_id", 1);

@@ -116,6 +116,13 @@ namespace lime {
 	}
 	
 	
+	void SDLWindow::Focus () {
+		
+		SDL_RaiseWindow (sdlWindow);
+		
+	}
+	
+	
 	bool SDLWindow::GetEnableTextEvents () {
 		
 		return SDL_IsTextInputActive ();
