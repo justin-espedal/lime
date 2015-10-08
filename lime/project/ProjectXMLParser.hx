@@ -79,7 +79,7 @@ class ProjectXMLParser extends HXProject {
 			
 		}
 		
-		if (targetFlags.exists ("neko") || (platformType == DESKTOP && target != PlatformHelper.hostPlatform)) {
+		if (targetFlags.exists ("neko")) {
 			
 			defines.set ("native", "1");
 			defines.set ("neko", "1");
@@ -97,6 +97,21 @@ class ProjectXMLParser extends HXProject {
 		} else if (target == Platform.FIREFOX) {
 			
 			defines.set ("html5", "1");
+			
+		} else if (platformType == DESKTOP && target != PlatformHelper.hostPlatform) {
+			
+			defines.set ("native", "1");
+			
+			if (target == Platform.WINDOWS) {
+				
+				defines.set ("cpp", "1");
+				defines.set ("mingw", "1");
+				
+			} else {
+				
+				defines.set ("neko", "1");
+				
+			}
 			
 		} else if (targetFlags.exists ("cpp") || ((platformType != PlatformType.WEB) && !targetFlags.exists ("html5")) || target == Platform.EMSCRIPTEN) {
 			
@@ -484,7 +499,7 @@ class ProjectXMLParser extends HXProject {
 				
 			} else {
 				
-				var exclude = ".*|cvs|thumbs.db|desktop.ini|*.hash";
+				var exclude = ".*|cvs|thumbs.db|desktop.ini|*.fla|*.hash";
 				var include = "";
 				
 				if (element.has.exclude) {
@@ -1560,6 +1575,59 @@ class ProjectXMLParser extends HXProject {
 							if (element.has.resolve ("linker-flags")) {
 								
 								config.push ("ios.linker-flags", substitute (element.att.resolve ("linker-flags")));
+								//config.ios.linkerFlags.push (substitute (element.att.resolve ("linker-flags")));
+								
+							}
+							
+						}
+
+					case "tvos":
+						
+						if (target == Platform.TVOS) {
+							
+							if (element.has.deployment) {
+								
+								var deployment = Std.parseFloat (substitute (element.att.deployment));
+								
+								// If it is specified, assume the dev knows what he is doing!
+								config.set ("tvos.deployment", deployment);
+							}
+							
+							if (element.has.binaries) {
+								
+								var binaries = substitute (element.att.binaries);
+								
+								switch (binaries) {
+									
+									case "arm64":
+										
+										ArrayHelper.addUnique (architectures, Architecture.ARM64);
+									
+								}
+								
+							}
+							
+							if (element.has.devices) {
+								
+								config.set ("tvos.device", substitute (element.att.devices).toLowerCase ());
+								
+							}
+							
+							if (element.has.compiler) {
+								
+								config.set ("tvos.compiler", substitute (element.att.compiler));
+								
+							}
+							
+							if (element.has.resolve ("prerendered-icon")) {
+								
+								config.set ("tvos.prerenderedIcon",  substitute (element.att.resolve ("prerendered-icon")));
+								
+							}
+							
+							if (element.has.resolve ("linker-flags")) {
+								
+								config.push ("tvos.linker-flags", substitute (element.att.resolve ("linker-flags")));
 								//config.ios.linkerFlags.push (substitute (element.att.resolve ("linker-flags")));
 								
 							}

@@ -1,6 +1,7 @@
 #include <system/JNI.h>
 #include <utils/Object.h>
-#include <hx/CFFI.h>
+#include <hx/CFFIPrimePatch.h>
+//#include <hx/CFFIPrime.h>
 #include <jni.h>
 #include <pthread.h>
 #include <android/log.h>
@@ -470,7 +471,7 @@ namespace lime {
 		
 	}
 	
-	DEFINE_PRIM (lime_jni_init_callback, 1);
+	DEFINE_PRIME1 (lime_jni_init_callback);
 	
 	
 	struct JavaHaxeReference {
@@ -1113,7 +1114,7 @@ namespace lime {
 	struct JNIField : public lime::Object {
 		
 		
-		JNIField (value inClass, value inField, value inSignature, bool inStatic) {
+		JNIField (HxString inClass, HxString inField, HxString inSignature, bool inStatic) {
 			
 			JNIEnv *env = (JNIEnv*)JNI::GetEnv ();
 			JNIInit (env);
@@ -1122,10 +1123,10 @@ namespace lime {
 			mField = 0;
 			mFieldType = JNIType (jniVoid, 0);
 			
-			const char *field = val_string (inField);
+			const char *field = inField.__s;
 			
-			mClass = FindClass (val_string (inClass));
-			const char *signature = val_string (inSignature);
+			mClass = FindClass (inClass.__s);
+			const char *signature = inSignature.__s;
 			
 			if (mClass) {
 				
@@ -1450,9 +1451,9 @@ namespace lime {
 	};
 	
 	
-	value lime_jni_create_field (value inClass, value inField, value inSig, value inStatic) {
+	value lime_jni_create_field (HxString inClass, HxString inField, HxString inSig, bool inStatic) {
 		
-		JNIField *field = new JNIField (inClass, inField, inSig, val_bool (inStatic));
+		JNIField *field = new JNIField (inClass, inField, inSig, inStatic);
 		
 		if (field->Ok ()) {
 			
@@ -1466,7 +1467,7 @@ namespace lime {
 		
 	}
 	
-	DEFINE_PRIM (lime_jni_create_field, 4);
+	DEFINE_PRIME4 (lime_jni_create_field);
 	
 	
 	value lime_jni_get_static (value inField) {
@@ -1484,7 +1485,7 @@ namespace lime {
 		
 	}
 	
-	DEFINE_PRIM (lime_jni_get_static, 1);
+	DEFINE_PRIME1 (lime_jni_get_static);
 	
 	
 	void lime_jni_set_static (value inField, value inValue) {
@@ -1501,7 +1502,7 @@ namespace lime {
 		
 	}
 	
-	DEFINE_PRIM (lime_jni_set_static, 2);
+	DEFINE_PRIME2v (lime_jni_set_static);
 	
 	
 	value lime_jni_get_member (value inField, value inObject) {
@@ -1527,7 +1528,7 @@ namespace lime {
 		
 	}
 	
-	DEFINE_PRIM (lime_jni_get_member, 2);
+	DEFINE_PRIME2 (lime_jni_get_member);
 	
 	
 	void lime_jni_set_member (value inField, value inObject, value inValue) {
@@ -1553,7 +1554,7 @@ namespace lime {
 		
 	}
 	
-	DEFINE_PRIM (lime_jni_set_member, 3);
+	DEFINE_PRIME3v (lime_jni_set_member);
 	
 	
 	struct JNIMethod : public lime::Object {
@@ -1562,7 +1563,7 @@ namespace lime {
 		enum { MAX = 20 };
 		
 		
-		JNIMethod (value inClass, value inMethod, value inSignature, bool inStatic, bool inQuiet) {
+		JNIMethod (HxString inClass, HxString inMethod, HxString inSignature, bool inStatic, bool inQuiet) {
 			
 			JNIEnv *env = (JNIEnv*)JNI::GetEnv ();
 			JNIInit (env);
@@ -1572,14 +1573,14 @@ namespace lime {
 			mReturn = JNIType (jniVoid, 0);
 			mArgCount = 0;
 			
-			const char *method = val_string (inMethod);
+			const char *method = inMethod.__s;
 			mIsConstructor = !strncmp (method, "<init>", 6);
 			
-			mClass = FindClass (val_string (inClass), inQuiet);
+			mClass = FindClass (inClass.__s, inQuiet);
 			
 			if (mClass) {
 				
-				const char *signature = val_string (inSignature);
+				const char *signature = inSignature.__s;
 				
 				if (inStatic && !mIsConstructor) {
 					
@@ -1886,10 +1887,9 @@ namespace lime {
 	};
 	
 	
-	value lime_jni_create_method (value inClass, value inMethod, value inSig, value inStatic, value inQuiet) {
+	value lime_jni_create_method (HxString inClass, HxString inMethod, HxString inSig, bool inStatic, bool quiet) {
 		
-		bool quiet = val_bool (inQuiet);
-		JNIMethod *method = new JNIMethod (inClass, inMethod, inSig, val_bool (inStatic), quiet);
+		JNIMethod *method = new JNIMethod (inClass, inMethod, inSig, inStatic, quiet);
 		
 		if (method->Ok ()) {
 			
@@ -1908,7 +1908,7 @@ namespace lime {
 		
 	}
 	
-	DEFINE_PRIM (lime_jni_create_method, 5);
+	DEFINE_PRIME5 (lime_jni_create_method);
 	
 	
 	value lime_jni_call_static (value inMethod, value inArgs) {
@@ -1926,7 +1926,7 @@ namespace lime {
 		
 	}
 	
-	DEFINE_PRIM (lime_jni_call_static, 2);
+	DEFINE_PRIME2 (lime_jni_call_static);
 	
 	
 	value lime_jni_call_member (value inMethod, value inObject, value inArgs) {
@@ -1952,17 +1952,17 @@ namespace lime {
 		
 	}
 	
-	DEFINE_PRIM (lime_jni_call_member, 3);
+	DEFINE_PRIME3 (lime_jni_call_member);
 	
 	
-	value lime_jni_get_env () {
+	double lime_jni_get_env () {
 		
 		JNIEnv *env = (JNIEnv*)JNI::GetEnv ();
-		return alloc_int ((intptr_t)env);
+		return (intptr_t)env;
 		
 	}
 	
-	DEFINE_PRIM (lime_jni_get_env, 0);
+	DEFINE_PRIME0 (lime_jni_get_env);
 	
 	
 	value lime_jni_get_jobject (value inValue) {
@@ -1979,16 +1979,16 @@ namespace lime {
 		
 	}
 	
-	DEFINE_PRIM (lime_jni_get_jobject, 1);
+	DEFINE_PRIME1 (lime_jni_get_jobject);
 	
 	
-	value lime_post_ui_callback (value inCallback) {
+	void lime_jni_post_ui_callback (value inCallback) {
 		
 		JNIEnv *env = (JNIEnv*)JNI::GetEnv ();
 		JNIInit (env);
 		
 		AutoGCRoot *root = new AutoGCRoot (inCallback);
-		ELOG ("NME set onCallback %p",root);
+		ELOG ("Lime set onCallback %p",root);
 		env->CallStaticVoidMethod (GameActivity, postUICallback, (jlong)root);
 		jthrowable exc = env->ExceptionOccurred ();
 		
@@ -2001,11 +2001,9 @@ namespace lime {
 			
 		}
 		
-		return alloc_null ();
-		
 	}
 	
-	DEFINE_PRIM (lime_post_ui_callback, 1);
+	DEFINE_PRIME1v (lime_jni_post_ui_callback);
 	
 	
 }
@@ -2017,7 +2015,7 @@ extern "C" {
 	JAVA_EXPORT void JNICALL Java_org_haxe_lime_Lime_onCallback (JNIEnv * env, jobject obj, jlong handle) {
 		
 		lime::AutoHaxe haxe ("onCallback");
-		ELOG ("NME onCallback %p", (void *)handle);
+		ELOG ("Lime onCallback %p", (void *)handle);
 		AutoGCRoot *root = (AutoGCRoot *)handle;
 		val_call0 (root->get ());
 		delete root;
@@ -2049,7 +2047,7 @@ extern "C" {
 			
 		} else {
 			
-			ELOG ("NME CallHaxe - init not called.");
+			ELOG ("Lime CallHaxe - init not called.");
 			return alloc_null ();
 			
 		}

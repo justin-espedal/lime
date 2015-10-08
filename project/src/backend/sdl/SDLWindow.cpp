@@ -25,13 +25,20 @@ namespace lime {
 		if (flags & WINDOW_FLAG_HARDWARE) {
 			
 			sdlFlags |= SDL_WINDOW_OPENGL;
-			//sdlFlags |= SDL_WINDOW_ALLOW_HIGHDPI;
+			sdlFlags |= SDL_WINDOW_ALLOW_HIGHDPI;
 			
 			#if defined (HX_WINDOWS) && defined (NATIVE_TOOLKIT_SDL_ANGLE)
 			SDL_GL_SetAttribute (SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_ES);
 			SDL_GL_SetAttribute (SDL_GL_CONTEXT_MAJOR_VERSION, 2);
 			SDL_GL_SetAttribute (SDL_GL_CONTEXT_MINOR_VERSION, 0);
 			SDL_SetHint (SDL_HINT_VIDEO_WIN_D3DCOMPILER, "d3dcompiler_47.dll");
+			#endif
+			
+			#if defined (RASPBERRYPI)
+			SDL_GL_SetAttribute (SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_ES);
+			SDL_GL_SetAttribute (SDL_GL_CONTEXT_MAJOR_VERSION, 2);
+			SDL_GL_SetAttribute (SDL_GL_CONTEXT_MINOR_VERSION, 0);
+			SDL_SetHint (SDL_HINT_RENDER_DRIVER, "opengles2");
 			#endif
 			
 			if (flags & WINDOW_FLAG_DEPTH_BUFFER) {
@@ -99,6 +106,37 @@ namespace lime {
 		if (sdlWindow) {
 			
 			SDL_DestroyWindow (sdlWindow);
+			
+		}
+		
+	}
+	
+	
+	void SDLWindow::Alert (const char* message, const char* title) {
+		
+		#ifdef HX_WINDOWS
+		
+		int count = 0;
+		int speed = 0;
+		bool stopOnForeground = true;
+		
+		SDL_SysWMinfo info;
+		SDL_VERSION (&info.version);
+		SDL_GetWindowWMInfo (sdlWindow, &info);
+		
+		FLASHWINFO fi;
+		fi.cbSize = sizeof (FLASHWINFO);
+		fi.hwnd = info.info.win.window;
+		fi.dwFlags = stopOnForeground ? FLASHW_ALL | FLASHW_TIMERNOFG : FLASHW_ALL | FLASHW_TIMER;
+		fi.uCount = count;
+		fi.dwTimeout = speed;
+		FlashWindowEx (&fi);
+		
+		#endif
+		
+		if (message) {
+			
+			SDL_ShowSimpleMessageBox (SDL_MESSAGEBOX_INFORMATION, title, message, sdlWindow);
 			
 		}
 		

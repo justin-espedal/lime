@@ -1,10 +1,14 @@
 package lime.graphics.cairo;
 
 
-import lime.system.System;
+import lime.system.CFFIPointer;
+
+#if !macro
+@:build(lime.system.CFFI.build())
+#end
 
 
-@:forward abstract CairoImageSurface(CairoSurface) from CairoSurface to CairoSurface {
+@:forward abstract CairoImageSurface(CairoSurface) from CairoSurface to CairoSurface from CFFIPointer to CFFIPointer {
 	
 	
 	public var data (get, never):Dynamic;
@@ -16,7 +20,7 @@ import lime.system.System;
 	
 	public function new (format:CairoFormat, width:Int, height:Int):CairoSurface {
 		
-		#if lime_cairo
+		#if (lime_cairo && !macro)
 		this = lime_cairo_image_surface_create (format, width, height);
 		#else
 		this = cast 0;
@@ -27,7 +31,7 @@ import lime.system.System;
 	
 	public static function create (data:Dynamic, format:CairoFormat, width:Int, height:Int, stride:Int):CairoSurface {
 		
-		#if lime_cairo
+		#if (lime_cairo && !macro)
 		return lime_cairo_image_surface_create_for_data (data, format, width, height, stride);
 		#else
 		return cast 0;
@@ -38,7 +42,7 @@ import lime.system.System;
 	
 	public static function fromImage (image:Image):CairoSurface {
 		
-		#if lime_cairo
+		#if (lime_cairo && !macro)
 		return create (lime_bytes_get_data_pointer (#if nodejs image.data #else image.data.buffer #end), CairoFormat.ARGB32, image.width, image.height, image.buffer.stride);
 		#else
 		return null;
@@ -56,7 +60,7 @@ import lime.system.System;
 	
 	@:noCompletion private function get_data ():Dynamic {
 		
-		#if lime_cairo
+		#if (lime_cairo && !macro)
 		return lime_cairo_image_surface_get_data (this);
 		#else
 		return null;
@@ -67,7 +71,7 @@ import lime.system.System;
 	
 	@:noCompletion private function get_format ():CairoFormat {
 		
-		#if lime_cairo
+		#if (lime_cairo && !macro)
 		return lime_cairo_image_surface_get_format (this);
 		#else
 		return 0;
@@ -78,7 +82,7 @@ import lime.system.System;
 	
 	@:noCompletion private function get_height ():Int {
 		
-		#if lime_cairo
+		#if (lime_cairo && !macro)
 		return lime_cairo_image_surface_get_height (this);
 		#else
 		return 0;
@@ -89,7 +93,7 @@ import lime.system.System;
 	
 	@:noCompletion private function get_stride ():Int {
 		
-		#if lime_cairo
+		#if (lime_cairo && !macro)
 		return lime_cairo_image_surface_get_stride (this);
 		#else
 		return 0;
@@ -100,7 +104,7 @@ import lime.system.System;
 	
 	@:noCompletion private function get_width ():Int {
 		
-		#if lime_cairo
+		#if (lime_cairo && !macro)
 		return lime_cairo_image_surface_get_width (this);
 		#else
 		return 0;
@@ -116,15 +120,15 @@ import lime.system.System;
 	
 	
 	
-	#if lime_cairo
-	private static var lime_bytes_get_data_pointer = System.load ("lime", "lime_bytes_get_data_pointer", 1);
-	private static var lime_cairo_image_surface_create = System.load ("lime", "lime_cairo_image_surface_create", 3);
-	private static var lime_cairo_image_surface_create_for_data = System.load ("lime", "lime_cairo_image_surface_create_for_data", 5);
-	private static var lime_cairo_image_surface_get_data = System.load ("lime", "lime_cairo_image_surface_get_data", 1);
-	private static var lime_cairo_image_surface_get_format = System.load ("lime", "lime_cairo_image_surface_get_format", 1);
-	private static var lime_cairo_image_surface_get_height = System.load ("lime", "lime_cairo_image_surface_get_height", 1);
-	private static var lime_cairo_image_surface_get_stride = System.load ("lime", "lime_cairo_image_surface_get_stride", 1);
-	private static var lime_cairo_image_surface_get_width = System.load ("lime", "lime_cairo_image_surface_get_width", 1);
+	#if (lime_cairo && !macro)
+	@:cffi private static function lime_bytes_get_data_pointer (handle:Dynamic):Float;
+	@:cffi private static function lime_cairo_image_surface_create (format:Int, width:Int, height:Int):CFFIPointer;
+	@:cffi private static function lime_cairo_image_surface_create_for_data (data:Float, format:Int, width:Int, height:Int, stride:Int):CFFIPointer;
+	@:cffi private static function lime_cairo_image_surface_get_data (handle:CFFIPointer):Float;
+	@:cffi private static function lime_cairo_image_surface_get_format (handle:CFFIPointer):Int;
+	@:cffi private static function lime_cairo_image_surface_get_height (handle:CFFIPointer):Int;
+	@:cffi private static function lime_cairo_image_surface_get_stride (handle:CFFIPointer):Int;
+	@:cffi private static function lime_cairo_image_surface_get_width (handle:CFFIPointer):Int;
 	#end
 	
 	

@@ -19,6 +19,7 @@ import lime.project.Asset;
 import lime.project.AssetType;
 import lime.project.Haxelib;
 import lime.project.HXProject;
+import lime.project.Platform;
 import lime.project.PlatformTarget;
 import sys.io.File;
 import sys.FileSystem;
@@ -159,7 +160,7 @@ class WindowsPlatform extends PlatformTarget {
 			
 			var iconPath = PathHelper.combine (applicationDirectory, "icon.ico");
 			
-			if (IconHelper.createWindowsIcon (icons, iconPath) && PlatformHelper.hostPlatform == WINDOWS) {
+			if (IconHelper.createWindowsIcon (icons, iconPath) && PlatformHelper.hostPlatform == Platform.WINDOWS) {
 				
 				var templates = [ PathHelper.getHaxelib (new Haxelib ("lime")) + "/templates" ].concat (project.templatePaths);
 				ProcessHelper.runCommand ("", PathHelper.findTemplate (templates, "bin/ReplaceVistaIcon.exe"), [ executablePath, iconPath, "1" ], true, true);
@@ -205,7 +206,9 @@ class WindowsPlatform extends PlatformTarget {
 		
 		var hxml = PathHelper.findTemplate (project.templatePaths, targetType + "/hxml/" + type + ".hxml");
 		var template = new Template (File.getContent (hxml));
+		
 		Sys.println (template.execute (generateContext ()));
+		Sys.println ("-D display");
 		
 	}
 	

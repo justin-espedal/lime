@@ -3,8 +3,12 @@ package lime.graphics.format;
 
 import haxe.io.Bytes;
 import lime.graphics.Image;
-import lime.system.System;
+import lime.system.CFFI;
 import lime.utils.ByteArray;
+
+#if (js && html5)
+import js.Browser;
+#end
 
 #if format
 import format.png.Data;
@@ -14,15 +18,21 @@ import haxe.io.Bytes;
 import haxe.io.BytesOutput;
 #end
 
+@:access(lime.graphics.ImageBuffer)
+
+#if !macro
+@:build(lime.system.CFFI.build())
+#end
+
 
 class PNG {
 	
 	
 	public static function decodeBytes (bytes:ByteArray, decodeData:Bool = true):Image {
 		
-		#if (cpp || neko || nodejs)
+		#if ((cpp || neko || nodejs) && !macro)
 		
-		var bufferData = lime_png_decode_bytes (bytes, decodeData);
+		var bufferData:Dynamic = lime_png_decode_bytes (bytes, decodeData);
 		
 		if (bufferData != null) {
 			
@@ -41,9 +51,9 @@ class PNG {
 	
 	public static function decodeFile (path:String, decodeData:Bool = true):Image {
 		
-		#if (cpp || neko || nodejs)
+		#if ((cpp || neko || nodejs) && !macro)
 		
-		var bufferData = lime_png_decode_file (path, decodeData);
+		var bufferData:Dynamic = lime_png_decode_file (path, decodeData);
 		
 		if (bufferData != null) {
 			
@@ -74,11 +84,11 @@ class PNG {
 		
 		#if java
 		
-		#elseif (sys && (!disable_cffi || !format))
+		#elseif (sys && (!disable_cffi || !format) && !macro)
 		
-		if (!System.disableCFFI) {
+		if (CFFI.enabled) {
 			
-			var data = lime_image_encode (image.buffer, 0, 0);
+			var data:Dynamic = lime_image_encode (image.buffer, 0, 0);
 			var bytes = @:privateAccess new Bytes (data.length, data.b);
 			return ByteArray.fromBytes (bytes);
 			
@@ -129,6 +139,26 @@ class PNG {
 			
 		}
 		
+		#elseif (js && html5)
+		
+		ImageCanvasUtil.sync (image, false);
+		
+		if (image.buffer.__srcCanvas != null) {
+			
+			var data = image.buffer.__srcCanvas.toDataURL ("image/png");
+			var buffer = Browser.window.atob (data.split (";base64,")[1]);
+			var byteArray = new ByteArray (buffer.length);
+			
+			for (i in 0...buffer.length) {
+				
+				byteArray.byteView[i] = buffer.charCodeAt (i);
+				
+			}
+			
+			return byteArray;
+			
+		}
+		
 		#end
 		#end
 		
@@ -144,10 +174,10 @@ class PNG {
 	
 	
 	
-	#if (cpp || neko || nodejs)
-	private static var lime_png_decode_bytes:ByteArray -> Bool -> Dynamic = System.load ("lime", "lime_png_decode_bytes", 2);
-	private static var lime_png_decode_file = System.load ("lime", "lime_png_decode_file", 2);
-	private static var lime_image_encode = System.load ("lime", "lime_image_encode", 3);
+	#if ((cpp || neko || nodejs) && !macro)
+	@:cffi private static function lime_png_decode_bytes (data:Dynamic, decodeData:Bool):Dynamic;
+	@:cffi private static function lime_png_decode_file (path:String, decodeData:Bool):Dynamic;
+	@:cffi private static function lime_image_encode (data:Dynamic, type:Int, quality:Int):Dynamic;
 	#end
 	
 	

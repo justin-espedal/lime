@@ -49,6 +49,7 @@ class Window {
 	public var onTextEdit = new Event<String->Int->Int->Void> ();
 	public var onTextInput = new Event<String->Void> ();
 	public var renderer:Renderer;
+	public var scale (get, null):Float;
 	public var stage:Stage;
 	public var title (get, set):String;
 	public var width (get, set):Int;
@@ -59,6 +60,7 @@ class Window {
 	@:noCompletion private var __fullscreen:Bool;
 	@:noCompletion private var __height:Int;
 	@:noCompletion private var __minimized:Bool;
+	@:noCompletion private var __scale:Float;
 	@:noCompletion private var __title:String;
 	@:noCompletion private var __width:Int;
 	@:noCompletion private var __x:Int;
@@ -72,6 +74,7 @@ class Window {
 		__width = 0;
 		__height = 0;
 		__fullscreen = false;
+		__scale = 1;
 		__x = 0;
 		__y = 0;
 		__title = "";
@@ -89,6 +92,13 @@ class Window {
 		}
 		
 		backend = new WindowBackend (this);
+		
+	}
+	
+	
+	public function alert (message:String = null, title:String = null):Void {
+		
+		backend.alert (message, title);
 		
 	}
 	
@@ -214,6 +224,18 @@ class Window {
 			"030000008916000001fd000024010000,Razer Onza Classic Edition,platform:Linux,x:b2,a:b0,b:b1,y:b3,back:b6,guide:b8,start:b7,dpleft:b11,dpdown:b14,dpright:b12,dpup:b13,leftshoulder:b4,lefttrigger:a2,rightshoulder:b5,righttrigger:a5,leftstick:b9,rightstick:b10,leftx:a0,lefty:a1,rightx:a3,righty:a4",
 			"030000005e040000d102000001010000,Microsoft X-Box One pad,platform:Linux,x:b2,a:b0,b:b1,y:b3,back:b6,guide:b8,start:b7,dpleft:h0.8,dpdown:h0.0,dpdown:h0.4,dpright:h0.0,dpright:h0.2,dpup:h0.0,dpup:h0.1,leftshoulder:h0.0,leftshoulder:b4,lefttrigger:a2,rightshoulder:b5,righttrigger:a5,leftstick:b9,rightstick:b10,leftx:a0,lefty:a1,rightx:a3,righty:a4",
 			"03000000790000001100000010010000,RetroLink Saturn Classic Controller,platform:Linux,x:b3,a:b0,b:b1,y:b4,back:b5,guide:b2,start:b8,leftshoulder:b6,rightshoulder:b7,leftx:a0,lefty:a1"
+			
+		];
+		
+		Gamepad.addMappings (mappings);
+
+		#elseif (ios || tvos)
+		
+		var mappings = [
+			
+		    "4d466947616d65706164010000000000,MFi Extended Gamepad,a:b0,b:b1,dpdown:h0.4,dpleft:h0.8,dpright:h0.2,dpup:h0.1,leftshoulder:b4,lefttrigger:a2,leftx:a0,lefty:a1,rightshoulder:b5,righttrigger:a5,rightx:a3,righty:a4,start:b6,x:b2,y:b3,",
+		    "4d466947616d65706164020000000000,MFi Gamepad,a:b0,b:b1,dpdown:h0.4,dpleft:h0.8,dpright:h0.2,dpup:h0.1,leftshoulder:b4,rightshoulder:b5,start:b6,x:b2,y:b3,",
+		    "4d466947616d65706164030000000000,MFi Apple TV Remote,a:b0,b:b1,dpdown:h0.4,dpleft:h0.8,dpright:h0.2,dpup:h0.1,leftshoulder:b4,rightshoulder:b5,start:b6,x:b2,y:b3,",
 			
 		];
 		
@@ -344,6 +366,13 @@ class Window {
 	@:noCompletion private function set_minimized (value:Bool):Bool {
 		
 		return __minimized = backend.setMinimized (value);
+		
+	}
+	
+	
+	@:noCompletion private inline function get_scale ():Float {
+		
+		return __scale;
 		
 	}
 	

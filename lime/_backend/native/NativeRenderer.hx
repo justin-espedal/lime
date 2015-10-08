@@ -9,8 +9,12 @@ import lime.graphics.CairoRenderContext;
 import lime.graphics.ConsoleRenderContext;
 import lime.graphics.GLRenderContext;
 import lime.graphics.Renderer;
-import lime.system.System;
 
+#if !macro
+@:build(lime.system.CFFI.build())
+#end
+
+@:access(lime.graphics.cairo.Cairo)
 @:access(lime.ui.Window)
 
 
@@ -38,7 +42,10 @@ class NativeRenderer {
 	
 	public function create ():Void {
 		
+		#if !macro
 		handle = lime_renderer_create (parent.window.backend.handle);
+		
+		parent.window.__scale = lime_renderer_get_scale (handle);
 		
 		#if lime_console
 		
@@ -47,7 +54,7 @@ class NativeRenderer {
 		
 		#else
 		
-		var type = lime_renderer_get_type (handle);
+		var type:String = lime_renderer_get_type (handle);
 		
 		switch (type) {
 			
@@ -70,6 +77,7 @@ class NativeRenderer {
 		}
 		
 		#end
+		#end
 		
 	}
 	
@@ -83,6 +91,7 @@ class NativeRenderer {
 	
 	public function flip ():Void {
 		
+		#if !macro
 		if (!useHardware) {
 			
 			#if lime_cairo
@@ -97,26 +106,22 @@ class NativeRenderer {
 		}
 		
 		lime_renderer_flip (handle);
+		#end
 		
 	}
 	
 	
 	public function render ():Void {
 		
+		#if !macro
 		lime_renderer_make_current (handle);
 		
 		if (!useHardware) {
 			
 			#if lime_cairo
-			var lock = lime_renderer_lock (handle);
+			var lock:Dynamic = lime_renderer_lock (handle);
 			
 			if (cacheLock == null || cacheLock.pixels != lock.pixels || cacheLock.width != lock.width || cacheLock.height != lock.height) {
-				
-				if (primarySurface != null) {
-					
-					primarySurface.destroy ();
-					
-				}
 				
 				primarySurface = CairoImageSurface.create (lock.pixels, CairoFormat.ARGB32, lock.width, lock.height, lock.pitch);
 				
@@ -138,6 +143,7 @@ class NativeRenderer {
 			#end
 			
 		}
+		#end
 		
 	}
 	
@@ -149,13 +155,16 @@ class NativeRenderer {
 	
 	
 	
-	private static var lime_renderer_create = System.load ("lime", "lime_renderer_create", 1);
-	private static var lime_renderer_flip = System.load ("lime", "lime_renderer_flip", 1);
-	private static var lime_renderer_get_context = System.load ("lime", "lime_renderer_get_context", 1);
-	private static var lime_renderer_get_type = System.load ("lime", "lime_renderer_get_type", 1);
-	private static var lime_renderer_lock = System.load ("lime", "lime_renderer_lock", 1);
-	private static var lime_renderer_make_current = System.load ("lime", "lime_renderer_make_current", 1);
-	private static var lime_renderer_unlock = System.load ("lime", "lime_renderer_unlock", 1);
+	#if !macro
+	@:cffi private static function lime_renderer_create (window:Dynamic):Dynamic;
+	@:cffi private static function lime_renderer_flip (handle:Dynamic):Void;
+	@:cffi private static function lime_renderer_get_context (handle:Dynamic):Float;
+	@:cffi private static function lime_renderer_get_scale (handle:Dynamic):Float;
+	@:cffi private static function lime_renderer_get_type (handle:Dynamic):Dynamic;
+	@:cffi private static function lime_renderer_lock (handle:Dynamic):Dynamic;
+	@:cffi private static function lime_renderer_make_current (handle:Dynamic):Void;
+	@:cffi private static function lime_renderer_unlock (handle:Dynamic):Void;
+	#end
 	
 	
 }

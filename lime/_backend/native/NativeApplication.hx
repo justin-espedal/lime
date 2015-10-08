@@ -12,16 +12,26 @@ import lime.graphics.Renderer;
 import lime.math.Rectangle;
 import lime.system.Display;
 import lime.system.DisplayMode;
+import lime.system.Sensor;
+import lime.system.SensorType;
 import lime.system.System;
 import lime.ui.Gamepad;
+import lime.ui.Joystick;
+import lime.ui.JoystickHatPosition;
 import lime.ui.Touch;
 import lime.ui.Window;
+
+#if !macro
+@:build(lime.system.CFFI.build())
+#end
 
 @:access(haxe.Timer)
 @:access(lime._backend.native.NativeRenderer)
 @:access(lime.app.Application)
 @:access(lime.graphics.Renderer)
+@:access(lime.system.Sensor)
 @:access(lime.ui.Gamepad)
+@:access(lime.ui.Joystick)
 @:access(lime.ui.Window)
 
 
@@ -31,9 +41,11 @@ class NativeApplication {
 	private var applicationEventInfo = new ApplicationEventInfo (UPDATE);
 	private var currentTouches = new Map<Int, Touch> ();
 	private var gamepadEventInfo = new GamepadEventInfo ();
+	private var joystickEventInfo = new JoystickEventInfo ();
 	private var keyEventInfo = new KeyEventInfo ();
 	private var mouseEventInfo = new MouseEventInfo ();
 	private var renderEventInfo = new RenderEventInfo (RENDER);
+	private var sensorEventInfo = new SensorEventInfo ();
 	private var textEventInfo = new TextEventInfo ();
 	private var touchEventInfo = new TouchEventInfo ();
 	private var unusedTouchesPool = new List<Touch> ();
@@ -52,26 +64,39 @@ class NativeApplication {
 		
 		AudioManager.init ();
 		
+		#if (ios || android || tvos)
+		Sensor.registerSensor (SensorType.ACCELEROMETER, 0);
+		#end
+		
 	}
 	
 	
 	public function create (config:Config):Void {
 		
-		handle = lime_application_create (null);
+		#if !macro
+		handle = lime_application_create ( { } );
+		#end
 		
 	}
 	
 	
 	public function exec ():Int {
 		
+		#if !macro
+		
 		lime_application_event_manager_register (handleApplicationEvent, applicationEventInfo);
 		lime_gamepad_event_manager_register (handleGamepadEvent, gamepadEventInfo);
+		lime_joystick_event_manager_register (handleJoystickEvent, joystickEventInfo);
 		lime_key_event_manager_register (handleKeyEvent, keyEventInfo);
 		lime_mouse_event_manager_register (handleMouseEvent, mouseEventInfo);
 		lime_render_event_manager_register (handleRenderEvent, renderEventInfo);
 		lime_text_event_manager_register (handleTextEvent, textEventInfo);
 		lime_touch_event_manager_register (handleTouchEvent, touchEventInfo);
 		lime_window_event_manager_register (handleWindowEvent, windowEventInfo);
+		
+		#if (ios || android || tvos)
+		lime_sensor_event_manager_register (handleSensorEvent, sensorEventInfo);
+		#end
 		
 		#if nodejs
 		
@@ -102,11 +127,10 @@ class NativeApplication {
 		
 		return result;
 		
-		#else
+		#end
+		#end
 		
 		return 0;
-		
-		#end
 		
 	}
 	
@@ -178,6 +202,57 @@ class NativeApplication {
 				if (gamepad != null) gamepad.connected = false;
 				Gamepad.devices.remove (gamepadEventInfo.id);
 				if (gamepad != null) gamepad.onDisconnect.dispatch ();
+			
+		}
+		
+	}
+	
+	
+	private function handleJoystickEvent ():Void {
+		
+		switch (joystickEventInfo.type) {
+			
+			case AXIS_MOVE:
+				
+				var joystick = Joystick.devices.get (joystickEventInfo.id);
+				if (joystick != null) joystick.onAxisMove.dispatch (joystickEventInfo.index, joystickEventInfo.value);
+			
+			case HAT_MOVE:
+				
+				var joystick = Joystick.devices.get (joystickEventInfo.id);
+				if (joystick != null) joystick.onHatMove.dispatch (joystickEventInfo.index, joystickEventInfo.x);
+			
+			case TRACKBALL_MOVE:
+				
+				var joystick = Joystick.devices.get (joystickEventInfo.id);
+				if (joystick != null) joystick.onTrackballMove.dispatch (joystickEventInfo.index, joystickEventInfo.value);
+			
+			case BUTTON_DOWN:
+				
+				var joystick = Joystick.devices.get (joystickEventInfo.id);
+				if (joystick != null) joystick.onButtonDown.dispatch (joystickEventInfo.index);
+			
+			case BUTTON_UP:
+				
+				var joystick = Joystick.devices.get (joystickEventInfo.id);
+				if (joystick != null) joystick.onButtonUp.dispatch (joystickEventInfo.index);
+			
+			case CONNECT:
+				
+				if (!Joystick.devices.exists (joystickEventInfo.id)) {
+					
+					var joystick = new Joystick (joystickEventInfo.id);
+					Joystick.devices.set (joystickEventInfo.id, joystick);
+					Joystick.onConnect.dispatch (joystick);
+					
+				}
+			
+			case DISCONNECT:
+				
+				var joystick = Joystick.devices.get (joystickEventInfo.id);
+				if (joystick != null) joystick.connected = false;
+				Joystick.devices.remove (joystickEventInfo.id);
+				if (joystick != null) joystick.onDisconnect.dispatch ();
 			
 		}
 		
@@ -285,6 +360,19 @@ class NativeApplication {
 	}
 	
 	
+	private function handleSensorEvent ():Void {
+		
+		var sensor = Sensor.sensorByID.get (sensorEventInfo.id);
+		
+		if (sensor != null) {
+			
+			sensor.onUpdate.dispatch (sensorEventInfo.x, sensorEventInfo.y, sensorEventInfo.z);
+			
+		}
+		
+	}
+	
+	
 	private function handleTextEvent ():Void {
 		
 		var window = parent.windowByID.get (textEventInfo.windowID);
@@ -320,7 +408,7 @@ class NativeApplication {
 				
 				if (touch == null) {
 					
-					touch = new Touch (touchEventInfo.x, touchEventInfo.x, touchEventInfo.id, touchEventInfo.dx, touchEventInfo.dy, touchEventInfo.pressure, touchEventInfo.device);
+					touch = new Touch (touchEventInfo.x, touchEventInfo.y, touchEventInfo.id, touchEventInfo.dx, touchEventInfo.dy, touchEventInfo.pressure, touchEventInfo.device);
 					
 				} else {
 					
@@ -449,7 +537,9 @@ class NativeApplication {
 	
 	public function setFrameRate (value:Float):Float {
 		
+		#if !macro
 		lime_application_set_frame_rate (handle, value);
+		#end
 		return frameRate = value;
 		
 	}
@@ -495,20 +585,24 @@ class NativeApplication {
 	}
 	
 	
-	private static var lime_application_create = System.load ("lime", "lime_application_create", 1);
-	private static var lime_application_event_manager_register = System.load ("lime", "lime_application_event_manager_register", 2);
-	private static var lime_application_exec = System.load ("lime", "lime_application_exec", 1);
-	private static var lime_application_init = System.load ("lime", "lime_application_init", 1);
-	private static var lime_application_set_frame_rate = System.load ("lime", "lime_application_set_frame_rate", 2);
-	private static var lime_application_update = System.load ("lime", "lime_application_update", 1);
-	private static var lime_application_quit = System.load ("lime", "lime_application_quit", 1);
-	private static var lime_gamepad_event_manager_register = System.load ("lime", "lime_gamepad_event_manager_register", 2);
-	private static var lime_key_event_manager_register = System.load ("lime", "lime_key_event_manager_register", 2);
-	private static var lime_mouse_event_manager_register = System.load ("lime", "lime_mouse_event_manager_register", 2);
-	private static var lime_render_event_manager_register = System.load ("lime", "lime_render_event_manager_register", 2);
-	private static var lime_text_event_manager_register = System.load ("lime", "lime_text_event_manager_register", 2);
-	private static var lime_touch_event_manager_register = System.load ("lime", "lime_touch_event_manager_register", 2);
-	private static var lime_window_event_manager_register = System.load ("lime", "lime_window_event_manager_register", 2);
+	#if !macro
+	@:cffi private static function lime_application_create (config:Dynamic):Dynamic;
+	@:cffi private static function lime_application_event_manager_register (callback:Dynamic, eventObject:Dynamic):Void;
+	@:cffi private static function lime_application_exec (handle:Dynamic):Int;
+	@:cffi private static function lime_application_init (handle:Dynamic):Void;
+	@:cffi private static function lime_application_quit (handle:Dynamic):Int;
+	@:cffi private static function lime_application_set_frame_rate (handle:Dynamic, value:Float):Void;
+	@:cffi private static function lime_application_update (handle:Dynamic):Bool;
+	@:cffi private static function lime_gamepad_event_manager_register (callback:Dynamic, eventObject:Dynamic):Void;
+	@:cffi private static function lime_joystick_event_manager_register (callback:Dynamic, eventObject:Dynamic):Void;
+	@:cffi private static function lime_key_event_manager_register (callback:Dynamic, eventObject:Dynamic):Void;
+	@:cffi private static function lime_mouse_event_manager_register (callback:Dynamic, eventObject:Dynamic):Void;
+	@:cffi private static function lime_render_event_manager_register (callback:Dynamic, eventObject:Dynamic):Void;
+	@:cffi private static function lime_sensor_event_manager_register (callback:Dynamic, eventObject:Dynamic):Void;
+	@:cffi private static function lime_text_event_manager_register (callback:Dynamic, eventObject:Dynamic):Void;
+	@:cffi private static function lime_touch_event_manager_register (callback:Dynamic, eventObject:Dynamic):Void;
+	@:cffi private static function lime_window_event_manager_register (callback:Dynamic, eventObject:Dynamic):Void;
+	#end
 	
 	
 }
@@ -585,6 +679,52 @@ private class GamepadEventInfo {
 	var BUTTON_UP = 2;
 	var CONNECT = 3;
 	var DISCONNECT = 4;
+	
+}
+
+
+private class JoystickEventInfo {
+	
+	
+	public var id:Int;
+	public var index:Int;
+	public var type:JoystickEventType;
+	public var value:Float;
+	public var x:Int;
+	public var y:Int;
+	
+	
+	public function new (type:JoystickEventType = null, id:Int = 0, index:Int = 0, value:Float = 0, x:Int = 0, y:Int = 0) {
+		
+		this.type = type;
+		this.id = id;
+		this.index = index;
+		this.value = value;
+		this.x = x;
+		this.y = y;
+		
+	}
+	
+	
+	public function clone ():JoystickEventInfo {
+		
+		return new JoystickEventInfo (type, id, index, value, x, y);
+		
+	}
+	
+	
+}
+
+
+@:enum private abstract JoystickEventType(Int) {
+	
+	var AXIS_MOVE = 0;
+	var HAT_MOVE = 1;
+	var TRACKBALL_MOVE = 2;
+	var BUTTON_DOWN = 3;
+	var BUTTON_UP = 4;
+	var CONNECT = 5;
+	var DISCONNECT = 6;
 	
 }
 
@@ -702,6 +842,44 @@ private class RenderEventInfo {
 	var RENDER = 0;
 	var RENDER_CONTEXT_LOST = 1;
 	var RENDER_CONTEXT_RESTORED = 2;
+	
+}
+
+
+private class SensorEventInfo {
+	
+	
+	public var id:Int;
+	public var x:Float;
+	public var y:Float;
+	public var z:Float;
+	public var type:SensorEventType;
+	
+	
+	public function new (type:SensorEventType = null, id:Int = 0, x:Float = 0, y:Float = 0, z:Float = 0) {
+		
+		this.type = type;
+		this.id = id;
+		this.x = x;
+		this.y = y;
+		this.z = z;
+		
+	}
+	
+	
+	public function clone ():SensorEventInfo {
+		
+		return new SensorEventInfo (type, id, x, y, z);
+		
+	}
+	
+	
+}
+
+
+@:enum private abstract SensorEventType(Int) {
+	
+	var ACCELEROMETER = 0;
 	
 }
 
