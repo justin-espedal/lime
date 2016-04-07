@@ -19,11 +19,14 @@
 	<!-- <set name="LIME_NEKO" value="1" if="linux" /> -->
 	<set name="LIME_NFD" value="1" if="windows || mac" />
 	<set name="LIME_OGG" value="1" />
-	<set name="LIME_OPENAL" value="1" />
+	<set name="LIME_OPENAL" value="1" unless="static_link" />
+	<set name="LIME_OPENAL" value="1" if="iphone || android || emscripten || tvos" />
 	<set name="LIME_OPENGL" value="1" />
 	<set name="LIME_PIXMAN" value="1" />
 	<set name="LIME_PNG" value="1" />
 	<set name="LIME_SDL" value="1" />
+	<!-- <set name="LIME_SDL_ANGLE" value="1" if="windows" unless="static_link" /> -->
+	<set name="LIME_SDL_ANGLE" value="1" if="windows LIME_SDL_ANGLE" unless="static_link" />
 	<set name="LIME_VORBIS" value="1" />
 	<set name="LIME_ZLIB" value="1" />
 	
@@ -224,6 +227,7 @@
 		<file name="src/system/CFFIPointer.cpp" />
 		<file name="src/system/JNI.cpp" if="android" />
 		<file name="src/system/SensorEvent.cpp" />
+		<file name="src/ui/DropEvent.cpp" />
 		<file name="src/ui/GamepadEvent.cpp" />
 		<file name="src/ui/JoystickEvent.cpp" />
 		<file name="src/ui/KeyEvent.cpp" />
@@ -253,8 +257,10 @@
 	<include name="lib/zlib/files.xml" />
 	
 	<set name="DEBUGEXTRA" value="-debug" if="fulldebug" />
+	<set name="LIBSUFFIX" value="${HX_TARGET_SUFFIX}" if="HX_TARGET_SUFFIX" />
+	<set name="LIBSUFFIX" value="${LIBEXTRA}" unless="LIBSUFFIX" />
 	
-	<target id="lime" output="${LIBPREFIX}lime${DEBUGEXTRA}${LIBEXTRA}" tool="linker" toolid="${STD_MODULE_LINK}">
+	<target id="lime" output="${LIBPREFIX}lime${DEBUGEXTRA}${LIBSUFFIX}" tool="linker" toolid="${STD_MODULE_LINK}">
 		
 		<outdir name="${OUTPUT_DIR}/${BINDIR}" />
 		
@@ -269,7 +275,7 @@
 		<files id="native-toolkit-neko" if="LIME_NEKO" />
 		<files id="native-toolkit-nfd" if="LIME_NFD" />
 		<files id="native-toolkit-ogg" if="LIME_OGG" />
-		<files id="native-toolkit-openal" if="LIME_OPENAL" unless="mac || iphone || android || emscripten || tvos" />
+		<files id="native-toolkit-openal" if="LIME_OPENAL" unless="iphone || android || emscripten || tvos" />
 		<files id="native-toolkit-openal-android" if="LIME_OPENAL android" />
 		<files id="native-toolkit-pixman" if="LIME_PIXMAN" />
 		<files id="native-toolkit-png" if="LIME_PNG" />
@@ -326,7 +332,7 @@
 				<vflag name="-framework" value="ForceFeedback" />
 				<vflag name="-framework" value="Carbon" />
 				<vflag name="-framework" value="AppKit" />
-				<vflag name="-framework" value="OpenAL"/>
+				<!-- <vflag name="-framework" value="OpenAL"/> -->
 				
 				<lib name="/opt/local/lib/libgc.a" if="LIME_NEKO" />
 				<lib name="-lm" if="LIME_NEKO" />

@@ -18,6 +18,8 @@ import lime.system.System;
 import lime.ui.Gamepad;
 import lime.ui.Joystick;
 import lime.ui.JoystickHatPosition;
+import lime.ui.KeyCode;
+import lime.ui.KeyModifier;
 import lime.ui.Touch;
 import lime.ui.Window;
 
@@ -40,6 +42,7 @@ class NativeApplication {
 	
 	private var applicationEventInfo = new ApplicationEventInfo (UPDATE);
 	private var currentTouches = new Map<Int, Touch> ();
+	private var dropEventInfo = new DropEventInfo ();
 	private var gamepadEventInfo = new GamepadEventInfo ();
 	private var joystickEventInfo = new JoystickEventInfo ();
 	private var keyEventInfo = new KeyEventInfo ();
@@ -85,6 +88,7 @@ class NativeApplication {
 		#if !macro
 		
 		lime_application_event_manager_register (handleApplicationEvent, applicationEventInfo);
+		lime_drop_event_manager_register (handleDropEvent, dropEventInfo);
 		lime_gamepad_event_manager_register (handleGamepadEvent, gamepadEventInfo);
 		lime_joystick_event_manager_register (handleJoystickEvent, joystickEventInfo);
 		lime_key_event_manager_register (handleKeyEvent, keyEventInfo);
@@ -108,12 +112,14 @@ class NativeApplication {
 			
 			if (!active) {
 				
-				var result = lime_application_quit (handle);
-				System.exit (result);
+				untyped process.exitCode = lime_application_quit (handle);
+				parent.onExit.dispatch (untyped process.exitCode);
+				
+			} else {
+				
+				untyped setImmediate (eventLoop);
 				
 			}
-			
-			untyped setImmediate (eventLoop);
 			
 		}
 		
@@ -138,6 +144,10 @@ class NativeApplication {
 	public function exit ():Void {
 		
 		AudioManager.shutdown ();
+		
+		#if !macro
+		lime_application_quit (handle);
+		#end
 		
 	}
 	
@@ -167,6 +177,17 @@ class NativeApplication {
 	}
 	
 	
+	private function handleDropEvent ():Void {
+		
+		for (window in parent.windows) {
+			
+			window.onDropFile.dispatch (dropEventInfo.file);
+			
+		}
+		
+	}
+	
+	
 	private function handleGamepadEvent ():Void {
 		
 		switch (gamepadEventInfo.type) {
@@ -188,20 +209,11 @@ class NativeApplication {
 			
 			case CONNECT:
 				
-				if (!Gamepad.devices.exists (gamepadEventInfo.id)) {
-					
-					var gamepad = new Gamepad (gamepadEventInfo.id);
-					Gamepad.devices.set (gamepadEventInfo.id, gamepad);
-					Gamepad.onConnect.dispatch (gamepad);
-					
-				}
+				Gamepad.__connect (gamepadEventInfo.id);
 			
 			case DISCONNECT:
 				
-				var gamepad = Gamepad.devices.get (gamepadEventInfo.id);
-				if (gamepad != null) gamepad.connected = false;
-				Gamepad.devices.remove (gamepadEventInfo.id);
-				if (gamepad != null) gamepad.onDisconnect.dispatch ();
+				Gamepad.__disconnect (gamepadEventInfo.id);
 			
 		}
 		
@@ -239,20 +251,11 @@ class NativeApplication {
 			
 			case CONNECT:
 				
-				if (!Joystick.devices.exists (joystickEventInfo.id)) {
-					
-					var joystick = new Joystick (joystickEventInfo.id);
-					Joystick.devices.set (joystickEventInfo.id, joystick);
-					Joystick.onConnect.dispatch (joystick);
-					
-				}
+				Joystick.__connect (joystickEventInfo.id);
 			
 			case DISCONNECT:
 				
-				var joystick = Joystick.devices.get (joystickEventInfo.id);
-				if (joystick != null) joystick.connected = false;
-				Joystick.devices.remove (joystickEventInfo.id);
-				if (joystick != null) joystick.onDisconnect.dispatch ();
+				Joystick.__disconnect (joystickEventInfo.id);
 			
 		}
 		
@@ -265,17 +268,47 @@ class NativeApplication {
 		
 		if (window != null) {
 			
-			switch (keyEventInfo.type) {
+			var type:KeyEventType = keyEventInfo.type;
+			var keyCode:KeyCode = keyEventInfo.keyCode;
+			var modifier:KeyModifier = keyEventInfo.modifier;
+			
+			switch (type) {
 				
 				case KEY_DOWN:
 					
-					window.onKeyDown.dispatch (keyEventInfo.keyCode, keyEventInfo.modifier);
+					window.onKeyDown.dispatch (keyCode, modifier);
 				
 				case KEY_UP:
 					
-					window.onKeyUp.dispatch (keyEventInfo.keyCode, keyEventInfo.modifier);
+					window.onKeyUp.dispatch (keyCode, modifier);
 				
 			}
+			
+			#if (windows || linux)
+			
+			if (keyCode == RETURN && (modifier == KeyModifier.LEFT_ALT || modifier == KeyModifier.RIGHT_ALT) && type == KEY_DOWN && !window.onKeyDown.canceled) {
+				
+				window.fullscreen = !window.fullscreen;
+				
+			}
+			
+			#elseif mac
+			
+			if (keyCode == F && modifier.ctrlKey && modifier.metaKey && type == KEY_DOWN && !modifier.altKey && !modifier.shiftKey && !window.onKeyDown.canceled) {
+				
+				window.fullscreen = !window.fullscreen;
+				
+			}
+			
+			#elseif android
+			
+			if (keyCode == APP_CONTROL_BACK && modifier == KeyModifier.NONE && type == KEY_UP && !window.onKeyUp.canceled) {
+				
+				System.exit (0);
+				
+			}
+			
+			#end
 			
 		}
 		
@@ -483,7 +516,12 @@ class NativeApplication {
 				case WINDOW_CLOSE:
 					
 					window.onClose.dispatch ();
-					window.close ();
+					
+					if (!window.onClose.canceled) {
+						
+						window.close ();
+						
+					}
 				
 				case WINDOW_DEACTIVATE:
 					
@@ -593,6 +631,7 @@ class NativeApplication {
 	@:cffi private static function lime_application_quit (handle:Dynamic):Int;
 	@:cffi private static function lime_application_set_frame_rate (handle:Dynamic, value:Float):Void;
 	@:cffi private static function lime_application_update (handle:Dynamic):Bool;
+	@:cffi private static function lime_drop_event_manager_register (callback:Dynamic, eventObject:Dynamic):Void;
 	@:cffi private static function lime_gamepad_event_manager_register (callback:Dynamic, eventObject:Dynamic):Void;
 	@:cffi private static function lime_joystick_event_manager_register (callback:Dynamic, eventObject:Dynamic):Void;
 	@:cffi private static function lime_key_event_manager_register (callback:Dynamic, eventObject:Dynamic):Void;
@@ -637,6 +676,38 @@ private class ApplicationEventInfo {
 	
 	var UPDATE = 0;
 	var EXIT = 1;
+	
+}
+
+
+private class DropEventInfo {
+	
+	
+	public var file:String;
+	public var type:DropEventType;
+	
+	
+	public function new (type:DropEventType = null, file:String = null) {
+		
+		this.type = type;
+		this.file = file;
+		
+	}
+	
+	
+	public function clone ():DropEventInfo {
+		
+		return new DropEventInfo (type, file);
+		
+	}
+	
+	
+}
+
+
+@:enum private abstract DropEventType(Int) {
+	
+	var DROP_FILE = 0;
 	
 }
 
