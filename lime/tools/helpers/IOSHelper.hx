@@ -194,61 +194,53 @@ class IOSHelper {
 				applicationPath = workingDirectory + "/build/" + configuration + "-iphonesimulator/" + project.app.file + ".app";
 				
 			}
-			
-			var family = "iphone";
-			var tall = "";
-			var retina = "";	
-			var altCommand = false;
-			
-			if (project.targetFlags.exists ("ipad")) {
-				
-				family = "ipad";
-				tall = "com.apple.CoreSimulator.SimDeviceType.iPad-2";
-				altCommand = true;
-			}
 
-			if (project.targetFlags.exists ("retina")) 
+			var appPath = FileSystem.fullPath (applicationPath);
+			var sdk = project.environment.get("IPHONE_VER");
+			var output = project.environment.get ("IPHONE_STDOUT");
+			var dtid = "";
+
+			if(project.defines.exists("devicetypeid"))
 			{
-				if(project.targetFlags.exists ("ipad"))
+				dtid = project.defines.get("devicetypeid");
+				dtid = StringTools.replace(dtid, ",", ", ");
+			}
+			else
+			{
+				if (project.targetFlags.exists ("ipad"))
 				{
-					tall = "com.apple.CoreSimulator.SimDeviceType.iPad-Air";
+					dtid = 'iPad-2, $sdk';
+					
+					if (project.targetFlags.exists ("retina")) 
+					{
+						dtid = 'iPad-Air, $sdk';
+					}
 				}
-				
 				else
 				{
-					tall = "com.apple.CoreSimulator.SimDeviceType.iPhone-4s";
-					altCommand = true;
+					if (project.targetFlags.exists ("tall"))
+					{
+						dtid = 'iPhone-5s, $sdk';
+					}
+					
+					if (project.targetFlags.exists ("tall47"))
+					{
+						dtid = 'iPhone-6, $sdk';
+					}
+					
+					if (project.targetFlags.exists ("tall55"))
+					{
+						dtid = 'iPhone-6-Plus, $sdk';
+					}
 				}
 			}
-			
-			if (project.targetFlags.exists ("tall")) {
-				tall = "com.apple.CoreSimulator.SimDeviceType.iPhone-5s";	
-				altCommand = true;
-			}
-			
-			if (project.targetFlags.exists ("tall47")) {
-				tall = "com.apple.CoreSimulator.SimDeviceType.iPhone-6";
-				altCommand = true;
-			}
-			
-			if (project.targetFlags.exists ("tall55")) {
-				tall = "com.apple.CoreSimulator.SimDeviceType.iPhone-6-Plus";
-				altCommand = true;
-			}
-			
+
 			var templatePaths = [ PathHelper.combine (PathHelper.getHaxelib (new Haxelib ("lime")), "templates") ].concat (project.templatePaths);
 			var launcher = PathHelper.findTemplate (templatePaths, "bin/ios-sim");
 			Sys.command ("chmod", [ "+x", launcher ]);
 			
-			if(altCommand)
-			{
-				ProcessHelper.runCommand ("", launcher, [ "launch", FileSystem.fullPath (applicationPath), "--sdk", project.environment.get ("IPHONE_VER"), "--devicetypeid", tall, "--timeout", "30", "--stdout", project.environment.get ("IPHONE_STDOUT")]  );
-			}
+			ProcessHelper.runCommand ("", launcher, [ "launch", appPath, "--devicetypeid", dtid, "--log", output] );
 			
-			else
-			{
-				ProcessHelper.runCommand ("", launcher, [ "launch", FileSystem.fullPath (applicationPath), "--sdk", project.environment.get ("IPHONE_VER"), "--family", family, retina, tall, "--timeout", "30", "--stdout", project.environment.get ("IPHONE_STDOUT")]  );
-			}
 		} else {
 			
 			var applicationPath = "";
