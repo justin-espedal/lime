@@ -37,7 +37,7 @@ class IOSHelper {
 		}
 		
 		var iphoneVersion = project.environment.get ("IPHONE_VER");
-		var commands = [ "-configuration", configuration, "PLATFORM_NAME=" + platformName, "SDKROOT=" + platformName + iphoneVersion ];
+		var commands = [ "-configuration", configuration, "PLATFORM_NAME=" + platformName, "SDKROOT=" + platformName + iphoneVersion, "PATH=$PATH" ];
 		
 		if (project.targetFlags.exists ("simulator")) {
 			
@@ -70,8 +70,12 @@ class IOSHelper {
 			commands = commands.concat (additionalArguments);
 			
 		}
-		
-		ProcessHelper.runCommand (workingDirectory, "xcodebuild", commands);
+
+		//XXX: this needs to be formatted so that $PATH is treated as a variable.
+		commands = commands.map(function(s) return s == "PATH=$PATH" ? s : StringTools.quoteUnixArg(s));
+		var cmd = ["xcodebuild"].concat(commands).join(" ");
+
+		ProcessHelper.runCommand (workingDirectory, cmd, null);
 		
 	}
 	
