@@ -12,6 +12,15 @@ addons:
     - libglu1-mesa-dev
     - libgc-dev
     - libgtk-3-dev
+    
+haxe:
+  #- 3.2.0
+  - 3.2.1
+  - development
+
+matrix:
+  allow_failures:
+  - haxe: development
 
 before_install:
   - "export DISPLAY=:99.0"
@@ -29,7 +38,6 @@ install:
   - haxelib dev lime $(pwd)
 
 script:
-  - haxelib run lime rebuild linux -64 -Dlegacy > log.txt || cat log.txt
   - haxelib run lime rebuild linux -64 > log.txt || cat log.txt
   - haxelib run lime rebuild tools
   #- haxelib run lime create HandlingInputEvents

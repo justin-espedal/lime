@@ -12,8 +12,10 @@ import lime.graphics.GLRenderContext;
 import lime.graphics.Renderer;
 import lime.math.Rectangle;
 
+@:access(lime._backend.html5.HTML5GLRenderContext)
 @:access(lime.app.Application)
 @:access(lime.graphics.opengl.GL)
+@:access(lime.graphics.GLRenderContext)
 @:access(lime.graphics.Renderer)
 @:access(lime.ui.Window)
 
@@ -64,16 +66,21 @@ class HTML5Renderer {
 				
 				var options = {
 					
-					alpha: false,
+					alpha: (Reflect.hasField (parent.window.config, "background") && parent.window.config.background == null) ? true : false,
 					antialias: Reflect.hasField (parent.window.config, "antialiasing") ? parent.window.config.antialiasing > 0 : false,
 					depth: Reflect.hasField (parent.window.config, "depthBuffer") ? parent.window.config.depthBuffer : true,
-					premultipliedAlpha: false,
+					premultipliedAlpha: true,
 					stencil: Reflect.hasField (parent.window.config, "stencilBuffer") ? parent.window.config.stencilBuffer : false,
 					preserveDrawingBuffer: false
 					
 				};
 				
-				webgl = cast parent.window.backend.canvas.getContextWebGL (options);
+				for (name in [ #if !webgl1 "webgl2", #end "webgl", "experimental-webgl" ]) {
+					
+					webgl = cast parent.window.backend.canvas.getContext (name, options);
+					if (webgl != null) break;
+					
+				}
 				
 			}
 			
@@ -84,16 +91,17 @@ class HTML5Renderer {
 				
 			} else {
 				
-				#if debug
+				#if webgl_debug
 				webgl = untyped WebGLDebugUtils.makeDebugContext (webgl);
 				#end
 				
-				GL.context = webgl;
-				#if (js && html5)
-				parent.context = OPENGL (cast GL.context);
+				#if ((js && html5) && !display)
+				GL.context = new GLRenderContext (cast webgl);
+				parent.context = OPENGL (GL.context);
 				#else
 				parent.context = OPENGL (new GLRenderContext ());
 				#end
+				
 				parent.type = OPENGL;
 				
 			}
@@ -117,6 +125,15 @@ class HTML5Renderer {
 			case "webglcontextlost":
 				
 				event.preventDefault ();
+				
+				#if !display
+				if (GL.context != null) {
+					
+					GL.context.__contextLost = true;
+					
+				}
+				#end
+				
 				parent.context = null;
 				
 				parent.onContextLost.dispatch ();

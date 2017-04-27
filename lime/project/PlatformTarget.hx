@@ -3,30 +3,59 @@ package lime.project;
 
 import haxe.rtti.Meta;
 import lime.tools.helpers.AssetHelper;
+import lime.tools.helpers.CommandHelper;
 import lime.tools.helpers.LogHelper;
 
 
 class PlatformTarget {
 	
 	
-	public var additionalArguments:Array <String>;
+	public var additionalArguments:Array<String>;
+	public var buildType:String;
 	public var command:String;
+	public var noOutput:Bool;
 	public var project:HXProject;
 	public var targetDirectory:String;
-	public var targetFlags:Map <String, String>;
+	public var targetFlags:Map<String, String>;
 	public var traceEnabled = true;
 	
 	
-	public function new (command:String = null, project:HXProject = null, targetFlags:Map <String, String> = null) {
+	public function new (command:String = null, project:HXProject = null, targetFlags:Map<String, String> = null) {
 		
 		this.command = command;
 		this.project = project;
 		this.targetFlags = targetFlags;
 		
+		buildType = "release";
+		
+		if (project != null) {
+			
+			if (project.debug) {
+				
+				buildType = "debug";
+				
+			} else if (project.targetFlags.exists ("final")) {
+				
+				buildType = "final";
+				
+			}
+			
+		}
+		
+		for (haxeflag in project.haxeflags) {
+			
+			if (haxeflag == "--no-output") {
+				
+				noOutput = true;
+				
+			}
+			
+		}
+		
 	}
 	
 	
-	public function execute (additionalArguments:Array <String>):Void {
+	public function execute (additionalArguments:Array<String>):Void {
 		
 		LogHelper.info ("", LogHelper.accentColor + "Using target platform: " + Std.string (project.target).toUpperCase () + LogHelper.resetColor);
 		
@@ -73,8 +102,12 @@ class PlatformTarget {
 		
 		if (!Reflect.hasField (metaFields.build, "ignore") && (command == "build" || command == "test")) {
 			
+			CommandHelper.executeCommands (project.preBuildCallbacks);
+			
 			LogHelper.info ("", "\n" + LogHelper.accentColor + "Running command: BUILD" + LogHelper.resetColor);
 			build ();
+			
+			CommandHelper.executeCommands (project.postBuildCallbacks);
 			
 		}
 		
@@ -99,7 +132,7 @@ class PlatformTarget {
 			
 		}
 		
-		if (!Reflect.hasField (metaFields.trace, "ignore") && (command == "test" || command == "trace")) {
+		if (!Reflect.hasField (metaFields.trace, "ignore") && (command == "test" || command == "trace" || command == "run" || command == "rerun" )) {
 			
 			if (traceEnabled || command == "trace") {
 				

@@ -16,7 +16,7 @@ class IOSHelper {
 	private static var initialized = false;
 	
 	
-	public static function build (project:HXProject, workingDirectory:String, additionalArguments:Array <String> = null):Void {
+	public static function build (project:HXProject, workingDirectory:String, additionalArguments:Array<String> = null):Void {
 		
 		initialize (project);
 		
@@ -35,24 +35,47 @@ class IOSHelper {
 			configuration = "Debug";
 			
 		}
-			
+		
 		var iphoneVersion = project.environment.get ("IPHONE_VER");
-		var commands = [ "-configuration", configuration, "PLATFORM_NAME=" + platformName, "SDKROOT=" + platformName + iphoneVersion ];
-			
-		if (project.targetFlags.exists("simulator")) {
+		var commands = [ "-configuration", configuration, "PLATFORM_NAME=" + platformName, "SDKROOT=" + platformName + iphoneVersion, "PATH=$PATH" ];
+		
+		if (project.targetFlags.exists ("simulator")) {
 			
 			commands.push ("-arch");
-			commands.push ("i386");
+			//commands.push ("i386");
+			commands.push ("x86_64");
+			
+		} else if (project.targetFlags.exists ("armv7")) {
+			
+			commands.push ("-arch");
+			commands.push ("armv7");
+			
+		} else if (project.targetFlags.exists ("armv7s")) {
+			
+			commands.push ("-arch");
+			commands.push ("armv7s");
+			
+		} else if (project.targetFlags.exists ("arm64")) {
+			
+			commands.push ("-arch");
+			commands.push ("arm64");
 			
 		}
+		
+		commands.push ("-project");
+		commands.push (project.app.file + ".xcodeproj");
 		
 		if (additionalArguments != null) {
 			
 			commands = commands.concat (additionalArguments);
 			
 		}
-		
-		ProcessHelper.runCommand (workingDirectory, "xcodebuild", commands);
+
+		//XXX: this needs to be formatted so that $PATH is treated as a variable.
+		commands = commands.map(function(s) return s == "PATH=$PATH" ? s : StringTools.quoteUnixArg(s));
+		var cmd = ["xcodebuild"].concat(commands).join(" ");
+
+		ProcessHelper.runCommand (workingDirectory, cmd, null);
 		
 	}
 	
@@ -85,33 +108,52 @@ class IOSHelper {
 	}
 	
 	
-	private static function getIOSVersion (project:HXProject):Void {
+	public static function getIOSVersion (project:HXProject):Void {
 		
-		if (!project.environment.exists("IPHONE_VER")) {
-			if (!project.environment.exists("DEVELOPER_DIR")) {
-				var proc = new Process("xcode-select", ["--print-path"]);
-				var developer_dir = proc.stdout.readLine();
-				proc.close();
-				project.environment.set("DEVELOPER_DIR", developer_dir);
-			}
-			var dev_path = project.environment.get("DEVELOPER_DIR") + "/Platforms/iPhoneOS.platform/Developer/SDKs";
+		if (!project.environment.exists ("IPHONE_VER") || project.environment.get ("IPHONE_VER") == "4.2") {
 			
-			if (FileSystem.exists (dev_path)) {
-				var best = "";
-				var files = FileSystem.readDirectory (dev_path);
-				var extract_version = ~/^iPhoneOS(.*).sdk$/;
+			if (!project.environment.exists ("DEVELOPER_DIR")) {
+				
+				var process = new Process ("xcode-select", [ "--print-path" ]);
+				var developerDir = process.stdout.readLine ();
+				process.close ();
+				
+				project.environment.set ("DEVELOPER_DIR", developerDir);
+				
+			}
+			
+			var devPath = project.environment.get ("DEVELOPER_DIR") + "/Platforms/iPhoneOS.platform/Developer/SDKs";
+			
+			if (FileSystem.exists (devPath)) {
+				
+				var files = FileSystem.readDirectory (devPath);
+				var extractVersion = ~/^iPhoneOS(.*).sdk$/;
+				var best = "0", version;
 				
 				for (file in files) {
-					if (extract_version.match (file)) {
-						var ver = extract_version.matched (1);
-						if (ver > best)
-							best = ver;
+					
+					if (extractVersion.match (file)) {
+						
+						version = extractVersion.matched (1);
+						
+						if (Std.parseFloat (version) > Std.parseFloat (best)) {
+							
+							best = version;
+							
+						}
+						
 					}
+					
 				}
 				
-				if (best != "")
+				if (best != "") {
+					
 					project.environment.set ("IPHONE_VER", best);
+					
+				}
+				
 			}
+			
 		}
 		
 	}
@@ -198,43 +240,9 @@ class IOSHelper {
 			var appPath = FileSystem.fullPath (applicationPath);
 			var sdk = project.environment.get("IPHONE_VER");
 			var output = project.environment.get ("IPHONE_STDOUT");
-			var dtid = "";
-
-			if(project.defines.exists("devicetypeid"))
-			{
-				dtid = project.defines.get("devicetypeid");
-				dtid = StringTools.replace(dtid, ",", ", ");
-			}
-			else
-			{
-				if (project.targetFlags.exists ("ipad"))
-				{
-					dtid = 'iPad-2, $sdk';
-					
-					if (project.targetFlags.exists ("retina")) 
-					{
-						dtid = 'iPad-Air, $sdk';
-					}
-				}
-				else
-				{
-					if (project.targetFlags.exists ("tall"))
-					{
-						dtid = 'iPhone-5s, $sdk';
-					}
-					
-					if (project.targetFlags.exists ("tall47"))
-					{
-						dtid = 'iPhone-6, $sdk';
-					}
-					
-					if (project.targetFlags.exists ("tall55"))
-					{
-						dtid = 'iPhone-6-Plus, $sdk';
-					}
-				}
-			}
-
+			var dtid = project.defines.get("devicetypeid");
+			dtid = StringTools.replace(dtid, ",", ", ");
+				
 			var templatePaths = [ PathHelper.combine (PathHelper.getHaxelib (new Haxelib ("lime")), "templates") ].concat (project.templatePaths);
 			var launcher = PathHelper.findTemplate (templatePaths, "bin/ios-sim");
 			Sys.command ("chmod", [ "+x", launcher ]);
@@ -261,7 +269,7 @@ class IOSHelper {
 			
 			var xcodeVersion = getXcodeVersion ();
 			
-			ProcessHelper.runCommand ("", launcher, [ "install", "--noninteractive", "--debug", "--timeout", "5", "--bundle", FileSystem.fullPath (applicationPath) ]);
+			ProcessHelper.runCommand ("", launcher, [ "install", "--noninteractive", "--debug", "--bundle", FileSystem.fullPath (applicationPath) ]);
 			
 		}
 		
@@ -280,20 +288,20 @@ class IOSHelper {
 			
 		}
 		
-		var identity = "iPhone Developer";
+		var identity = project.config.getString ("ios.identity", "iPhone Developer");
 		
-		if (project.certificate != null && project.certificate.identity != null) {
-			
-			identity = project.certificate.identity;
-			
-		}
-		
-        var commands = [ "--no-strict", "-f", "-s", identity ];
+		var commands = [ "--no-strict", "-f", "-s", identity, "CODE_SIGN_IDENTITY=" + identity ];
 		
 		if (entitlementsPath != null) {
 			
 			commands.push ("--entitlements");
 			commands.push (entitlementsPath);
+			
+		}
+		
+		if (project.config.exists ("ios.provisioning-profile")) {
+			
+			commands.push ("PROVISIONING_PROFILE=" + project.config.getString ("ios.provisioning-profile"));
 			
 		}
 		
@@ -304,5 +312,28 @@ class IOSHelper {
 		
 	}
 	
-
+	
+	private static function waitForDeviceState (command:String, args:Array<String>):Void {
+		
+		var output;
+		
+		while (true) {
+			
+			output = ProcessHelper.runProcess ("", command, args, true, true, true);
+			
+			if (output != null && output.toLowerCase ().indexOf ("invalid device state") > -1) {
+				
+				Sys.sleep (3);
+				
+			} else {
+				
+				break;
+				
+			}
+			
+		}
+		
+	}
+	
+	
 }

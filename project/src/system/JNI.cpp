@@ -1,7 +1,6 @@
 #include <system/JNI.h>
 #include <utils/Object.h>
-#include <hx/CFFIPrimePatch.h>
-//#include <hx/CFFIPrime.h>
+#include <hx/CFFIPrime.h>
 #include <jni.h>
 #include <pthread.h>
 #include <android/log.h>
@@ -1960,7 +1959,7 @@ namespace lime {
 	double lime_jni_get_env () {
 		
 		JNIEnv *env = (JNIEnv*)JNI::GetEnv ();
-		return (intptr_t)env;
+		return (uintptr_t)env;
 		
 	}
 	

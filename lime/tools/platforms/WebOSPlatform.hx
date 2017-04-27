@@ -3,7 +3,6 @@ package lime.tools.platforms;
 
 import haxe.io.Path;
 import haxe.Template;
-import lime.tools.helpers.AssetHelper;
 import lime.tools.helpers.CPPHelper;
 import lime.tools.helpers.DeploymentHelper;
 import lime.tools.helpers.FileHelper;
@@ -22,30 +21,18 @@ import sys.FileSystem;
 class WebOSPlatform extends PlatformTarget {
 	
 	
-	public function new (command:String, _project:HXProject, targetFlags:Map <String, String> ) {
+	public function new (command:String, _project:HXProject, targetFlags:Map<String, String> ) {
 		
 		super (command, _project, targetFlags);
 		
-		targetDirectory = project.app.path + "/webos";
+		targetDirectory = project.app.path + "/webos/" + buildType;
 		
 	}
 	
 	
 	public override function build ():Void {
 		
-		var type = "release";
-		
-		if (project.debug) {
-			
-			type = "debug";
-			
-		} else if (project.targetFlags.exists ("final")) {
-			
-			type = "final";
-			
-		}
-		
-		var hxml = targetDirectory + "/haxe/" + type + ".hxml";
+		var hxml = targetDirectory + "/haxe/" + buildType + ".hxml";
 		var destination = targetDirectory + "/bin/";
 		
 		for (ndll in project.ndlls) {
@@ -55,6 +42,9 @@ class WebOSPlatform extends PlatformTarget {
 		}
 		
 		ProcessHelper.runCommand ("", "haxe", [ hxml, "-D", "webos", "-D", "HXCPP_LOAD_DEBUG", "-D", "HXCPP_RTLD_LAZY" ] );
+		
+		if (noOutput) return;
+		
 		CPPHelper.compile (project, targetDirectory + "/obj", [ "-Dwebos", "-DHXCPP_LOAD_DEBUG", "-DHXCPP_RTLD_LAZY" ]);
 		
 		FileHelper.copyIfNewer (targetDirectory + "/obj/ApplicationMain" + (project.debug ? "-debug" : ""), targetDirectory + "/bin/" + project.app.file);
@@ -86,22 +76,11 @@ class WebOSPlatform extends PlatformTarget {
 	
 	public override function display ():Void {
 		
-		var type = "release";
-		
-		if (project.debug) {
-			
-			type = "debug";
-			
-		} else if (project.targetFlags.exists ("final")) {
-			
-			type = "final";
-			
-		}
-		
-		var hxml = PathHelper.findTemplate (project.templatePaths, "webos/hxml/" + type + ".hxml");
+		var hxml = PathHelper.findTemplate (project.templatePaths, "webos/hxml/" + buildType + ".hxml");
 		
 		var context = project.templateContext;
 		context.CPP_DIR = targetDirectory + "/obj";
+		context.OUTPUT_DIR = targetDirectory;
 		
 		var template = new Template (File.getContent (hxml));
 		
@@ -167,6 +146,7 @@ class WebOSPlatform extends PlatformTarget {
 		
 		var context = project.templateContext;
 		context.CPP_DIR = targetDirectory + "/obj";
+		context.OUTPUT_DIR = targetDirectory;
 		
 		var icons = project.icons;
 		
@@ -215,8 +195,6 @@ class WebOSPlatform extends PlatformTarget {
 			}
 			
 		}
-		
-		AssetHelper.createManifest (project, PathHelper.combine (destination, "manifest"));
 		
 	}
 	

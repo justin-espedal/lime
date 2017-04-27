@@ -1,5 +1,5 @@
 package haxe;
-#if (!neko && !cpp && !nodejs)
+#if !lime_cffi
 
 
 // Original haxe.Timer class
@@ -41,19 +41,20 @@ package haxe;
 	the child class.
 **/
 class Timer {
-	#if (flash || js || java || python)
 
 	#if (flash || js)
 		private var id : Null<Int>;
 	#elseif java
 		private var timer : java.util.Timer;
 		private var task : java.util.TimerTask;
+	#elseif (haxe_ver >= "3.4.0")
+		private var event : MainLoop.MainEvent;
 	#end
 
 	/**
 		Creates a new timer that will run every `time_ms` milliseconds.
 
-		After creating the Timer instance, it calls `this].run` repeatedly,
+		After creating the Timer instance, it calls `this.run` repeatedly,
 		with delays of `time_ms` milliseconds, until `this.stop` is called.
 
 		The first invocation occurs after `time_ms` milliseconds, not
@@ -71,6 +72,13 @@ class Timer {
 		#elseif java
 			timer = new java.util.Timer();
 			timer.scheduleAtFixedRate(task = new TimerTask(this), haxe.Int64.ofInt(time_ms), haxe.Int64.ofInt(time_ms));
+		#elseif (haxe_ver >= "3.4.0")
+			var dt = time_ms / 1000;
+			event = MainLoop.add(function() {
+				@:privateAccess event.nextRun += dt;
+				run();
+			});
+			event.delay(dt);
 		#end
 	}
 
@@ -93,9 +101,16 @@ class Timer {
 			#end
 			id = null;
 		#elseif java
-			timer.cancel();
-			timer = null;
+			if(timer != null) {
+				timer.cancel();
+				timer = null;
+			}
 			task = null;
+		#elseif (haxe_ver >= "3.4.0")
+			if( event != null ) {
+				event.stop();
+				event = null;
+			}
 		#end
 	}
 
@@ -132,8 +147,6 @@ class Timer {
 		return t;
 	}
 
-	#end
-
 	/**
 		Measures the time it takes to execute `f`, in seconds with fractions.
 
@@ -158,7 +171,7 @@ class Timer {
 		The value itself might differ depending on platforms, only differences
 		between two values make sense.
 	**/
-	public static function stamp() : Float {
+	public static inline function stamp() : Float {
 		#if flash
 			return flash.Lib.getTimer() / 1000;
 		#elseif (neko || php)
@@ -167,8 +180,11 @@ class Timer {
 			return Date.now().getTime() / 1000;
 		#elseif cpp
 			return untyped __global__.__time_stamp();
+		#elseif python
+			return Sys.cpuTime();
 		#elseif sys
 			return Sys.time();
+		
 		#else
 			return 0;
 		#end
@@ -195,9 +211,7 @@ private class TimerTask extends java.util.TimerTask {
 #else
 
 
-#if !lime_legacy
 import lime.system.System;
-#end
 
 
 class Timer {
@@ -238,11 +252,7 @@ class Timer {
 	
 	private static function getMS ():Float {
 		
-		#if lime_legacy
-		return lime_time_stamp () * 1000.0;
-		#else
 		return System.getTimer ();
-		#end
 		
 	}
 	
@@ -264,13 +274,9 @@ class Timer {
 	}
 	
 	
-	public static function stamp ():Float {
+	public static inline function stamp ():Float {
 		
-		#if lime_legacy
-		return lime_time_stamp ();
-		#else
 		return System.getTimer () / 1000;
-		#end
 		
 	}
 	
@@ -307,80 +313,6 @@ class Timer {
 		}
 		
 	}
-	
-	
-	@:noCompletion @:dox(hide) public static function __checkTimers () {
-		
-		var now = getMS ();
-		var foundNull = false;
-		var timer;
-		
-		for (i in 0...sRunningTimers.length) {
-			
-			timer = sRunningTimers[i];
-			
-			if (timer != null) {
-				
-				timer.__check (now);
-				
-			}
-			
-			foundNull = (foundNull || sRunningTimers[i] == null);
-			
-		}
-		
-		if (foundNull) {
-			
-			sRunningTimers = sRunningTimers.filter (function (val) { return val != null; });
-			
-		}
-		
-	}
-	
-	
-	#if (lime_legacy || lime_hybrid)
-	@:noCompletion @:dox(hide) public static function __nextWake (limit:Float):Float {
-		
-		var now = getMS ();
-		var sleep;
-		
-		for (timer in sRunningTimers) {
-			
-			if (timer == null)
-				continue;
-			
-			sleep = timer.mFireAt - now;
-			
-			if (sleep < limit) {
-				
-				limit = sleep;
-				
-				if (limit < 0) {
-					
-					return 0;
-					
-				}
-				
-			}
-			
-		}
-		
-		return limit * 0.001;
-		
-	}
-	#end
-	
-	
-	
-	
-	// Native Methods
-	
-	
-	
-	
-	#if lime_legacy
-	static var lime_time_stamp:Void->Float = flash.Lib.load ("lime-legacy", "lime_legacy_time_stamp", 0);
-	#end
 	
 	
 }

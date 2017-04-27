@@ -3,7 +3,6 @@ package lime.tools.platforms;
 
 import haxe.io.Path;
 import haxe.Template;
-import lime.tools.helpers.AssetHelper;
 import lime.tools.helpers.BlackBerryHelper;
 import lime.tools.helpers.CPPHelper;
 import lime.tools.helpers.DeploymentHelper;
@@ -29,18 +28,18 @@ class BlackBerryPlatform extends PlatformTarget {
 	private var outputFile:String;
 	
 	
-	public function new (command:String, _project:HXProject, targetFlags:Map <String, String>) {
+	public function new (command:String, _project:HXProject, targetFlags:Map<String, String>) {
 		
 		super (command, _project, targetFlags);
 		
 		if (!project.targetFlags.exists ("html5")) {
 			
-			targetDirectory = project.app.path + "/blackberry/cpp";
+			targetDirectory = project.app.path + "/blackberry/cpp/" + buildType;
 			outputFile = targetDirectory + "/bin/" + PathHelper.safeFileName (project.app.file);
 			
 		} else {
 			
-			targetDirectory = project.app.path + "/blackberry/html5";
+			targetDirectory = project.app.path + "/blackberry/html5/" + buildType;
 			outputFile = targetDirectory + "/src/" + project.app.file + ".js";
 			
 		}
@@ -66,22 +65,12 @@ class BlackBerryPlatform extends PlatformTarget {
 		
 		if (project.app.main != null) {
 			
-			var type = "release";
-			
-			if (project.debug) {
-				
-				type = "debug";
-				
-			} else if (project.targetFlags.exists ("final")) {
-				
-				type = "final";
-				
-			}
-			
-			var hxml = targetDirectory + "/haxe/" + type + ".hxml";
+			var hxml = targetDirectory + "/haxe/" + buildType + ".hxml";
 			ProcessHelper.runCommand ("", "haxe", [ hxml, "-D", "blackberry" ] );
 			
 		}
+		
+		if (noOutput) return;
 		
 		if (!project.targetFlags.exists ("html5")) {
 			
@@ -174,32 +163,19 @@ class BlackBerryPlatform extends PlatformTarget {
 	
 	public override function display ():Void {
 		
-		var hxml = "";
 		var context = project.templateContext;
+		context.OUTPUT_DIR = targetDirectory;
 		
-		var type = "release";
-		
-		if (project.debug) {
-			
-			type = "debug";
-			
-		} else if (project.targetFlags.exists ("final")) {
-			
-			type = "final";
-			
-		}
+		var hxml = "";
 		
 		if (!project.targetFlags.exists ("html5")) {
 			
-			hxml = PathHelper.findTemplate (project.templatePaths, "blackberry/hxml/" + type + ".hxml");
-			
+			hxml = PathHelper.findTemplate (project.templatePaths, "blackberry/hxml/" + buildType + ".hxml");
 			context.CPP_DIR = targetDirectory + "/obj";
 			
 		} else {
 			
-			hxml = PathHelper.findTemplate (project.templatePaths, "html5/hxml/" + type + ".hxml");
-			
-			context.OUTPUT_DIR = targetDirectory;
+			hxml = PathHelper.findTemplate (project.templatePaths, "html5/hxml/" + buildType + ".hxml");
 			context.OUTPUT_FILE = outputFile;
 			
 		}
@@ -247,7 +223,7 @@ class BlackBerryPlatform extends PlatformTarget {
 		if (!project.targetFlags.exists ("html5")) {
 			
 			BlackBerryHelper.trace (project, targetDirectory, project.meta.packageName + "_" + project.meta.version + ".bar");
-		
+			
 		} else {
 			
 			//BlackBerryHelper.trace (project, targetDirectory + "/bin/" + (project.targetFlags.exists ("simulator") ? "simulator" : "device"), PathHelper.safeFileName (project.app.file) + ".bar");
@@ -323,11 +299,11 @@ class BlackBerryPlatform extends PlatformTarget {
 			destination = targetDirectory + "/src/";
 			
 			context.WIN_FLASHBACKGROUND = StringTools.hex (project.window.background, 6);
-			context.OUTPUT_DIR = targetDirectory;
 			context.OUTPUT_FILE = outputFile;
 			
 		}
 		
+		context.OUTPUT_DIR = targetDirectory;
 		context.BLACKBERRY_AUTHOR_ID = BlackBerryHelper.processDebugToken (project, targetDirectory).authorID;
 		context.APP_FILE_SAFE = PathHelper.safeFileName (project.app.file);
 		
@@ -396,8 +372,6 @@ class BlackBerryPlatform extends PlatformTarget {
 			}
 			
 		}
-		
-		AssetHelper.createManifest (project, PathHelper.combine (destination, "manifest"));
 		
 	}
 	

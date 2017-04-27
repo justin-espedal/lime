@@ -3,8 +3,8 @@
 	"url": "https://github.com/openfl/lime",
 	"license": "MIT",
 	"tags": [],
-	"description": "A flexible lightweight layer for Haxe cross-platform developers",
-	"version": "2.9.1",
-	"releasenote": "Added drag/drop and maximize support, other fixes and improvements",
+	"description": "A foundational Haxe framework for cross-platform development",
+	"version": "4.0.3",
+	"releasenote": "Minor improvements",
 	"contributors": [ "singmajesty" ]
 }

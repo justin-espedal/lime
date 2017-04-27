@@ -4,31 +4,25 @@ package lime._backend.html5;
 import haxe.Timer;
 import js.html.CanvasElement;
 import js.html.DivElement;
-#if (haxe_ver >= 3.2)
 import js.html.Element;
 import js.html.FocusEvent;
 import js.html.InputElement;
 import js.html.InputEvent;
-#else
-import js.html.HtmlElement;
-#end
 import js.html.MouseEvent;
 import js.html.TouchEvent;
+import js.html.ClipboardEvent;
 import js.Browser;
 import lime.app.Application;
 import lime.graphics.Image;
 import lime.system.Display;
+import lime.system.DisplayMode;
 import lime.system.System;
+import lime.system.Clipboard;
 import lime.ui.Gamepad;
 import lime.ui.Joystick;
 import lime.ui.Touch;
 import lime.ui.Window;
 
-#if (haxe_ver < 3.2)
-typedef FocusEvent = js.html.Event;
-typedef InputElement = Dynamic;
-typedef InputEvent = js.html.Event;
-#end
 
 @:access(lime.app.Application)
 @:access(lime.ui.Gamepad)
@@ -39,20 +33,26 @@ typedef InputEvent = js.html.Event;
 class HTML5Window {
 	
 	
+	private static var dummyCharacter = String.fromCharCode (127);
 	private static var textInput:InputElement;
 	private static var windowID:Int = 0;
 	
 	public var canvas:CanvasElement;
 	public var div:DivElement;
-	public var element:#if (haxe_ver >= "3.2") Element #else HtmlElement #end;
+	public var element:Element;
 	#if stats
 	public var stats:Dynamic;
 	#end
 	
+	private var cacheElementHeight:Float;
+	private var cacheElementWidth:Float;
+	private var cacheMouseX:Float;
+	private var cacheMouseY:Float;
 	private var currentTouches = new Map<Int, Touch> ();
 	private var enableTextEvents:Bool;
 	private var parent:Window;
 	private var primaryTouch:Touch;
+	private var scale = 1.0;
 	private var setHeight:Int;
 	private var setWidth:Int;
 	private var unusedTouchesPool = new List<Touch> ();
@@ -68,6 +68,19 @@ class HTML5Window {
 			
 		}
 		
+		#if !dom
+		if (parent.config != null && Reflect.hasField (parent.config, "allowHighDPI") && parent.config.allowHighDPI) {
+			
+			scale = Browser.window.devicePixelRatio;
+			
+		}
+		#end
+		
+		parent.__scale = scale;
+		
+		cacheMouseX = 0;
+		cacheMouseY = 0;
+		
 	}
 	
 	
@@ -75,11 +88,7 @@ class HTML5Window {
 		
 		if (message != null) {
 			
-			#if (haxe_ver >= 3.2)
 			Browser.alert (message);
-			#else
-			js.Lib.alert (message);
-			#end
 			
 		}
 		
@@ -150,14 +159,20 @@ class HTML5Window {
 				
 			}
 			
+			cacheElementWidth = parent.width;
+			cacheElementHeight = parent.height;
+			
 			parent.fullscreen = true;
 			
 		}
 		
 		if (canvas != null) {
 			
-			canvas.width = parent.width;
-			canvas.height = parent.height;
+			canvas.width = Math.round (parent.width * scale);
+			canvas.height = Math.round (parent.height * scale);
+			
+			canvas.style.width = parent.width + "px";
+			canvas.style.height = parent.height + "px";
 			
 		} else {
 			
@@ -166,7 +181,7 @@ class HTML5Window {
 			
 		}
 		
-		handleResize ();
+		updateSize ();
 		
 		if (element != null) {
 			
@@ -201,6 +216,8 @@ class HTML5Window {
 				return true;
 			}, false);
 			
+			element.addEventListener ("contextmenu", handleContextMenuEvent, true);
+			
 			element.addEventListener ("touchstart", handleTouchEvent, true);
 			element.addEventListener ("touchmove", handleTouchEvent, true);
 			element.addEventListener ("touchend", handleTouchEvent, true);
@@ -227,9 +244,34 @@ class HTML5Window {
 	}
 	
 	
+	public function getDisplayMode ():DisplayMode {
+		
+		return System.getDisplay (0).currentMode;
+		
+	}
+	
+	
+	public function setDisplayMode (value:DisplayMode):DisplayMode {
+		
+		return value;
+		
+	}
+	
+	
 	public function getEnableTextEvents ():Bool {
 		
 		return enableTextEvents;
+		
+	}
+	
+	
+	private function handleContextMenuEvent (event:MouseEvent):Void {
+		
+		if (parent.onMouseUp.canceled) {
+			
+			event.preventDefault ();
+			
+		}
 		
 	}
 	
@@ -271,12 +313,45 @@ class HTML5Window {
 	}
 	
 	
+	private function handleCutOrCopyEvent (event:ClipboardEvent):Void {
+		
+		event.clipboardData.setData('text/plain', Clipboard.text);
+		event.preventDefault(); // We want our data, not data from any selection, to be written to the clipboard
+		
+	}
+
+
+	private function handlePasteEvent (event:ClipboardEvent):Void {
+		
+		if(untyped event.clipboardData.types.indexOf('text/plain') > -1){
+			var text = Clipboard.text = event.clipboardData.getData('text/plain');
+			parent.onTextInput.dispatch (text);
+			
+			// We are already handling the data from the clipboard, we do not want it inserted into the hidden input
+			event.preventDefault();
+		}
+		
+	}
+
+
 	private function handleInputEvent (event:InputEvent):Void {
 		
-		if (textInput.value != "") {
+		// In order to ensure that the browser will fire clipboard events, we always need to have something selected.
+		// Therefore, `value` cannot be "".
+		
+		if (textInput.value != dummyCharacter) {
 			
-			parent.onTextInput.dispatch (textInput.value);
-			textInput.value = "";
+			if (textInput.value.charAt (0) == dummyCharacter) {
+				
+				parent.onTextInput.dispatch (textInput.value.substr (1));
+				
+			} else {
+				
+				parent.onTextInput.dispatch (textInput.value);
+				
+			}
+			
+			textInput.value = dummyCharacter;
 			
 		}
 		
@@ -326,98 +401,92 @@ class HTML5Window {
 				case "mousedown":
 					
 					parent.onMouseDown.dispatch (x, y, event.button);
+					
+					if (parent.onMouseDown.canceled) {
+						
+						event.preventDefault ();
+						
+					}
 				
 				case "mouseenter":
 					
-					parent.onEnter.dispatch ();
+					if (event.target == element) {
+						
+						parent.onEnter.dispatch ();
+						
+						if (parent.onEnter.canceled) {
+							
+							event.preventDefault ();
+							
+						}
+						
+					}
 				
 				case "mouseleave":
 					
-					parent.onLeave.dispatch ();
+					if (event.target == element) {
+						
+						parent.onLeave.dispatch ();
+						
+						if (parent.onLeave.canceled) {
+							
+							event.preventDefault ();
+							
+						}
+						
+					}
 				
 				case "mouseup":
 					
 					parent.onMouseUp.dispatch (x, y, event.button);
+					
+					if (parent.onMouseUp.canceled) {
+						
+						event.preventDefault ();
+						
+					}
 				
 				case "mousemove":
 					
-					parent.onMouseMove.dispatch (x, y);
+					if (x != cacheMouseX || y != cacheMouseY) {
+						
+						parent.onMouseMove.dispatch (x, y);
+						parent.onMouseMoveRelative.dispatch (x - cacheMouseX, y - cacheMouseY);
+						
+						if (parent.onMouseMove.canceled || parent.onMouseMoveRelative.canceled) {
+							
+							event.preventDefault ();
+							
+						}
+						
+					}
 				
 				default:
 				
 			}
 			
+			cacheMouseX = x;
+			cacheMouseY = y;
+			
 		} else {
 			
 			parent.onMouseWheel.dispatch (untyped event.deltaX, - untyped event.deltaY);
+			
+			if (parent.onMouseWheel.canceled) {
+				
+				event.preventDefault ();
+				
+			}
 			
 		}
 		
 	}
 	
 	
-	private function handleResize ():Void {
+	private function handleResizeEvent (event:js.html.Event):Void {
 		
-		var stretch = parent.fullscreen || (setWidth == 0 && setHeight == 0);
-		
-		if (element != null && (div == null || (div != null && stretch))) {
-			
-			if (stretch) {
-				
-				if (parent.width != element.clientWidth || parent.height != element.clientHeight) {
-					
-					parent.width = element.clientWidth;
-					parent.height = element.clientHeight;
-					
-					if (canvas != null) {
-						
-						if (element != cast canvas) {
-							
-							canvas.width = element.clientWidth;
-							canvas.height = element.clientHeight;
-							
-						}
-						
-					} else {
-						
-						div.style.width = element.clientWidth + "px";
-						div.style.height = element.clientHeight + "px";
-						
-					}
-					
-				}
-				
-			} else {
-				
-				var scaleX = element.clientWidth / setWidth;
-				var scaleY = element.clientHeight / setHeight;
-				
-				var currentRatio = scaleX / scaleY;
-				var targetRatio = Math.min (scaleX, scaleY);
-				
-				if (canvas != null) {
-					
-					if (element != cast canvas) {
-						
-						canvas.style.width = setWidth * targetRatio + "px";
-						canvas.style.height = setHeight * targetRatio + "px";
-						canvas.style.marginLeft = ((element.clientWidth - (setWidth * targetRatio)) / 2) + "px";
-						canvas.style.marginTop = ((element.clientHeight - (setHeight * targetRatio)) / 2) + "px";
-						
-					}
-					
-				} else {
-					
-					div.style.width = setWidth * targetRatio + "px";
-					div.style.height = setHeight * targetRatio + "px";
-					div.style.marginLeft = ((element.clientWidth - (setWidth * targetRatio)) / 2) + "px";
-					div.style.marginTop = ((element.clientHeight - (setHeight * targetRatio)) / 2) + "px";
-					
-				}
-				
-			}
-			
-		}
+		primaryTouch = null;
+		updateSize ();
 		
 	}
 	
@@ -604,6 +673,29 @@ class HTML5Window {
 	}
 	
 	
+	public function setClipboard (value:String):Void {
+		
+		if (Browser.document.queryCommandEnabled ("copy")) {
+			
+			var inputEnabled = enableTextEvents;
+			
+			setEnableTextEvents (true); // create textInput if necessary
+			setEnableTextEvents (false);
+			
+			var cacheText = textInput.value;
+			textInput.value = value;
+			
+			Browser.document.execCommand ("copy");
+			
+			textInput.value = cacheText;
+			
+			setEnableTextEvents (inputEnabled);
+			
+		}
+		
+	}
+	
+	
 	public function setEnableTextEvents (value:Bool):Bool {
 		
 		if (value) {
@@ -615,7 +707,7 @@ class HTML5Window {
 				textInput.style.position = 'absolute';
 				textInput.style.opacity = "0";
 				textInput.style.color = "transparent";
-				textInput.value = "";
+				textInput.value = dummyCharacter; // See: handleInputEvent()
 				
 				untyped textInput.autocapitalize = "off";
 				untyped textInput.autocorrect = "off";
@@ -650,10 +742,14 @@ class HTML5Window {
 				
 				textInput.addEventListener ('input', handleInputEvent, true);
 				textInput.addEventListener ('blur', handleFocusEvent, true);
+				textInput.addEventListener ('cut', handleCutOrCopyEvent, true);
+				textInput.addEventListener ('copy', handleCutOrCopyEvent, true);
+				textInput.addEventListener ('paste', handlePasteEvent, true);
 				
 			}
 			
 			textInput.focus ();
+			textInput.select ();
 			
 		} else {
 			
@@ -661,6 +757,9 @@ class HTML5Window {
 				
 				textInput.removeEventListener ('input', handleInputEvent, true);
 				textInput.removeEventListener ('blur', handleFocusEvent, true);
+				textInput.removeEventListener ('cut', handleCutOrCopyEvent, true);
+				textInput.removeEventListener ('copy', handleCutOrCopyEvent, true);
+				textInput.removeEventListener ('paste', handlePasteEvent, true);
 				
 				textInput.blur ();
 				
@@ -675,7 +774,7 @@ class HTML5Window {
 	
 	public function setFullscreen (value:Bool):Bool {
 		
-		return false;
+		return value;
 		
 	}
 	
@@ -711,6 +810,112 @@ class HTML5Window {
 	public function setTitle (value:String):String {
 		
 		return value;
+		
+	}
+	
+	
+	private function updateSize ():Void {
+		
+		var elementWidth, elementHeight;
+		
+		if (element != null) {
+			
+			elementWidth = element.clientWidth;
+			elementHeight = element.clientHeight;
+			
+		} else {
+			
+			elementWidth = Browser.window.innerWidth;
+			elementHeight = Browser.window.innerHeight;
+			
+		}
+		
+		if (elementWidth != cacheElementWidth || elementHeight != cacheElementHeight) {
+			
+			cacheElementWidth = elementWidth;
+			cacheElementHeight = elementHeight;
+			
+			var stretch = parent.fullscreen || (setWidth == 0 && setHeight == 0);
+			
+			if (element != null && (div == null || (div != null && stretch))) {
+				
+				if (stretch) {
+					
+					if (parent.width != elementWidth || parent.height != elementHeight) {
+						
+						parent.width = elementWidth;
+						parent.height = elementHeight;
+						
+						if (canvas != null) {
+							
+							if (element != cast canvas) {
+								
+								canvas.width = Math.round (elementWidth * scale);
+								canvas.height = Math.round (elementHeight * scale);
+								
+								canvas.style.width = elementWidth + "px";
+								canvas.style.height = elementHeight + "px";
+								
+							}
+							
+						} else {
+							
+							div.style.width = elementWidth + "px";
+							div.style.height = elementHeight + "px";
+							
+						}
+						
+						parent.onResize.dispatch (elementWidth, elementHeight);
+						
+					}
+					
+				} else {
+					
+					var scaleX = (setWidth != 0) ? (elementWidth / setWidth) : 1;
+					var scaleY = (setHeight != 0) ? (elementHeight / setHeight) : 1;
+					
+					var targetWidth = elementWidth;
+					var targetHeight = elementHeight;
+					var marginLeft = 0;
+					var marginTop = 0;
+					
+					if (scaleX < scaleY) {
+						
+						targetHeight = Math.floor (setHeight * scaleX);
+						marginTop = Math.floor ((elementHeight - targetHeight) / 2);
+						
+					} else {
+						
+						targetWidth = Math.floor (setWidth * scaleY);
+						marginLeft = Math.floor ((elementWidth - targetWidth) / 2);
+						
+					}
+					
+					if (canvas != null) {
+						
+						if (element != cast canvas) {
+							
+							canvas.style.width = targetWidth + "px";
+							canvas.style.height = targetHeight + "px";
+							canvas.style.marginLeft = marginLeft + "px";
+							canvas.style.marginTop = marginTop + "px";
+							
+						}
+						
+					} else {
+						
+						div.style.width = targetWidth + "px";
+						div.style.height = targetHeight + "px";
+						div.style.marginLeft = marginLeft + "px";
+						div.style.marginTop = marginTop + "px";
+						
+					}
+					
+				}
+				
+			}
+			
+		}
 		
 	}
 	

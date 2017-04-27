@@ -6,7 +6,10 @@ import haxe.Serializer;
 import haxe.Unserializer;
 import lime.tools.helpers.PathHelper;
 import lime.project.AssetType;
+import lime.project.Asset;
 import lime.project.HXProject;
+import lime.project.Library;
+import lime.utils.AssetManifest;
 import sys.io.File;
 import sys.FileSystem;
 
@@ -14,60 +17,202 @@ import sys.FileSystem;
 class AssetHelper {
 	
 	
-	public static function createManifest (project:HXProject, targetPath:String = ""):String {
+	public static function createManifest (project:HXProject, library:String = null, targetPath:String = null):AssetManifest {
 		
-		var manifest = new Array <Dynamic> ();
+		var manifest = new AssetManifest ();
+		var pathGroups = new Map<String, Array<String>> ();
+		var size, soundName;
+		var assetData:Dynamic;
 		
 		for (asset in project.assets) {
 			
-			if (asset.type != AssetType.TEMPLATE) {
+			if (asset.library != library || asset.type == TEMPLATE) continue;
+			
+			size = 100;
+			
+			if (FileSystem.exists (asset.sourcePath)) {
 				
-				var data = {
-					id : asset.id,
-					path : asset.resourceName,
-					type : Std.string (asset.type)
+				size = FileSystem.stat (asset.sourcePath).size;
+				
+			}
+			
+			assetData = {
+				
+				id: asset.id,
+				size: size,
+				type: Std.string (asset.type)
+				
+			};
+			
+			if (project.target != HTML5) {
+				
+				if (asset.embed == true || asset.type == FONT || (asset.embed == null && (project.platformType == WEB))) {
+					
+					assetData.className = "__ASSET__" + asset.flatName;
+					
+				} else {
+					
+					assetData.path = asset.resourceName;
+					
 				}
 				
-				manifest.push (data);
+			} else {
+				
+				if (asset.type == FONT) {
+					
+					assetData.className = "__ASSET__" + asset.flatName;
+					assetData.preload = true;
+					
+				} else {
+					
+					assetData.path = asset.resourceName;
+					
+					if (asset.embed != false) {
+						
+						assetData.preload = true;
+						
+					}
+					
+					if (asset.type == MUSIC || asset.type == SOUND) {
+						
+						soundName = Path.withoutExtension (assetData.path);
+						
+						if (!pathGroups.exists (soundName)) {
+							
+							pathGroups.set (soundName, [ assetData.path ]);
+							
+						} else {
+							
+							pathGroups[soundName].push (assetData.path);
+							Reflect.deleteField (assetData, "preload");
+							
+						}
+						
+						Reflect.deleteField (assetData, "path");
+						assetData.pathGroup = pathGroups[soundName];
+						
+					}
+					
+				}
+				
+			}
+			
+			manifest.assets.push (assetData);
+			
+		}
+		
+		if (targetPath != null) {
+			
+			PathHelper.mkdir (Path.directory (targetPath));
+			File.saveContent (targetPath, manifest.serialize ());
+			
+		}
+		
+		return manifest;
+		
+	}
+	
+	
+	public static function createManifests (project:HXProject, targetDirectory:String = null):Array<AssetManifest> {
+		
+		var libraryNames = new Map<String, Bool> ();
+		
+		for (asset in project.assets) {
+			
+			if (asset.library != null && !libraryNames.exists (asset.library)) {
+				
+				libraryNames[asset.library] = true;
 				
 			}
 			
 		}
 		
-		var data = Serializer.run (manifest);
+		var manifest = createManifest (project);
+		manifest.name = "default";
+		var manifests = [ manifest ];
 		
-		if (targetPath != "") {
+		for (library in libraryNames.keys ()) {
 			
-			PathHelper.mkdir (Path.directory (targetPath));
-			File.saveContent (targetPath, data);
+			manifest = createManifest (project, library);
+			manifest.name = library;
+			manifests.push (manifest);
 			
 		}
 		
-		return data;
+		if (targetDirectory != null) {
+			
+			PathHelper.mkdir (targetDirectory);
+			
+			for (manifest in manifests) {
+				
+				File.saveContent (PathHelper.combine (targetDirectory, manifest.name + ".json"), manifest.serialize ());
+				
+			}
+			
+		}
+		
+		return manifests;
 		
 	}
 	
 	
 	public static function processLibraries (project:HXProject, targetDirectory:String = null):Void {
 		
-		var handlers = new Array <String> ();
+		var libraryMap = new Map<String, Bool> ();
 		
 		for (library in project.libraries) {
 			
-			var type = library.type;
+			libraryMap[library.name] = true;
 			
-			if (type == null) {
+		}
+		
+		var library;
+		
+		for (asset in project.assets) {
+			
+			if (asset.library != null && !libraryMap.exists (asset.library)) {
 				
-				type = Path.extension (library.sourcePath).toLowerCase ();
+				library = new Library (null, asset.library);
+				project.libraries.push (library);
+				
+				libraryMap[asset.library] = true;
 				
 			}
 			
-			if (project.libraryHandlers.exists (type)) {
+		}
+		
+		if (!libraryMap.exists ("default")) {
+			
+			library = new Library (null, "default");
+			project.libraries.push (library);
+			
+		}
+		
+		var handlers = new Array<String> ();
+		var type;
+		
+		for (library in project.libraries) {
+			
+			type = library.type;
+			
+			if (library.sourcePath != null || type != null) {
 				
-				var handler = project.libraryHandlers.get (type);
+				if (type == null) {
+					
+					type = Path.extension (library.sourcePath).toLowerCase ();
+					
+				}
 				
-				handlers.remove (handler);
-				handlers.push (handler);
+				if (project.libraryHandlers.exists (type)) {
+					
+					var handler = project.libraryHandlers.get (type);
+					
+					handlers.remove (handler);
+					handlers.push (handler);
+					
+					library.type = type;
+					
+				}
 				
 			}
 			
@@ -131,7 +276,56 @@ class AssetHelper {
 			
 		}
 		
+		var manifest, asset;
+		
+		for (library in project.libraries) {
+			
+			if (library.type == null) {
+				
+				manifest = createManifest (project, library.name != "default" ? library.name : null);
+				
+				if (library.name == "default") {
+					
+					library.preload = true;
+					
+				}
+				
+				asset = new Asset ("", "manifest/" + library.name + ".json", AssetType.MANIFEST);
+				asset.library = library.name;
+				asset.data = manifest.serialize ();
+				
+				if (manifest.assets.length == 0) {
+					
+					asset.embed = true;
+					
+				} else {
+					
+					// TODO: Make this assumption elsewhere?
+					
+					var allEmbedded = true;
+					
+					for (childAsset in manifest.assets) {
+						
+						if (!Reflect.hasField (childAsset, "className") || childAsset.className == null) {
+							
+							allEmbedded = false;
+							break;
+							
+						}
+						
+					}
+					
+					if (allEmbedded) asset.embed = true;
+					
+				}
+				
+				project.assets.push (asset);
+				
+			}
+			
+		}
+		
 	}
 	
-
+	
 }

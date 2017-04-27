@@ -1,16 +1,21 @@
 package lime.graphics.opengl; #if (!js || !html5 || display)
 
 
-class GLRenderbuffer extends GLObject {
+import lime.graphics.opengl.GL;
+
+@:forward(id)
+
+
+abstract GLRenderbuffer(GLObject) from GLObject to GLObject {
 	
 	
-	private override function getType ():String {
+	@:from private static function fromInt (id:Int):GLRenderbuffer {
 		
-		return "Renderbuffer";
+		return GLObject.fromInt (RENDERBUFFER, id);
 		
 	}
-    
-    
+	
+	
 }
 
 

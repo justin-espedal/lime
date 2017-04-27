@@ -12,8 +12,14 @@ import js.html.Image in HTMLImage;
 import js.html.ImageData;
 import js.html.Uint8ClampedArray;
 import js.Browser;
+import lime.graphics.utils.ImageCanvasUtil;
 #elseif flash
 import flash.display.BitmapData;
+#end
+
+#if !lime_debug
+@:fileXml('tags="haxe,release"')
+@:noDebug
 #end
 
 @:allow(lime.graphics.Image)
@@ -47,6 +53,7 @@ class ImageBuffer {
 		this.height = height;
 		this.bitsPerPixel = bitsPerPixel;
 		this.format = (format == null ? RGBA32 : format);
+		premultiplied = false;
 		transparent = true;
 		
 	}

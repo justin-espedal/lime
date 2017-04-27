@@ -1,16 +1,21 @@
 package lime.graphics.opengl; #if (!js || !html5 || display)
 
 
-class GLTexture extends GLObject {
+import lime.graphics.opengl.GL;
+
+@:forward(id)
+
+
+abstract GLTexture(GLObject) from GLObject to GLObject {
 	
 	
-	private override function getType ():String {
+	@:from private static function fromInt (id:Int):GLTexture {
 		
-		return "Texture";
+		return GLObject.fromInt (TEXTURE, id);
 		
 	}
-    
-    
+	
+	
 }
 
 

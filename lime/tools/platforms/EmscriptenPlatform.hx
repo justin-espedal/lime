@@ -4,7 +4,6 @@ package lime.tools.platforms;
 import haxe.io.Path;
 import haxe.Json;
 import haxe.Template;
-import lime.tools.helpers.AssetHelper;
 import lime.tools.helpers.CPPHelper;
 import lime.tools.helpers.DeploymentHelper;
 import lime.tools.helpers.FileHelper;
@@ -26,11 +25,11 @@ class EmscriptenPlatform extends PlatformTarget {
 	private var outputFile:String;
 	
 	
-	public function new (command:String, _project:HXProject, targetFlags:Map <String, String>) {
+	public function new (command:String, _project:HXProject, targetFlags:Map<String, String>) {
 		
 		super (command, _project, targetFlags);
 		
-		targetDirectory = project.app.path + "/emscripten";
+		targetDirectory = project.app.path + "/emscripten/" + buildType;
 		outputFile = targetDirectory + "/bin/" + project.app.file + ".js";
 		
 	}
@@ -38,21 +37,12 @@ class EmscriptenPlatform extends PlatformTarget {
 	
 	public override function build ():Void {
 		
-		var type = "release";
-		
-		if (project.debug) {
-			
-			type = "debug";
-			
-		} else if (project.targetFlags.exists ("final")) {
-			
-			type = "final";
-			
-		}
-		
-		var hxml = targetDirectory + "/haxe/" + type + ".hxml";
+		var hxml = targetDirectory + "/haxe/" + buildType + ".hxml";
 		
 		ProcessHelper.runCommand ("", "haxe", [ hxml, "-D", "emscripten", "-D", "webgl", "-D", "static_link" ] );
+		
+		if (noOutput) return;
+		
 		CPPHelper.compile (project, targetDirectory + "/obj", [ "-Demscripten", "-Dwebgl", "-Dstatic_link" ]);
 		
 		if (project.environment.exists ("EMSCRIPTEN_SDK")) {
@@ -198,19 +188,7 @@ class EmscriptenPlatform extends PlatformTarget {
 	
 	public override function display ():Void {
 		
-		var type = "release";
-		
-		if (project.debug) {
-			
-			type = "debug";
-			
-		} else if (project.targetFlags.exists ("final")) {
-			
-			type = "final";
-			
-		}
-		
-		var hxml = PathHelper.findTemplate (project.templatePaths, "emscripten/hxml/" + type + ".hxml");
+		var hxml = PathHelper.findTemplate (project.templatePaths, "emscripten/hxml/" + buildType + ".hxml");
 		
 		var context = project.templateContext;
 		context.OUTPUT_DIR = targetDirectory;
@@ -322,8 +300,6 @@ class EmscriptenPlatform extends PlatformTarget {
 			}
 			
 		}
-		
-		AssetHelper.createManifest (project, PathHelper.combine (targetDirectory + "/obj/assets", "manifest"));
 		
 	}
 	

@@ -1,12 +1,17 @@
 package lime.graphics.opengl; #if (!js || !html5 || display)
 
 
-class GLBuffer extends GLObject {
+import lime.graphics.opengl.GL;
+
+@:forward(id)
+
+
+abstract GLBuffer(GLObject) from GLObject to GLObject {
 	
 	
-	private override function getType ():String {
+	@:from private static function fromInt (id:Int):GLBuffer {
 		
-		return "Buffer";
+		return GLObject.fromInt (BUFFER, id);
 		
 	}
 	

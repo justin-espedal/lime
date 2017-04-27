@@ -107,7 +107,7 @@ class ProcessHelper {
 	}
 	
 	
-	public static function runCommand (path:String, command:String, args:Array <String>, safeExecute:Bool = true, ignoreErrors:Bool = false, print:Bool = false):Int {
+	public static function runCommand (path:String, command:String, args:Array<String>, safeExecute:Bool = true, ignoreErrors:Bool = false, print:Bool = false):Int {
 		
 		if (print) {
 			
@@ -135,11 +135,13 @@ class ProcessHelper {
 			
 		}
 		
+		#if (haxe_ver < "3.3.0")
 		if (args != null && PlatformHelper.hostPlatform == Platform.WINDOWS) {
 			
 			command = PathHelper.escape (command);
 			
 		}
+		#end
 		
 		if (safeExecute) {
 			
@@ -248,7 +250,7 @@ class ProcessHelper {
 	}
 	
 	
-	public static function runProcess (path:String, command:String, args:Array <String>, waitForOutput:Bool = true, safeExecute:Bool = true, ignoreErrors:Bool = false, print:Bool = false):String {
+	public static function runProcess (path:String, command:String, args:Array<String>, waitForOutput:Bool = true, safeExecute:Bool = true, ignoreErrors:Bool = false, print:Bool = false, returnErrorValue:Bool = false):String {
 		
 		if (print) {
 			
@@ -284,7 +286,7 @@ class ProcessHelper {
 					
 				}
 				
-				return _runProcess (path, command, args, waitForOutput, ignoreErrors);
+				return _runProcess (path, command, args, waitForOutput, safeExecute, ignoreErrors, returnErrorValue);
 				
 			} catch (e:Dynamic) {
 				
@@ -300,14 +302,14 @@ class ProcessHelper {
 			
 		} else {
 			
-			return _runProcess (path, command, args, waitForOutput, ignoreErrors);
+			return _runProcess (path, command, args, waitForOutput, safeExecute, ignoreErrors, returnErrorValue);
 			
 		}
 		
 	}
 	
 	
-	private static function _runProcess (path:String, command:String, args:Array<String>, waitForOutput:Bool, ignoreErrors:Bool):String {
+	private static function _runProcess (path:String, command:String, args:Array<String>, waitForOutput:Bool, safeExecute:Bool, ignoreErrors:Bool, returnErrorValue:Bool):String {
 		
 		var oldPath:String = "";
 		
@@ -376,19 +378,23 @@ class ProcessHelper {
 				}
 				
 				result = process.exitCode ();
-				process.close();
+				process.close ();
 				
-				//if (result == 0) {
+				output = buffer.getBytes ().toString ();
+				
+				if (output == "") {
 					
-					output = buffer.getBytes ().toString ();
+					var error = process.stderr.readAll ().toString ();
 					
-					if (output == "") {
-						
-						var error = process.stderr.readAll ().toString ();
+					if (result != 0 || error != "") {
 						
 						if (ignoreErrors) {
 							
 							output = error;
+							
+						} else if (!safeExecute) {
+							
+							throw error;
 							
 						} else {
 							
@@ -396,17 +402,25 @@ class ProcessHelper {
 							
 						}
 						
-						return null;
-						
-						/*if (error != "") {
+						if (returnErrorValue) {
 							
-							LogHelper.error (error);
+							return output;
 							
-						}*/
+						} else {
+							
+							return null;
+							
+						}
 						
 					}
 					
-				//}
+					/*if (error != "") {
+						
+						LogHelper.error (error);
+						
+					}*/
+					
+				}
 				
 			}
 			

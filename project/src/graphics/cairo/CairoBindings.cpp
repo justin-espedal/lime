@@ -2,8 +2,7 @@
 #include <cairo-ft.h>
 #include <math/Matrix3.h>
 #include <math/Vector2.h>
-#include <hx/CFFIPrimePatch.h>
-//#include <hx/CFFIPrime.h>
+#include <hx/CFFIPrime.h>
 #include <system/CFFIPointer.h>
 #include <text/Font.h>
 
@@ -11,6 +10,10 @@
 namespace lime {
 	
 	
+	static int id_index;
+	static int id_x;
+	static int id_y;
+	static bool init = false;
 	cairo_user_data_key_t userData;
 	
 	
@@ -288,7 +291,7 @@ namespace lime {
 			
 		}
 		
-		delete dashes;
+		delete[] dashes;
 		return result;
 		
 	}
@@ -429,7 +432,7 @@ namespace lime {
 	
 	value lime_cairo_image_surface_create_for_data (double data, int format, int width, int height, int stride) {
 		
-		cairo_surface_t* surface = cairo_image_surface_create_for_data ((unsigned char*)(intptr_t)data, (cairo_format_t)format, width, height, stride);
+		cairo_surface_t* surface = cairo_image_surface_create_for_data ((unsigned char*)(uintptr_t)data, (cairo_format_t)format, width, height, stride);
 		return CFFIPointer (surface, gc_cairo_surface);
 		
 	}
@@ -437,7 +440,7 @@ namespace lime {
 	
 	double lime_cairo_image_surface_get_data (value handle) {
 		
-		return (intptr_t)cairo_image_surface_get_data ((cairo_surface_t*)val_data (handle));
+		return (uintptr_t)cairo_image_surface_get_data ((cairo_surface_t*)val_data (handle));
 		
 	}
 	
@@ -766,7 +769,7 @@ namespace lime {
 		}
 		
 		cairo_set_dash ((cairo_t*)val_data (handle), dashPattern, length, 0);
-		delete dashPattern;
+		delete[] dashPattern;
 		
 	}
 	
@@ -841,7 +844,17 @@ namespace lime {
 	}
 	
 	
-	void lime_cairo_set_matrix (value handle, value matrix) {
+	void lime_cairo_set_matrix (value handle, double a, double b, double c, double d, double tx, double ty) {
+		
+		cairo_matrix_t cm;
+		cairo_matrix_init (&cm, a, b, c, d, tx, ty);
+		
+		cairo_set_matrix ((cairo_t*)val_data (handle), &cm);
+		
+	}
+	
+	
+	/*void lime_cairo_set_matrix (value handle, value matrix) {
 		
 		Matrix3 mat3 = Matrix3 (matrix);
 		
@@ -850,7 +863,7 @@ namespace lime {
 		
 		cairo_set_matrix ((cairo_t*)val_data (handle), &cm);
 		
-	}
+	}*/
 	
 	
 	void lime_cairo_set_miter_limit (value handle, double miterLimit) {
@@ -902,6 +915,36 @@ namespace lime {
 	}
 	
 	
+	void lime_cairo_show_glyphs (value handle, value glyphs) {
+		
+		if (!init) {
+			
+			id_index = val_id ("index");
+			id_x = val_id ("x");
+			id_y = val_id ("y");
+			
+		}
+		
+		int length = val_array_size (glyphs);
+		cairo_glyph_t* _glyphs = cairo_glyph_allocate (length);
+		
+		value glyph;
+		
+		for (int i = 0; i < length; i++) {
+			
+			glyph = val_array_i (glyphs, i);
+			_glyphs[i].index = val_int (val_field (glyph, id_index));
+			_glyphs[i].x = val_number (val_field (glyph, id_x));
+			_glyphs[i].y = val_number (val_field (glyph, id_y));
+			
+		}
+		
+		cairo_show_glyphs ((cairo_t*)val_data (handle), _glyphs, length);
+		cairo_glyph_free (_glyphs);
+		
+	}
+	
+	
 	void lime_cairo_show_page (value handle) {
 		
 		cairo_show_page ((cairo_t*)val_data (handle));
@@ -947,6 +990,13 @@ namespace lime {
 	void lime_cairo_surface_flush (value handle) {
 		
 		cairo_surface_flush ((cairo_surface_t*)val_data (handle));
+		
+	}
+	
+	
+	void lime_cairo_text_path (value handle, HxString text) {
+		
+		cairo_text_path ((cairo_t*)val_data (handle), (char*)text.__s);
 		
 	}
 	
@@ -1080,7 +1130,8 @@ namespace lime {
 	DEFINE_PRIME2v (lime_cairo_set_line_cap);
 	DEFINE_PRIME2v (lime_cairo_set_line_join);
 	DEFINE_PRIME2v (lime_cairo_set_line_width);
-	DEFINE_PRIME2v (lime_cairo_set_matrix);
+	DEFINE_PRIME7v (lime_cairo_set_matrix);
+	//DEFINE_PRIME2v (lime_cairo_set_matrix);
 	DEFINE_PRIME2v (lime_cairo_set_miter_limit);
 	DEFINE_PRIME2v (lime_cairo_set_operator);
 	DEFINE_PRIME2v (lime_cairo_set_source);
@@ -1088,6 +1139,7 @@ namespace lime {
 	DEFINE_PRIME5v (lime_cairo_set_source_rgba);
 	DEFINE_PRIME4v (lime_cairo_set_source_surface);
 	DEFINE_PRIME2v (lime_cairo_set_tolerance);
+	DEFINE_PRIME2v (lime_cairo_show_glyphs);
 	DEFINE_PRIME1v (lime_cairo_show_page);
 	DEFINE_PRIME2v (lime_cairo_show_text);
 	DEFINE_PRIME1 (lime_cairo_status);
@@ -1095,6 +1147,7 @@ namespace lime {
 	DEFINE_PRIME5v (lime_cairo_stroke_extents);
 	DEFINE_PRIME1v (lime_cairo_stroke_preserve);
 	DEFINE_PRIME1v (lime_cairo_surface_flush);
+	DEFINE_PRIME2v (lime_cairo_text_path);
 	DEFINE_PRIME2v (lime_cairo_transform);
 	DEFINE_PRIME3v (lime_cairo_translate);
 	DEFINE_PRIME0 (lime_cairo_version);

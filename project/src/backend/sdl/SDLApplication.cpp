@@ -17,8 +17,10 @@ namespace lime {
 	AutoGCRoot* Application::callback = 0;
 	SDLApplication* SDLApplication::currentApplication = 0;
 	
+
 	const int analogAxisDeadZone = 1000;
 	std::map<int, std::map<int, int> > gamepadsAxisMap;
+	bool inBackground = false;
 	
 	
 	SDLApplication::SDLApplication () {
@@ -87,7 +89,7 @@ namespace lime {
 		
 		Init ();
 		
-		#ifdef EMSCRIPTEN
+		#if defined(IPHONE) || defined(EMSCRIPTEN)
 		
 		return 0;
 		
@@ -112,24 +114,31 @@ namespace lime {
 			
 			case SDL_USEREVENT:
 				
-				currentUpdate = SDL_GetTicks ();
-				applicationEvent.type = UPDATE;
-				applicationEvent.deltaTime = currentUpdate - lastUpdate;
-				lastUpdate = currentUpdate;
-				
-				nextUpdate += framePeriod;
-				
-				while (nextUpdate <= currentUpdate) {
+				if (!inBackground) {
+					
+					currentUpdate = SDL_GetTicks ();
+					applicationEvent.type = UPDATE;
+					applicationEvent.deltaTime = currentUpdate - lastUpdate;
+					lastUpdate = currentUpdate;
 					
 					nextUpdate += framePeriod;
 					
+					while (nextUpdate <= currentUpdate) {
+						
+						nextUpdate += framePeriod;
+						
+					}
+					
+					ApplicationEvent::Dispatch (&applicationEvent);
+					RenderEvent::Dispatch (&renderEvent);
+					
 				}
 				
-				ApplicationEvent::Dispatch (&applicationEvent);
-				RenderEvent::Dispatch (&renderEvent);
 				break;
 			
 			case SDL_APP_WILLENTERBACKGROUND:
+				
+				inBackground = true;
 				
 				windowEvent.type = WINDOW_DEACTIVATE;
 				WindowEvent::Dispatch (&windowEvent);
@@ -137,8 +146,14 @@ namespace lime {
 			
 			case SDL_APP_WILLENTERFOREGROUND:
 				
+				break;
+			
+			case SDL_APP_DIDENTERFOREGROUND:
+				
 				windowEvent.type = WINDOW_ACTIVATE;
 				WindowEvent::Dispatch (&windowEvent);
+				
+				inBackground = false;
 				break;
 			
 			case SDL_CONTROLLERAXISMOTION:
@@ -202,6 +217,19 @@ namespace lime {
 				ProcessMouseEvent (event);
 				break;
 			
+			#ifndef EMSCRIPTEN
+			case SDL_RENDER_DEVICE_RESET:
+				
+				renderEvent.type = RENDER_CONTEXT_LOST;
+				RenderEvent::Dispatch (&renderEvent);
+				
+				renderEvent.type = RENDER_CONTEXT_RESTORED;
+				RenderEvent::Dispatch (&renderEvent);
+				
+				renderEvent.type = RENDER;
+				break;
+			#endif
+			
 			case SDL_TEXTINPUT:
 			case SDL_TEXTEDITING:
 				
@@ -227,18 +255,42 @@ namespace lime {
 					
 					case SDL_WINDOWEVENT_EXPOSED: 
 						
-						RenderEvent::Dispatch (&renderEvent);
+						if (!inBackground) {
+							
+							RenderEvent::Dispatch (&renderEvent);
+							
+						}
+						
 						break;
 					
 					case SDL_WINDOWEVENT_SIZE_CHANGED:
 						
 						ProcessWindowEvent (event);
-						RenderEvent::Dispatch (&renderEvent);
+						
+						if (!inBackground) {
+							
+							RenderEvent::Dispatch (&renderEvent);
+							
+						}
+						
 						break;
 					
 					case SDL_WINDOWEVENT_CLOSE:
 						
 						ProcessWindowEvent (event);
+						
+						// Avoid handling SDL_QUIT if in response to window.close
+						SDL_Event event;
+						
+						if (SDL_PollEvent (&event)) {
+							
+							if (event.type != SDL_QUIT) {
+								
+								HandleEvent (&event);
+								
+							}
+							
+						}
 						break;
 					
 				}
@@ -826,6 +878,12 @@ namespace lime {
 	
 	int SDLApplication::WaitEvent (SDL_Event *event) {
 		
+		#ifdef HX_MACOS
+		
+		return SDL_WaitEvent (event);
+		
+		#else
+		
 		for(;;) {
 			
 			SDL_PumpEvents ();
@@ -839,6 +897,8 @@ namespace lime {
 			}
 			
 		}
+		
+		#endif
 		
 	}
 	

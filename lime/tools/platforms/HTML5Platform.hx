@@ -3,15 +3,17 @@ package lime.tools.platforms;
 
 import haxe.io.Path;
 import haxe.Template;
-import lime.tools.helpers.AssetHelper;
 import lime.tools.helpers.DeploymentHelper;
 import lime.tools.helpers.FileHelper;
 import lime.tools.helpers.HTML5Helper;
+import lime.tools.helpers.IconHelper;
 import lime.tools.helpers.LogHelper;
+import lime.tools.helpers.ModuleHelper;
 import lime.tools.helpers.PathHelper;
 import lime.tools.helpers.ProcessHelper;
 import lime.project.AssetType;
 import lime.project.HXProject;
+import lime.project.Icon;
 import lime.project.PlatformTarget;
 import sys.io.File;
 import sys.FileSystem;
@@ -23,16 +25,18 @@ class HTML5Platform extends PlatformTarget {
 	private var outputFile:String;
 	
 	
-	public function new (command:String, _project:HXProject, targetFlags:Map <String, String> ) {
-		
-		initialize (command, _project);
+	public function new (command:String, _project:HXProject, targetFlags:Map<String, String> ) {
 		
 		super (command, _project, targetFlags);
+		
+		initialize (command, _project);
 		
 	}
 	
 	
 	public override function build ():Void {
+		
+		ModuleHelper.buildModules (project, targetDirectory + "/obj", targetDirectory + "/bin");
 		
 		if (project.app.main != null) {
 			
@@ -50,6 +54,8 @@ class HTML5Platform extends PlatformTarget {
 			
 			var hxml = targetDirectory + "/haxe/" + type + ".hxml";
 			ProcessHelper.runCommand ("", "haxe", [ hxml ] );
+			
+			if (noOutput) return;
 			
 			if (project.targetFlags.exists ("webgl")) {
 				
@@ -88,19 +94,7 @@ class HTML5Platform extends PlatformTarget {
 	
 	public override function display ():Void {
 		
-		var type = "release";
-		
-		if (project.debug) {
-			
-			type = "debug";
-			
-		} else if (project.targetFlags.exists ("final")) {
-			
-			type = "final";
-			
-		}
-		
-		var hxml = PathHelper.findTemplate (project.templatePaths, "html5/hxml/" + type + ".hxml");
+		var hxml = PathHelper.findTemplate (project.templatePaths, "html5/hxml/" + buildType + ".hxml");
 		
 		var context = project.templateContext;
 		context.OUTPUT_DIR = targetDirectory;
@@ -115,10 +109,10 @@ class HTML5Platform extends PlatformTarget {
 	
 	
 	private function initialize (command:String, project:HXProject):Void {
-	
-		targetDirectory = project.app.path + "/html5";
+		
+		targetDirectory = project.app.path + "/html5/" + buildType;
 		outputFile = targetDirectory + "/bin/" + project.app.file + ".js";
-
+		
 	}
 	
 	
@@ -179,15 +173,59 @@ class HTML5Platform extends PlatformTarget {
 			
 		}
 		
+		ModuleHelper.updateProject (project);
+		
+		var libraryNames = new Map<String, Bool> ();
+		
+		for (asset in project.assets) {
+			
+			if (asset.library != null && !libraryNames.exists (asset.library)) {
+				
+				libraryNames[asset.library] = true;
+				
+			}
+			
+		}
+		
+		//for (library in libraryNames.keys ()) {
+			//
+			//project.haxeflags.push ("-resource " + targetDirectory + "/obj/manifest/" + library + ".json@__ASSET_MANIFEST__" + library);
+			//
+		//}
+		
+		//project.haxeflags.push ("-resource " + targetDirectory + "/obj/manifest/default.json@__ASSET_MANIFEST__default");
+		
 		var context = project.templateContext;
 		
-		context.WIN_FLASHBACKGROUND = StringTools.hex (project.window.background, 6);
+		context.WIN_FLASHBACKGROUND = project.window.background != null ? StringTools.hex (project.window.background, 6) : "";
 		context.OUTPUT_DIR = targetDirectory;
 		context.OUTPUT_FILE = outputFile;
 		
 		if (project.targetFlags.exists ("webgl")) {
 			
 			context.CPP_DIR = targetDirectory + "/obj";
+			
+		}
+		
+		context.favicons = [];
+		
+		var icons = project.icons;
+		
+		if (icons.length == 0) {
+			
+			icons = [ new Icon (PathHelper.findTemplate (project.templatePaths, "default/icon.svg")) ];
+			
+		}
+		
+		//if (IconHelper.createWindowsIcon (icons, PathHelper.combine (destination, "favicon.ico"))) {
+			//
+			//context.favicons.push ({ rel: "icon", type: "image/x-icon", href: "./favicon.ico" });
+			//
+		//}
+		
+		if (IconHelper.createIcon (icons, 192, 192, PathHelper.combine (destination, "favicon.png"))) {
+			
+			context.favicons.push ({ rel: "shortcut icon", type: "image/png", href: "./favicon.png" });
 			
 		}
 		
@@ -254,7 +292,7 @@ class HTML5Platform extends PlatformTarget {
 			FileHelper.recursiveCopyTemplate (project.templatePaths, "haxe", targetDirectory + "/haxe", context);
 			FileHelper.recursiveCopyTemplate (project.templatePaths, "html5/haxe", targetDirectory + "/haxe", context, true, false);
 			FileHelper.recursiveCopyTemplate (project.templatePaths, "html5/hxml", targetDirectory + "/haxe", context);
-				
+			
 			if (project.targetFlags.exists ("webgl")) {
 				
 				FileHelper.recursiveCopyTemplate (project.templatePaths, "webgl/hxml", targetDirectory + "/haxe", context, true, false);
@@ -275,8 +313,6 @@ class HTML5Platform extends PlatformTarget {
 			}
 			
 		}
-		
-		AssetHelper.createManifest (project, PathHelper.combine (destination, "manifest"));
 		
 	}
 	

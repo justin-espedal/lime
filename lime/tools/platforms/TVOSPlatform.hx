@@ -6,7 +6,6 @@ import haxe.io.Path;
 import haxe.Json;
 import haxe.Template;
 import lime.tools.helpers.ArrayHelper;
-import lime.tools.helpers.AssetHelper;
 import lime.tools.helpers.CPPHelper;
 import lime.tools.helpers.DeploymentHelper;
 import lime.tools.helpers.FileHelper;
@@ -35,11 +34,11 @@ import sys.FileSystem;
 class TVOSPlatform extends PlatformTarget {
 	
 	
-	public function new (command:String, _project:HXProject, targetFlags:Map <String, String> ) {
+	public function new (command:String, _project:HXProject, targetFlags:Map<String, String> ) {
 		
 		super (command, _project, targetFlags);
 		
-		targetDirectory = PathHelper.combine (project.app.path, "tvos");
+		targetDirectory = PathHelper.combine (project.app.path, "tvos/" + buildType);
 		
 	}
 	
@@ -53,6 +52,8 @@ class TVOSPlatform extends PlatformTarget {
 		} else {
 			
 			TVOSHelper.build (project, targetDirectory);
+			
+			if (noOutput) return;
 			
 			if (!project.targetFlags.exists ("simulator")) {
 				
@@ -89,7 +90,10 @@ class TVOSPlatform extends PlatformTarget {
 		var hxml = PathHelper.findTemplate (project.templatePaths, "tvos/PROJ/haxe/Build.hxml");
 		var template = new Template (File.getContent (hxml));
 		
-		Sys.println (template.execute (generateContext ()));
+		var context = generateContext ();
+		context.OUTPUT_DIR = targetDirectory;
+		
+		Sys.println (template.execute (context));
 		Sys.println ("-D display");
 		
 	}
@@ -103,13 +107,6 @@ class TVOSPlatform extends PlatformTarget {
 		project.sources = PathHelper.relocatePaths (project.sources, PathHelper.combine (targetDirectory, project.app.file + "/haxe"));
 		//project.dependencies.push ("stdc++");
 		
-		if (project.certificate == null || project.certificate.identity == null) {
-			
-			project.certificate = new Keystore ();
-			project.certificate.identity = "tvOS Developer";
-			
-		}
-		
 		if (project.targetFlags.exists ("xml")) {
 			
 			project.haxeflags.push ("-xml " + targetDirectory + "/types.xml");
@@ -122,17 +119,24 @@ class TVOSPlatform extends PlatformTarget {
 			
 		}
 		
+		if (!project.config.exists ("tvos.identity")) {
+			
+			project.config.set ("tvos.identity", "tvOS Developer");
+			
+		}
+		
 		var context = project.templateContext;
 		
 		context.HAS_ICON = false;
 		context.HAS_LAUNCH_IMAGE = false;
 		context.OBJC_ARC = false;
+		context.KEY_STORE_IDENTITY = project.config.getString ("tvos.identity");
 		
 		context.linkedLibraries = [];
 		
 		for (dependency in project.dependencies) {
 			
-			if (!StringTools.endsWith (dependency.name, ".framework") && !StringTools.endsWith (dependency.path, ".framework")) {
+			if (!StringTools.endsWith (dependency.name, ".framework") && !StringTools.endsWith (dependency.name, ".tbd") && !StringTools.endsWith (dependency.path, ".framework")) {
 				
 				if (dependency.path != "") {
 					
@@ -158,7 +162,7 @@ class TVOSPlatform extends PlatformTarget {
 			
 		}
 		
-		var valid_archs = new Array <String> ();
+		var valid_archs = new Array<String> ();
 		var arm64 = false;
 		var architectures = project.architectures;
 		
@@ -254,16 +258,25 @@ class TVOSPlatform extends PlatformTarget {
 			
 			var name = null;
 			var path = null;
+			var fileType = null;
 			
 			if (Path.extension (dependency.name) == "framework") {
 				
 				name = dependency.name;
 				path = "/System/Library/Frameworks/" + dependency.name;
+				fileType = "wrapper.framework";
+				
+			} else if (Path.extension (dependency.name) == "tbd") {
+				
+				name = dependency.name;
+				path = "usr/lib/" + dependency.name;
+				fileType = "sourcecode.text-based-dylib-definition";
 				
 			} else if (Path.extension (dependency.path) == "framework") {
 				
 				name = Path.withoutDirectory (dependency.path);
 				path = PathHelper.tryFullPath (dependency.path);
+				fileType = "wrapper.framework";
 				
 			}
 			
@@ -275,7 +288,7 @@ class TVOSPlatform extends PlatformTarget {
 				ArrayHelper.addUnique (context.frameworkSearchPaths, Path.directory (path));
 				
 				context.ADDL_PBX_BUILD_FILE += "		" + frameworkID + " /* " + name + " in Frameworks */ = {isa = PBXBuildFile; fileRef = " + fileID + " /* " + name + " */; };\n";
-				context.ADDL_PBX_FILE_REFERENCE += "		" + fileID + " /* " + name + " */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = \"" + name + "\"; path = \"" + path + "\"; sourceTree = SDKROOT; };\n";
+				context.ADDL_PBX_FILE_REFERENCE += "		" + fileID + " /* " + name + " */ = {isa = PBXFileReference; lastKnownFileType = \"" + fileType + "\"; name = \"" + name + "\"; path = \"" + path + "\"; sourceTree = SDKROOT; };\n";
 				context.ADDL_PBX_FRAMEWORKS_BUILD_PHASE += "				" + frameworkID + " /* " + name + " in Frameworks */,\n";
 				context.ADDL_PBX_FRAMEWORK_GROUP += "				" + fileID + " /* " + name + " */,\n";
 				
@@ -286,18 +299,17 @@ class TVOSPlatform extends PlatformTarget {
 		context.HXML_PATH = PathHelper.findTemplate (project.templatePaths, "tvos/PROJ/haxe/Build.hxml");
 		context.PRERENDERED_ICON = project.config.getBool ("tvos.prerenderedIcon", false);
 		
-		/*var assets = new Array <Asset> ();
+		var haxelibPath = project.environment.get ("HAXELIB_PATH");
 		
-		for (asset in project.assets) {
+		if (haxelibPath != null) {
 			
-			var newAsset = asset.clone ();
+			context.HAXELIB_PATH = 'export HAXELIB_PATH=$haxelibPath;';
 			
-			assets.push ();
+		} else {
 			
-		}*/
-		
-		//updateIcon ();
-		//updateLaunchImage ();
+			context.HAXELIB_PATH = '';
+			
+		}
 		
 		return context;
 		
@@ -347,14 +359,15 @@ class TVOSPlatform extends PlatformTarget {
 			
 		}
 		
-		var manifest = new Asset ();
-		manifest.id = "__manifest__";
-		manifest.data = AssetHelper.createManifest (project);
-		manifest.resourceName = manifest.flatName = manifest.targetPath = "manifest";
-		manifest.type = AssetType.TEXT;
-		project.assets.push (manifest);
+		//var manifest = new Asset ();
+		//manifest.id = "__manifest__";
+		//manifest.data = AssetHelper.createManifest (project).serialize ();
+		//manifest.resourceName = manifest.flatName = manifest.targetPath = "manifest";
+		//manifest.type = AssetType.TEXT;
+		//project.assets.push (manifest);
 		
 		var context = generateContext ();
+		context.OUTPUT_DIR = targetDirectory;
 		
 		var projectDirectory = targetDirectory + "/" + project.app.file + "/";
 		
@@ -415,7 +428,7 @@ class TVOSPlatform extends PlatformTarget {
 			{ name: "Default-736h@3x.png", w: 1242,	h: 2208 }, // iPhone 6 Plus, portrait
 			{ name: "Default-736h-Landscape@3x.png", w: 2208, h: 1242 }, // iPhone 6 Plus, landscape
 		];
-
+		
 		var splashScreenPath = PathHelper.combine (projectDirectory, "Images.xcassets/LaunchImage.launchimage");
 		PathHelper.mkdir (splashScreenPath);
 		

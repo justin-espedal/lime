@@ -3,9 +3,10 @@ package lime.tools.platforms;
 
 import haxe.io.Path;
 import haxe.Template;
-import lime.tools.helpers.AssetHelper;
 import lime.tools.helpers.CPPHelper;
+import lime.tools.helpers.CSHelper;
 import lime.tools.helpers.DeploymentHelper;
+import lime.tools.helpers.GUID;
 import lime.tools.helpers.FileHelper;
 import lime.tools.helpers.IconHelper;
 import lime.tools.helpers.JavaHelper;
@@ -37,7 +38,7 @@ class MacPlatform extends PlatformTarget {
 	private var targetType:String;
 	
 	
-	public function new (command:String, _project:HXProject, targetFlags:Map <String, String> ) {
+	public function new (command:String, _project:HXProject, targetFlags:Map<String, String> ) {
 		
 		super (command, _project, targetFlags);
 		
@@ -63,13 +64,17 @@ class MacPlatform extends PlatformTarget {
 			
 			targetType = "nodejs";
 			
+		} else if (project.targetFlags.exists ("cs")) {
+			
+			targetType = "cs";
+			
 		} else {
 			
 			targetType = "cpp";
 			
 		}
 		
-		targetDirectory = project.app.path + "/mac" + (is64 ? "64" : "") + "/" + targetType;
+		targetDirectory = project.app.path + "/mac" + (is64 ? "64" : "") + "/" + targetType + "/" + buildType;
 		applicationDirectory = targetDirectory + "/bin/" + project.app.file + ".app";
 		contentDirectory = applicationDirectory + "/Contents/Resources";
 		executableDirectory = applicationDirectory + "/Contents/MacOS";
@@ -80,19 +85,7 @@ class MacPlatform extends PlatformTarget {
 	
 	public override function build ():Void {
 		
-		var type = "release";
-		
-		if (project.debug) {
-			
-			type = "debug";
-			
-		} else if (project.targetFlags.exists ("final")) {
-			
-			type = "final";
-			
-		}
-		
-		var hxml = targetDirectory + "/haxe/" + type + ".hxml";
+		var hxml = targetDirectory + "/haxe/" + buildType + ".hxml";
 		
 		PathHelper.mkdir (targetDirectory);
 		
@@ -109,6 +102,9 @@ class MacPlatform extends PlatformTarget {
 		if (targetType == "neko") {
 			
 			ProcessHelper.runCommand ("", "haxe", [ hxml ]);
+			
+			if (noOutput) return;
+			
 			NekoHelper.createExecutable (project.templatePaths, "mac" + (is64 ? "64" : ""), targetDirectory + "/obj/ApplicationMain.n", executablePath);
 			NekoHelper.copyLibraries (project.templatePaths, "mac" + (is64 ? "64" : ""), executableDirectory);
 			
@@ -117,6 +113,9 @@ class MacPlatform extends PlatformTarget {
 			var libPath = PathHelper.combine (PathHelper.getHaxelib (new Haxelib ("lime")), "templates/java/lib/");
 			
 			ProcessHelper.runCommand ("", "haxe", [ hxml, "-java-lib", libPath + "disruptor.jar", "-java-lib", libPath + "lwjgl.jar" ]);
+			
+			if (noOutput) return;
+			
 			ProcessHelper.runCommand (targetDirectory + "/obj", "haxelib", [ "run", "hxjava", "hxjava_build.txt", "--haxe-version", "3103" ]);
 			FileHelper.recursiveCopy (targetDirectory + "/obj/lib", PathHelper.combine (executableDirectory, "lib"));
 			FileHelper.copyFile (targetDirectory + "/obj/ApplicationMain" + (project.debug ? "-Debug" : "") + ".jar", PathHelper.combine (executableDirectory, project.app.file + ".jar"));
@@ -125,8 +124,25 @@ class MacPlatform extends PlatformTarget {
 		} else if (targetType == "nodejs") {
 			
 			ProcessHelper.runCommand ("", "haxe", [ hxml ]);
+			
+			if (noOutput) return;
+			
 			//NekoHelper.createExecutable (project.templatePaths, "Mac" + (is64 ? "64" : ""), targetDirectory + "/obj/ApplicationMain.n", executablePath);
 			NekoHelper.copyLibraries (project.templatePaths, "Mac" + (is64 ? "64" : ""), executableDirectory);
+			
+		} else if (targetType == "cs") {
+			
+			ProcessHelper.runCommand ("", "haxe", [ hxml ]);
+			
+			if (noOutput) return;
+			
+			CSHelper.copySourceFiles (project.templatePaths, targetDirectory + "/obj/src");
+			var txtPath = targetDirectory + "/obj/hxcs_build.txt";
+			CSHelper.addSourceFiles (txtPath, CSHelper.ndllSourceFiles);
+			CSHelper.addGUID (txtPath, GUID.uuid ());
+			CSHelper.compile (project, targetDirectory + "/obj", targetDirectory + "/obj/ApplicationMain" + (project.debug ? "-debug" : ""), "x64", "desktop");
+			FileHelper.copyFile (targetDirectory + "/obj/ApplicationMain" + (project.debug ? "-debug" : "") + ".exe", executablePath + ".exe");
+			File.saveContent (executablePath, "#!/bin/sh\nmono ${PWD}/" + project.app.file + ".exe");
 			
 		} else {
 			
@@ -144,6 +160,9 @@ class MacPlatform extends PlatformTarget {
 			if (!project.targetFlags.exists ("static")) {
 				
 				ProcessHelper.runCommand ("", "haxe", haxeArgs);
+				
+				if (noOutput) return;
+				
 				CPPHelper.compile (project, targetDirectory + "/obj", flags);
 				
 				FileHelper.copyFile (targetDirectory + "/obj/ApplicationMain" + (project.debug ? "-debug" : ""), executablePath);
@@ -151,6 +170,9 @@ class MacPlatform extends PlatformTarget {
 			} else {
 				
 				ProcessHelper.runCommand ("", "haxe", haxeArgs.concat ([ "-D", "static_link" ]));
+				
+				if (noOutput) return;
+				
 				CPPHelper.compile (project, targetDirectory + "/obj", flags.concat ([ "-Dstatic_link" ]));
 				CPPHelper.compile (project, targetDirectory + "/obj", flags, "BuildMain.xml");
 				
@@ -189,22 +211,13 @@ class MacPlatform extends PlatformTarget {
 	
 	public override function display ():Void {
 		
-		var type = "release";
-		
-		if (project.debug) {
-			
-			type = "debug";
-			
-		} else if (project.targetFlags.exists ("final")) {
-			
-			type = "final";
-			
-		}
-		
-		var hxml = PathHelper.findTemplate (project.templatePaths, targetType + "/hxml/" + type + ".hxml");
+		var hxml = PathHelper.findTemplate (project.templatePaths, targetType + "/hxml/" + buildType + ".hxml");
 		var template = new Template (File.getContent (hxml));
 		
-		Sys.println (template.execute (generateContext ()));
+		var context = generateContext ();
+		context.OUTPUT_DIR = targetDirectory;
+		
+		Sys.println (template.execute (context));
 		Sys.println ("-D display");
 		
 	}
@@ -296,6 +309,7 @@ class MacPlatform extends PlatformTarget {
 		}
 		
 		var context = generateContext ();
+		context.OUTPUT_DIR = targetDirectory;
 		
 		if (targetType == "cpp" && project.targetFlags.exists ("static")) {
 			
@@ -362,8 +376,6 @@ class MacPlatform extends PlatformTarget {
 			}
 			
 		}
-		
-		AssetHelper.createManifest (project, PathHelper.combine (contentDirectory, "manifest"));
 		
 	}
 	

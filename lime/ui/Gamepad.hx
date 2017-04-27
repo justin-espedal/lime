@@ -1,12 +1,15 @@
 package lime.ui;
 
 
+import lime._backend.native.NativeCFFI;
 import lime.app.Event;
 
-#if !macro
-@:build(lime.system.CFFI.build())
+#if !lime_debug
+@:fileXml('tags="haxe,release"')
+@:noDebug
 #end
 
+@:access(lime._backend.native.NativeCFFI)
 @:access(lime.ui.Joystick)
 
 
@@ -36,8 +39,8 @@ class Gamepad {
 	
 	public static function addMappings (mappings:Array<String>):Void {
 		
-		#if ((cpp || neko || nodejs) && !macro)
-		lime_gamepad_add_mappings (mappings);
+		#if (lime_cffi && !macro)
+		NativeCFFI.lime_gamepad_add_mappings (mappings);
 		#end
 		
 	}
@@ -75,8 +78,8 @@ class Gamepad {
 	
 	@:noCompletion private inline function get_guid ():String {
 		
-		#if ((cpp || neko || nodejs) && !macro)
-		return lime_gamepad_get_device_guid (this.id);
+		#if (lime_cffi && !macro)
+		return NativeCFFI.lime_gamepad_get_device_guid (this.id);
 		#elseif (js && html5)
 		var devices = Joystick.__getDeviceData ();
 		return devices[this.id].id;
@@ -89,8 +92,8 @@ class Gamepad {
 	
 	@:noCompletion private inline function get_name ():String {
 		
-		#if ((cpp || neko || nodejs) && !macro)
-		return lime_gamepad_get_device_name (this.id);
+		#if (lime_cffi && !macro)
+		return NativeCFFI.lime_gamepad_get_device_name (this.id);
 		#elseif (js && html5)
 		var devices = Joystick.__getDeviceData ();
 		return devices[this.id].id;
@@ -99,20 +102,6 @@ class Gamepad {
 		#end
 		
 	}
-	
-	
-	
-	
-	// Native Methods
-	
-	
-	
-	
-	#if ((cpp || neko || nodejs) && !macro)
-	@:cffi private static function lime_gamepad_add_mappings (mappings:Dynamic):Void;
-	@:cffi private static function lime_gamepad_get_device_guid (id:Int):Dynamic;
-	@:cffi private static function lime_gamepad_get_device_name (id:Int):Dynamic;
-	#end
 	
 	
 }

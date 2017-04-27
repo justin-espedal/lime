@@ -1,6 +1,7 @@
 #include <graphics/PixelFormat.h>
 #include <math/Rectangle.h>
 #include <system/Clipboard.h>
+#include <system/DisplayMode.h>
 #include <system/JNI.h>
 #include <system/System.h>
 
@@ -88,39 +89,56 @@ namespace lime {
 	}
 	
 	
-	const char* System::GetDirectory (SystemDirectory type, const char* company, const char* title) {
+	std::wstring* System::GetDirectory (SystemDirectory type, const char* company, const char* title) {
 		
 		switch (type) {
 			
-			case APPLICATION:
+			case APPLICATION: {
 				
-				return SDL_GetBasePath ();
+				char* path = SDL_GetBasePath ();
+				std::wstring* result = new std::wstring (path, path + strlen (path));
+				SDL_free (path);
+				return result;
 				break;
+				
+			}
 			
-			case APPLICATION_STORAGE:
+			case APPLICATION_STORAGE: {
 				
-				return SDL_GetPrefPath (company, title);
+				char* path = SDL_GetPrefPath (company, title);
+				std::wstring* result = new std::wstring (path, path + strlen (path));
+				SDL_free (path);
+				return result;
 				break;
+				
+			}
 			
 			case DESKTOP: {
 				
 				#if defined (HX_WINRT)
 				
 				Windows::Storage::StorageFolder folder = Windows::Storage::KnownFolders::HomeGroup;
-				std::wstring resultW (folder->Begin ());
-				std::string result (resultW.begin (), resultW.end ());
-				return result.c_str ();
+				std::wstring* result = new std::wstring (folder->Begin ());
+				return result;
 				
 				#elif defined (HX_WINDOWS)
 				
-				char result[MAX_PATH] = "";
-				SHGetFolderPath (NULL, CSIDL_DESKTOPDIRECTORY, NULL, SHGFP_TYPE_CURRENT, result);
-				return WIN_StringToUTF8 (result);
+				char folderPath[MAX_PATH] = "";
+				SHGetFolderPath (NULL, CSIDL_DESKTOPDIRECTORY, NULL, SHGFP_TYPE_CURRENT, folderPath);
+				WIN_StringToUTF8 (folderPath);
+				std::string path = std::string (folderPath);
+				std::wstring* result = new std::wstring (path.begin (), path.end ());
+				return result;
 				
-				#else
+				#elif defined (IPHONE)
 				
-				std::string result = std::string (getenv ("HOME")) + std::string ("/Desktop");
-				return result.c_str ();
+				return System::GetIOSDirectory (type);
+				
+				#elif !defined (ANDROID)
+				
+				std::string path = std::string (getenv ("HOME")) + std::string ("/Desktop");
+				std::wstring* result = new std::wstring (path.begin (), path.end ());
+				return result;
 				
 				#endif
 				break;
@@ -132,20 +150,31 @@ namespace lime {
 				#if defined (HX_WINRT)
 				
 				Windows::Storage::StorageFolder folder = Windows::Storage::KnownFolders::DocumentsLibrary;
-				std::wstring resultW (folder->Begin ());
-				std::string result (resultW.begin (), resultW.end ());
-				return result.c_str ();
+				std::wstring* result = std::wstring (folder->Begin ());
+				return result;
 				
 				#elif defined (HX_WINDOWS)
 				
-				char result[MAX_PATH] = "";
-				SHGetFolderPath (NULL, CSIDL_MYDOCUMENTS, NULL, SHGFP_TYPE_CURRENT, result);
-				return WIN_StringToUTF8 (result);
+				char folderPath[MAX_PATH] = "";
+				SHGetFolderPath (NULL, CSIDL_MYDOCUMENTS, NULL, SHGFP_TYPE_CURRENT, folderPath);
+				WIN_StringToUTF8 (folderPath);
+				std::string path = std::string (folderPath);
+				std::wstring* result = new std::wstring (path.begin (), path.end ());
+				return result;
+				
+				#elif defined (IPHONE)
+				
+				return System::GetIOSDirectory (type);
+				
+				#elif defined (ANDROID)
+				
+				return new std::wstring (L"/mnt/sdcard/Documents");
 				
 				#else
 				
-				std::string result = std::string (getenv ("HOME")) + std::string ("/Documents");
-				return result.c_str ();
+				std::string path = std::string (getenv ("HOME")) + std::string ("/Documents");
+				std::wstring* result = new std::wstring (path.begin (), path.end ());
+				return result;
 				
 				#endif
 				break;
@@ -160,29 +189,32 @@ namespace lime {
 				
 				#elif defined (HX_WINDOWS)
 				
-				char result[MAX_PATH] = "";
-				SHGetFolderPath (NULL, CSIDL_FONTS, NULL, SHGFP_TYPE_CURRENT, result);
-				return WIN_StringToUTF8 (result);
+				char folderPath[MAX_PATH] = "";
+				SHGetFolderPath (NULL, CSIDL_FONTS, NULL, SHGFP_TYPE_CURRENT, folderPath);
+				WIN_StringToUTF8 (folderPath);
+				std::string path = std::string (folderPath);
+				std::wstring* result = new std::wstring (path.begin (), path.end ());
+				return result;
 				
 				#elif defined (HX_MACOS)
 				
-				return "/Library/Fonts";
+				return new std::wstring (L"/Library/Fonts");
 				
 				#elif defined (IPHONEOS)
 				
-				return "/System/Library/Fonts";
+				return new std::wstring (L"/System/Library/Fonts");
 				
 				#elif defined (ANDROID)
 				
-				return "/system/fonts";
+				return new std::wstring (L"/system/fonts");
 				
 				#elif defined (BLACKBERRY)
 				
-				return "/usr/fonts/font_repository/monotype";
+				return new std::wstring (L"/usr/fonts/font_repository/monotype");
 				
 				#else
 				
-				return "/usr/share/fonts/truetype";
+				return new std::wstring (L"/usr/share/fonts/truetype");
 				
 				#endif
 				break;
@@ -194,20 +226,31 @@ namespace lime {
 				#if defined (HX_WINRT)
 				
 				Windows::Storage::StorageFolder folder = Windows::Storage::ApplicationData::Current->RoamingFolder;
-				std::wstring resultW (folder->Begin ());
-				std::string result (resultW.begin (), resultW.end ());
-				return result.c_str ();
+				std::wstring* result = new std::wstring (folder->Begin ());
+				return result;
 				
 				#elif defined (HX_WINDOWS)
 				
-				char result[MAX_PATH] = "";
-				SHGetFolderPath (NULL, CSIDL_PROFILE, NULL, SHGFP_TYPE_CURRENT, result);
-				return WIN_StringToUTF8 (result);
+				char folderPath[MAX_PATH] = "";
+				SHGetFolderPath (NULL, CSIDL_PROFILE, NULL, SHGFP_TYPE_CURRENT, folderPath);
+				WIN_StringToUTF8 (folderPath);
+				std::string path = std::string (folderPath);
+				std::wstring* result = new std::wstring (path.begin (), path.end ());
+				return result;
+				
+				#elif defined (IPHONE)
+				
+				return System::GetIOSDirectory (type);
+				
+				#elif defined (ANDROID)
+				
+				return new std::wstring (L"/mnt/sdcard");
 				
 				#else
 				
-				std::string result = getenv ("HOME");
-				return result.c_str ();
+				std::string path = getenv ("HOME");
+				std::wstring* result = new std::wstring (path.begin (), path.end ());
+				return result;
 				
 				#endif
 				break;
@@ -259,51 +302,69 @@ namespace lime {
 		#endif
 		alloc_field (display, id_dpi, alloc_float (dpi));
 		
-		SDL_DisplayMode currentDisplayMode = { SDL_PIXELFORMAT_UNKNOWN, 0, 0, 0, 0 };
 		SDL_DisplayMode displayMode = { SDL_PIXELFORMAT_UNKNOWN, 0, 0, 0, 0 };
+		DisplayMode mode;
 		
-		SDL_GetCurrentDisplayMode (id, &currentDisplayMode);
+		SDL_GetDesktopDisplayMode (id, &displayMode);
+		
+		mode.height = displayMode.h;
+		
+		switch (displayMode.format) {
+			
+			case SDL_PIXELFORMAT_ARGB8888:
+				
+				mode.pixelFormat = ARGB32;
+				break;
+			
+			case SDL_PIXELFORMAT_BGRA8888:
+			case SDL_PIXELFORMAT_BGRX8888:
+				
+				mode.pixelFormat = BGRA32;
+				break;
+			
+			default:
+				
+				mode.pixelFormat = RGBA32;
+			
+		}
+		
+		mode.refreshRate = displayMode.refresh_rate;
+		mode.width = displayMode.w;
+		
+		alloc_field (display, id_currentMode, mode.Value ());
 		
 		int numDisplayModes = SDL_GetNumDisplayModes (id);
 		value supportedModes = alloc_array (numDisplayModes);
-		value mode;
 		
 		for (int i = 0; i < numDisplayModes; i++) {
 			
 			SDL_GetDisplayMode (id, i, &displayMode);
 			
-			if (displayMode.format == currentDisplayMode.format && displayMode.w == currentDisplayMode.w && displayMode.h == currentDisplayMode.h && displayMode.refresh_rate == currentDisplayMode.refresh_rate) {
-				
-				alloc_field (display, id_currentMode, alloc_int (i));
-				
-			}
-			
-			mode = alloc_empty_object ();
-			alloc_field (mode, id_height, alloc_int (displayMode.h));
+			mode.height = displayMode.h;
 			
 			switch (displayMode.format) {
 				
 				case SDL_PIXELFORMAT_ARGB8888:
 					
-					alloc_field (mode, id_pixelFormat, alloc_int (ARGB32));
+					mode.pixelFormat = ARGB32;
 					break;
 				
 				case SDL_PIXELFORMAT_BGRA8888:
 				case SDL_PIXELFORMAT_BGRX8888:
 					
-					alloc_field (mode, id_pixelFormat, alloc_int (BGRA32));
+					mode.pixelFormat = BGRA32;
 					break;
 				
 				default:
 					
-					alloc_field (mode, id_pixelFormat, alloc_int (RGBA32));
+					mode.pixelFormat = RGBA32;
 				
 			}
 			
-			alloc_field (mode, id_refreshRate, alloc_int (displayMode.refresh_rate));
-			alloc_field (mode, id_width, alloc_int (displayMode.w));
+			mode.refreshRate = displayMode.refresh_rate;
+			mode.width = displayMode.w;
 			
-			val_array_set_i (supportedModes, i, mode);
+			val_array_set_i (supportedModes, i, mode.Value ());
 			
 		}
 		
@@ -367,7 +428,7 @@ namespace lime {
 			{
 				/*#ifdef HX_WINDOWS
 				printf("SDKFLJDSLFKJ\n");
-				int fd = _open_osfhandle ((intptr_t)((SDL_RWops*)handle)->hidden.windowsio.h, _O_RDONLY);
+				int fd = _open_osfhandle ((uintptr_t)((SDL_RWops*)handle)->hidden.windowsio.h, _O_RDONLY);
 				
 				if (fd != -1) {
 					printf("SDKFLJDSLFKJ\n");

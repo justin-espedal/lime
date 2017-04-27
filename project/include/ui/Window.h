@@ -8,6 +8,7 @@
 
 #include <app/Application.h>
 #include <graphics/ImageBuffer.h>
+#include <system/DisplayMode.h>
 #include <stdint.h>
 
 
@@ -19,10 +20,13 @@ namespace lime {
 		
 		public:
 			
+			virtual ~Window () {};
+			
 			virtual void Alert (const char* message, const char* title) = 0;
 			virtual void Close () = 0;
 			virtual void Focus () = 0;
 			virtual int GetDisplay () = 0;
+			virtual void GetDisplayMode (DisplayMode* displayMode) = 0;
 			virtual bool GetEnableTextEvents () = 0;
 			virtual int GetHeight () = 0;
 			virtual uint32_t GetID () = 0;
@@ -32,6 +36,7 @@ namespace lime {
 			virtual void Move (int x, int y) = 0;
 			virtual void Resize (int width, int height) = 0;
 			virtual bool SetBorderless (bool borderless) = 0;
+			virtual void SetDisplayMode (DisplayMode* displayMode) = 0;
 			virtual void SetEnableTextEvents (bool enable) = 0;
 			virtual bool SetFullscreen (bool fullscreen) = 0;
 			virtual void SetIcon (ImageBuffer *imageBuffer) = 0;
@@ -63,7 +68,10 @@ namespace lime {
 		WINDOW_FLAG_REQUIRE_SHADERS = 0x00000100,
 		WINDOW_FLAG_DEPTH_BUFFER = 0x00000200,
 		WINDOW_FLAG_STENCIL_BUFFER = 0x00000400,
-		WINDOW_FLAG_ALLOW_HIGHDPI = 0x00000800
+		WINDOW_FLAG_ALLOW_HIGHDPI = 0x00000800,
+		WINDOW_FLAG_HIDDEN = 0x00001000,
+		WINDOW_FLAG_MINIMIZED = 0x00002000,
+		WINDOW_FLAG_MAXIMIZED = 0x00004000
 		
 	};
 	

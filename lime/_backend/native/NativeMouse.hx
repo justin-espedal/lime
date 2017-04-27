@@ -1,13 +1,16 @@
 package lime._backend.native;
 
 
+import lime._backend.native.NativeCFFI;
 import lime.ui.MouseCursor;
 import lime.ui.Window;
 
-#if !macro
-@:build(lime.system.CFFI.build())
+#if !lime_debug
+@:fileXml('tags="haxe,release"')
+@:noDebug
 #end
 
+@:access(lime._backend.native.NativeCFFI)
 @:access(lime.ui.Window)
 
 
@@ -26,7 +29,7 @@ class NativeMouse {
 			__hidden = true;
 			
 			#if !macro
-			lime_mouse_hide ();
+			NativeCFFI.lime_mouse_hide ();
 			#end
 			
 		}
@@ -41,7 +44,7 @@ class NativeMouse {
 			__hidden = false;
 			
 			#if !macro
-			lime_mouse_show ();
+			NativeCFFI.lime_mouse_show ();
 			#end
 			
 		}
@@ -52,7 +55,7 @@ class NativeMouse {
 	public static function warp (x:Int, y:Int, window:Window):Void {
 		
 		#if !macro
-		lime_mouse_warp (x, y, window == null ? 0 : window.backend.handle);
+		NativeCFFI.lime_mouse_warp (x, y, window == null ? 0 : window.backend.handle);
 		#end
 		
 	}
@@ -97,7 +100,7 @@ class NativeMouse {
 				}
 				
 				#if !macro
-				lime_mouse_set_cursor (type);
+				NativeCFFI.lime_mouse_set_cursor (type);
 				#end
 				
 			}
@@ -123,7 +126,7 @@ class NativeMouse {
 		if (__lock != value) {
 			
 			#if !macro
-			lime_mouse_set_lock (value);
+			NativeCFFI.lime_mouse_set_lock (value);
 			#end
 			
 			__hidden = value;
@@ -134,22 +137,6 @@ class NativeMouse {
 		return __lock;
 		
 	}
-	
-	
-	
-	
-	// Native Methods
-	
-	
-	
-	
-	#if !macro
-	@:cffi private static function lime_mouse_hide ():Void;
-	@:cffi private static function lime_mouse_set_cursor (cursor:Int):Void;
-	@:cffi private static function lime_mouse_set_lock (lock:Bool):Void;
-	@:cffi private static function lime_mouse_show ():Void;
-	@:cffi private static function lime_mouse_warp (x:Int, y:Int, window:Dynamic):Void;
-	#end
 	
 	
 }

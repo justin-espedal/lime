@@ -2,29 +2,37 @@ package lime.text;
 
 
 import haxe.io.Bytes;
+import lime._backend.native.NativeCFFI;
+import lime.app.Future;
+import lime.app.Promise;
 import lime.graphics.Image;
 import lime.graphics.ImageBuffer;
 import lime.math.Vector2;
+import lime.net.HTTPRequest;
 import lime.system.System;
 import lime.utils.UInt8Array;
 
 #if (js && html5)
 import js.html.CanvasElement;
 import js.html.CanvasRenderingContext2D;
+import js.html.SpanElement;
+import js.Browser;
 #end
 
-#if ((cpp || neko || nodejs) && !macro)
+#if (lime_cffi && !macro)
 import haxe.io.Path;
 #end
 
-#if !macro
-@:build(lime.system.CFFI.build())
+#if !lime_debug
+@:fileXml('tags="haxe,release"')
+@:noDebug
 #end
 
-#if (!display && !nodejs && !macro)
-@:autoBuild(lime.Assets.embedFont())
+#if (!display && !flash && !nodejs && !macro)
+@:autoBuild(lime._macros.AssetsMacro.embedFont())
 #end
 
+@:access(lime._backend.native.NativeCFFI)
 @:access(lime.text.Glyph)
 
 
@@ -42,7 +50,7 @@ class Font {
 	public var unitsPerEM (get, null):Int;
 	
 	@:noCompletion private var __fontPath:String;
-	#if (cpp || neko || nodejs)
+	#if lime_cffi
 	@:noCompletion private var __fontPathWithoutDirectory:String;
 	#end
 	
@@ -66,10 +74,10 @@ class Font {
 	
 	public function decompose ():NativeFontData {
 		
-		#if ((cpp || neko || nodejs) && !macro)
+		#if (lime_cffi && !macro)
 		
 		if (src == null) throw "Uninitialized font handle.";
-		var data:Dynamic = lime_font_outline_decompose (src, 1024 * 20);
+		var data:Dynamic = NativeCFFI.lime_font_outline_decompose (src, 1024 * 20);
 		return data;
 		
 		#else
@@ -83,10 +91,12 @@ class Font {
 	
 	public static function fromBytes (bytes:Bytes):Font {
 		
+		if (bytes == null) return null;
+		
 		var font = new Font ();
 		font.__fromBytes (bytes);
 		
-		#if ((cpp || neko || nodejs) && !macro)
+		#if (lime_cffi && !macro)
 		return (font.src != null) ? font : null;
 		#else
 		return font;
@@ -97,10 +107,12 @@ class Font {
 	
 	public static function fromFile (path:String):Font {
 		
+		if (path == null) return null;
+		
 		var font = new Font ();
 		font.__fromFile (path);
 		
-		#if ((cpp || neko || nodejs) && !macro)
+		#if (lime_cffi && !macro)
 		return (font.src != null) ? font : null;
 		#else
 		return font;
@@ -109,10 +121,53 @@ class Font {
 	}
 	
 	
+	public static function loadFromBytes (bytes:Bytes):Future<Font> {
+		
+		return Future.withValue (fromBytes (bytes));
+		
+	}
+	
+	
+	public static function loadFromFile (path:String):Future<Font> {
+		
+		var request = new HTTPRequest<Font> ();
+		return request.load (path).then (function (font) {
+			
+			if (font != null) {
+				
+				return Future.withValue (font);
+				
+			} else {
+				
+				return cast Future.withError ("");
+				
+			}
+			
+		});
+		
+	}
+	
+	
+	public static function loadFromName (path:String):Future<Font> {
+		
+		#if (js && html5)
+		
+		var font = new Font ();
+		return font.__loadFromName (path);
+		
+		#else
+		
+		return cast Future.withError ("");
+		
+		#end
+		
+	}
+	
+	
 	public function getGlyph (character:String):Glyph {
 		
-		#if ((cpp || neko || nodejs) && !macro)
-		return lime_font_get_glyph_index (src, character);
+		#if (lime_cffi && !macro)
+		return NativeCFFI.lime_font_get_glyph_index (src, character);
 		#else
 		return -1;
 		#end
@@ -120,10 +175,10 @@ class Font {
 	}
 	
 	
-	public function getGlyphs (characters:String = #if (display && haxe_ver < "3.2") "" #else "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^`'\"/\\&*()[]{}<>|:;_-+=?,. " #end):Array<Glyph> {
+	public function getGlyphs (characters:String = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^`'\"/\\&*()[]{}<>|:;_-+=?,. "):Array<Glyph> {
 		
-		#if ((cpp || neko || nodejs) && !macro)
-		var glyphs:Dynamic = lime_font_get_glyph_indices (src, characters);
+		#if (lime_cffi && !macro)
+		var glyphs:Dynamic = NativeCFFI.lime_font_get_glyph_indices (src, characters);
 		return glyphs;
 		#else
 		return null;
@@ -134,8 +189,8 @@ class Font {
 	
 	public function getGlyphMetrics (glyph:Glyph):GlyphMetrics {
 		
-		#if ((cpp || neko || nodejs) && !macro)
-		var value:Dynamic = lime_font_get_glyph_metrics (src, glyph);
+		#if (lime_cffi && !macro)
+		var value:Dynamic = NativeCFFI.lime_font_get_glyph_metrics (src, glyph);
 		var metrics = new GlyphMetrics ();
 		
 		metrics.advance = new Vector2 (value.horizontalAdvance, value.verticalAdvance);
@@ -153,7 +208,7 @@ class Font {
 	
 	public function renderGlyph (glyph:Glyph, fontSize:Int):Image {
 		
-		#if ((cpp || neko || nodejs) && !macro)
+		#if (lime_cffi && !macro)
 		
 		__setSize (fontSize);
 		
@@ -162,7 +217,7 @@ class Font {
 		
 		var dataPosition = 0;
 		
-		if (lime_font_render_glyph (src, glyph, bytes)) {
+		if (NativeCFFI.lime_font_render_glyph (src, glyph, bytes)) {
 			
 			var index = bytes.getInt32 (dataPosition); dataPosition += 4;
 			var width = bytes.getInt32 (dataPosition); dataPosition += 4;
@@ -191,7 +246,7 @@ class Font {
 	
 	public function renderGlyphs (glyphs:Array<Glyph>, fontSize:Int):Map<Glyph, Image> {
 		
-		//#if ((cpp || neko || nodejs) && !macro)
+		//#if (lime_cffi && !macro)
 		//
 		//var uniqueGlyphs = new Map<Int, Bool> ();
 		//
@@ -209,12 +264,12 @@ class Font {
 			//
 		//}
 		//
-		//lime_font_set_size (src, fontSize);
+		//NativeCFFI.lime_font_set_size (src, fontSize);
 		//
 		//var bytes = new ByteArray ();
 		//bytes.endian = (System.endianness == BIG_ENDIAN ? "bigEndian" : "littleEndian");
 		//
-		//if (lime_font_render_glyphs (src, glyphList, bytes)) {
+		//if (NativeCFFI.lime_font_render_glyphs (src, glyphList, bytes)) {
 			//
 			//bytes.position = 0;
 			//
@@ -357,15 +412,15 @@ class Font {
 		
 		__fontPath = null;
 		
-		#if ((cpp || neko || nodejs) && !macro)
+		#if (lime_cffi && !macro)
 		
 		__fontPathWithoutDirectory = null;
 		
-		src = lime_font_load (bytes);
+		src = NativeCFFI.lime_font_load (bytes);
 		
 		if (src != null && name == null) {
 			
-			name = cast lime_font_get_family_name (src);
+			name = cast NativeCFFI.lime_font_get_family_name (src);
 			
 		}
 		
@@ -378,15 +433,15 @@ class Font {
 		
 		__fontPath = path;
 		
-		#if ((cpp || neko || nodejs) && !macro)
+		#if (lime_cffi && !macro)
 		
 		__fontPathWithoutDirectory = Path.withoutDirectory (__fontPath);
 		
-		src = lime_font_load (__fontPath);
+		src = NativeCFFI.lime_font_load (__fontPath);
 		
 		if (src != null && name == null) {
 			
-			name = cast lime_font_get_family_name (src);
+			name = cast NativeCFFI.lime_font_get_family_name (src);
 			
 		}
 		
@@ -395,10 +450,122 @@ class Font {
 	}
 	
 	
+	#if (js && html5)
+	
+	private static function __makeLoaderNode (fontFamily : String) {
+		
+		var node:SpanElement = cast Browser.document.createElement ("span");
+		node.innerHTML = "giItT1WQy@!-/#";
+		var style = node.style;
+		style.position = "absolute";
+		style.left = "-10000px";
+		style.top = "-10000px";
+		style.fontSize = "300px";
+		style.fontFamily = fontFamily;
+		style.fontVariant = "normal";
+		style.fontStyle = "normal";
+		style.fontWeight = "normal";
+		style.letterSpacing = "0";
+		Browser.document.body.appendChild (node);
+		return node;
+		
+	}
+	
+	#end
+	
+	
+	private function __loadFromName (name:String):Future<Font> {
+		
+		var promise = new Promise<Font> ();
+		
+		#if (js && html5)
+		
+		this.name = name;
+		var font = name;
+		var ua = Browser.navigator.userAgent.toLowerCase();
+		
+		// When Safari reports that font is loaded, actually font IS NOT loaded.
+		// If you try to use this font immediately after preloader completes,
+		// default font will be used instead.
+		//
+		// We detect Safari, and use old font loading for it.
+		
+		if (!(ua.indexOf(" safari/") >= 0 && ua.indexOf(" chrome/") < 0) && untyped (Browser.document).fonts && untyped (Browser.document).fonts.load) {
+			
+			untyped (Browser.document).fonts.load ("1em '" + font + "'").then (function (_) {
+				
+				promise.complete (this);
+				
+			});
+			
+		} else {
+			
+			var node1 = __makeLoaderNode("sans-serif");
+			var node2 = __makeLoaderNode("serif");
+			var width1 = node1.offsetWidth;
+			var width2 = node2.offsetWidth;
+			
+			node1.style.fontFamily = "'" + name + "', sans-serif";
+			node2.style.fontFamily = "'" + name + "', serif";
+			
+			var interval:Null<Int> = null;
+			var found = false;
+			
+			var checkFont = function () {
+				
+				if (node1.offsetWidth != width1 || node2.offsetWidth != width2) {
+					
+					// Test font was still not available yet, try waiting one more interval?
+					if (!found) {
+						
+						found = true;
+						return false;
+						
+					}
+					
+					if (interval != null) {
+						
+						Browser.window.clearInterval (interval);
+						
+					}
+					
+					node1.parentNode.removeChild (node1);
+					node2.parentNode.removeChild (node2);
+					node1 = null;
+					node2 = null;
+					
+					promise.complete (this);
+					return true;
+					
+				}
+				
+				return false;
+				
+			}
+			
+			if (!checkFont ()) {
+				
+				interval = Browser.window.setInterval (checkFont, 50);
+				
+			}
+			
+		}
+		
+		#else
+		
+		promise.error ("");
+		
+		#end
+		
+		return promise.future;
+		
+	}
+	
+	
 	@:noCompletion private function __setSize (size:Int):Void {
 		
-		#if ((cpp || neko || nodejs) && !macro)
-		lime_font_set_size (src, size);
+		#if (lime_cffi && !macro)
+		NativeCFFI.lime_font_set_size (src, size);
 		#end
 		
 	}
@@ -413,8 +580,8 @@ class Font {
 	
 	private function get_ascender ():Int {
 		
-		#if ((cpp || neko || nodejs) && !macro)
-		return lime_font_get_ascender (src);
+		#if (lime_cffi && !macro)
+		return NativeCFFI.lime_font_get_ascender (src);
 		#else
 		return 0;
 		#end
@@ -424,8 +591,8 @@ class Font {
 	
 	private function get_descender ():Int {
 		
-		#if ((cpp || neko || nodejs) && !macro)
-		return lime_font_get_descender (src);
+		#if (lime_cffi && !macro)
+		return NativeCFFI.lime_font_get_descender (src);
 		#else
 		return 0;
 		#end
@@ -435,8 +602,8 @@ class Font {
 	
 	private function get_height ():Int {
 		
-		#if ((cpp || neko || nodejs) && !macro)
-		return lime_font_get_height (src);
+		#if (lime_cffi && !macro)
+		return NativeCFFI.lime_font_get_height (src);
 		#else
 		return 0;
 		#end
@@ -446,8 +613,8 @@ class Font {
 	
 	private function get_numGlyphs ():Int {
 		
-		#if ((cpp || neko || nodejs) && !macro)
-		return lime_font_get_num_glyphs (src);
+		#if (lime_cffi && !macro)
+		return NativeCFFI.lime_font_get_num_glyphs (src);
 		#else
 		return 0;
 		#end
@@ -457,8 +624,8 @@ class Font {
 	
 	private function get_underlinePosition ():Int {
 		
-		#if ((cpp || neko || nodejs) && !macro)
-		return lime_font_get_underline_position (src);
+		#if (lime_cffi && !macro)
+		return NativeCFFI.lime_font_get_underline_position (src);
 		#else
 		return 0;
 		#end
@@ -468,8 +635,8 @@ class Font {
 	
 	private function get_underlineThickness ():Int {
 		
-		#if ((cpp || neko || nodejs) && !macro)
-		return lime_font_get_underline_thickness (src);
+		#if (lime_cffi && !macro)
+		return NativeCFFI.lime_font_get_underline_thickness (src);
 		#else
 		return 0;
 		#end
@@ -479,8 +646,8 @@ class Font {
 	
 	private function get_unitsPerEM ():Int {
 		
-		#if ((cpp || neko || nodejs) && !macro)
-		return lime_font_get_units_per_em (src);
+		#if (lime_cffi && !macro)
+		return NativeCFFI.lime_font_get_units_per_em (src);
 		#else
 		return 0;
 		#end
@@ -495,24 +662,7 @@ class Font {
 	
 	
 	
-	#if ((cpp || neko || nodejs) && !macro)
-	@:cffi private static function lime_font_get_ascender (handle:Dynamic):Int;
-	@:cffi private static function lime_font_get_descender (handle:Dynamic):Int;
-	@:cffi private static function lime_font_get_family_name (handle:Dynamic):Dynamic;
-	@:cffi private static function lime_font_get_glyph_index (handle:Dynamic, character:String):Int;
-	@:cffi private static function lime_font_get_glyph_indices (handle:Dynamic, characters:String):Dynamic;
-	@:cffi private static function lime_font_get_glyph_metrics (handle:Dynamic, index:Int):Dynamic;
-	@:cffi private static function lime_font_get_height (handle:Dynamic):Int;
-	@:cffi private static function lime_font_get_num_glyphs (handle:Dynamic):Int;
-	@:cffi private static function lime_font_get_underline_position (handle:Dynamic):Int;
-	@:cffi private static function lime_font_get_underline_thickness (handle:Dynamic):Int;
-	@:cffi private static function lime_font_get_units_per_em (handle:Dynamic):Int;
-	@:cffi private static function lime_font_load (data:Dynamic):Dynamic;
-	@:cffi private static function lime_font_outline_decompose (handle:Dynamic, size:Int):Dynamic;
-	@:cffi private static function lime_font_render_glyph (handle:Dynamic, index:Int, data:Dynamic):Bool;
-	@:cffi private static function lime_font_render_glyphs (handle:Dynamic, indices:Dynamic, data:Dynamic):Bool;
-	@:cffi private static function lime_font_set_size (handle:Dynamic, size:Int):Void;
-	#end
+	
 	
 	
 }

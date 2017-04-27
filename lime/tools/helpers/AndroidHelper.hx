@@ -28,38 +28,30 @@ class AndroidHelper {
 			
 		}
 		
-		var ant = project.environment.get ("ANT_HOME");
+		var task = "assembleDebug";
 		
-		if (ant == null || ant == "") {
+		if (project.keystore != null) {
 			
-			ant = "ant";
+			task = "assembleRelease";
+			
+		}
+		
+		if (project.environment.exists ("ANDROID_GRADLE_TASK")) {
+			
+			task = project.environment.get ("ANDROID_GRADLE_TASK");
+			
+		}
+		
+		if (PlatformHelper.hostPlatform != Platform.WINDOWS) {
+			
+			ProcessHelper.runCommand ("", "chmod", [ "755", PathHelper.combine (projectDirectory, "gradlew") ]);
+			ProcessHelper.runCommand (projectDirectory, "./gradlew", [ task ]);
 			
 		} else {
 			
-			ant += "/bin/ant";
+			ProcessHelper.runCommand (projectDirectory, "gradlew", [ task ]);
 			
 		}
-		
-		var build = "debug";
-		
-		if (project.certificate != null) {
-			
-			build = "release";
-			
-		}
-		
-		// Fix bug in Android build system, force compile
-		
-		var buildProperties = projectDirectory + "/bin/build.prop";
-		
-		if (FileSystem.exists (buildProperties)) {
-			
-			FileSystem.deleteFile (buildProperties);
-			
-		}
-		
-		ProcessHelper.runCommand (projectDirectory, ant, [ build ]);
-		
 	}
 	
 	
@@ -79,6 +71,61 @@ class AndroidHelper {
 		
 	}
 	
+	public static function getBuildToolsVersion (project:HXProject):String {
+
+		var buildToolsPath = project.environment.get ("ANDROID_SDK") + "/build-tools/";
+
+		var version = ~/^(\d+)\.(\d+)\.(\d+)$/i;
+		var current = { major : 0, minor : 0, micro : 0 };
+
+		for (buildTool in FileSystem.readDirectory (buildToolsPath)) {
+
+			//gradle only likes simple version numbers (x.y.z)
+
+			if (!version.match (buildTool)) {
+
+				continue;
+
+			}
+
+			var newVersion = {
+				major: Std.parseInt (version.matched (1)),
+				minor: Std.parseInt (version.matched (2)),
+				micro: Std.parseInt (version.matched (3))
+			};
+
+			if (newVersion.major != current.major) {
+
+				if (newVersion.major > current.major) {
+
+					current = newVersion;
+
+				}
+
+			} else if (newVersion.minor != current.minor) {
+
+				if (newVersion.minor > current.minor) {
+
+					current = newVersion;
+
+				}
+
+			} else {
+
+				if (newVersion.micro > current.micro) {
+
+					current = newVersion;
+
+				}
+
+			}
+
+		}
+
+		return '${current.major}.${current.minor}.${current.micro}';
+
+	}
+
 	
 	public static function getDeviceSDKVersion (deviceID:String):Int {
 		
@@ -128,6 +175,25 @@ class AndroidHelper {
 		
 		return 0;
 	}
+
+	public static function getPlatformToolsVersion ():String {
+
+		var propertiesPath = adbPath + "source.properties";
+		var properties = File.getContent(propertiesPath);
+		
+		for (line in properties.split ("\n")) {
+
+			if(StringTools.startsWith (line, "Pkg.Revision")) {
+
+				return line.substr (line.indexOf ("=") + 1);
+
+			}
+
+		}
+
+		return "";
+
+	}
 	
 	
 	public static function initialize (project:HXProject):Void {
@@ -139,33 +205,33 @@ class AndroidHelper {
 		adbName = "adb";
 		androidName = "android";
 		emulatorName = "emulator";
-
+		
 		if (PlatformHelper.hostPlatform == Platform.WINDOWS) {
-
+			
 			adbName += ".exe";
 			androidName += ".bat";
 			emulatorName += ".exe";
-
+			
 		}
-
+		
 		if (!FileSystem.exists (adbPath + adbName)) {
-
+			
 			adbPath = project.environment.get ("ANDROID_SDK") + "/platform-tools/";
-
+			
 		}
-
+		
 		if (PlatformHelper.hostPlatform != Platform.WINDOWS) {
-
+			
 			adbName = "./" + adbName;
 			androidName = "./" + androidName;
 			emulatorName = "./" + emulatorName;
-
+			
 		}
 		
 		if (project.environment.exists ("JAVA_HOME")) {
-
+			
 			Sys.putEnv ("JAVA_HOME", project.environment.get ("JAVA_HOME"));
-
+			
 		}
 		
 	}
@@ -243,14 +309,20 @@ class AndroidHelper {
 			
 		}
 		
-		var args = [ "install", "-r" ];
+		var args = [ "install" ];
 		
-		if (getDeviceSDKVersion (deviceID) > 16) {
-			
-			args.push ("-d");
-			
+		var platformToolsMajorVersion = Std.parseInt(getPlatformToolsVersion ().split (".")[0]);
+
+		if (platformToolsMajorVersion >= 23) {
+
+			args.push("-rd");
+
+		} else {
+
+			args.push("-r");
+
 		}
-		
+
 		args.push (targetPath);
 		
 		if (deviceID != null && deviceID != "") {
@@ -269,9 +341,9 @@ class AndroidHelper {
 	}
 	
 	
-	public static function listAVDs ():Array <String> {
+	public static function listAVDs ():Array<String> {
 		
-		var avds = new Array <String> ();
+		var avds = new Array<String> ();
 		var output = ProcessHelper.runProcess (androidPath, androidName, [ "list", "avd" ]);
 		
 		if (output != null && output != "") {
@@ -293,9 +365,9 @@ class AndroidHelper {
 	}
 	
 	
-	public static function listDevices ():Array <String> {
+	public static function listDevices ():Array<String> {
 		
-		var devices = new Array <String> ();
+		var devices = new Array<String> ();
 		var output = "";
 		
 		var tempFile = PathHelper.getTemporaryFile ();
