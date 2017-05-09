@@ -315,6 +315,7 @@ class AndroidPlatform extends PlatformTarget {
 		context.ANDROID_GRADLE_VERSION = project.config.getString ("android.gradle-version", "2.10");
 		context.ANDROID_GRADLE_PLUGIN = project.config.getString ("android.gradle-plugin", "2.1.0");
 		context.ANDROID_LIBRARY_PROJECTS = [];
+		context.ANDROID_BUILD_DIR = project.config.getString ("android.build-dir");
 		
 		if (!project.environment.exists ("ANDROID_SDK") || !project.environment.exists ("ANDROID_NDK_ROOT")) {
 			

@@ -1889,6 +1889,10 @@ class ProjectXMLParser extends HXProject {
 									
 									config.set ("android.gradle-version", value);
 								
+								case "build-dir":
+
+									config.set ("android.build-dir", value);
+
 								default:
 									
 									name = formatAttributeName (attribute);
