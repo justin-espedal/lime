@@ -33,6 +33,7 @@ class NativeHTTPRequest {
 	private var curl:CURL;
 	private var parent:_IHTTPRequest;
 	private var promise:Promise<Bytes>;
+	private var readPosition:Int;
 	
 	
 	public function new () {
@@ -172,6 +173,7 @@ class NativeHTTPRequest {
 		
 		bytesLoaded = 0;
 		bytesTotal = 0;
+		readPosition = 0;
 		
 		if (curl == 0) {
 			
@@ -259,18 +261,45 @@ class NativeHTTPRequest {
 		var headers = [];
 		headers.push ("Expect: ");
 		
-		var hasContentType = false;
+		var contentType = null;
 		
 		for (header in cast (parent.headers, Array<Dynamic>)) {
 			
-			if (header.name == "Content-Type") hasContentType = true;
-			headers.push ('${header.name}: ${header.value}');
+			if (header.name == "Content-Type") {
+				
+				contentType = header.value;
+				
+			} else {
+				
+				headers.push ('${header.name}: ${header.value}');
+				
+			}
 			
 		}
 		
-		if (!hasContentType) {
+		if (parent.contentType != null) {
 			
-			headers.push ("Content-Type: " + parent.contentType);
+			contentType = parent.contentType;
+			
+		}
+		
+		if (contentType == null) {
+			
+			if (parent.data != null) {
+				
+				contentType = "application/octet-stream";
+				
+			} else if (query != "") {
+				
+				contentType = "application/x-www-form-urlencoded";
+				
+			}
+			
+		}
+		
+		if (contentType != null) {
+			
+			headers.push ("Content-Type: " + contentType);
 			
 		}
 		
@@ -348,7 +377,29 @@ class NativeHTTPRequest {
 	
 	private function curl_onRead (max:Int, input:Bytes):Bytes {
 		
-		return input;
+		if (readPosition == 0 && max >= input.length) {
+			
+			return input;
+			
+		} else if (readPosition >= input.length) {
+			
+			return Bytes.alloc (0);
+			
+		} else {
+			
+			var length = max;
+			
+			if (readPosition + length > input.length) {
+				
+				length = input.length - readPosition;
+				
+			}
+			
+			var data = input.sub (readPosition, length);
+			readPosition += length;
+			return data;
+			
+		}
 		
 	}
 	
@@ -386,14 +437,16 @@ class NativeHTTPRequest {
 	
 	private static function threadPool_onComplete (state:Dynamic):Void {
 		
-		state.promise.complete (state.result);
+		var promise:Promise<Bytes> = state.promise;
+		promise.complete (state.result);
 		
 	}
 	
 	
 	private static function threadPool_onError (state:Dynamic):Void {
 		
-		state.promise.error (state.error);
+		var promise:Promise<Bytes> = state.promise;
+		promise.error (state.error);
 		
 	}
 	

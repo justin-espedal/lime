@@ -7,6 +7,7 @@ import sys.io.File;
 import sys.io.Process;
 import sys.FileSystem;
 import lime.tools.helpers.FileHelper;
+import lime.tools.helpers.HaxelibHelper;
 import lime.tools.helpers.LogHelper;
 import lime.tools.helpers.PathHelper;
 import lime.tools.helpers.PlatformHelper;
@@ -18,9 +19,9 @@ class RunScript {
 	
 	private static function rebuildTools (rebuildBinaries = true):Void {
 		
-		var limeDirectory = PathHelper.getHaxelib (new Haxelib ("lime"), true);
+		var limeDirectory = HaxelibHelper.getPath (new Haxelib ("lime"), true);
 		var toolsDirectory = PathHelper.combine (limeDirectory, "tools");
-		/*var extendedToolsDirectory = PathHelper.getHaxelib (new Haxelib ("lime-extended"), false);
+		/*var extendedToolsDirectory = HaxelibHelper.getPath (new Haxelib ("lime-extended"), false);
 		
 		if (extendedToolsDirectory != null && extendedToolsDirectory != "") {
 			
@@ -175,10 +176,10 @@ class RunScript {
 			if (FileSystem.exists (lastArgument) && FileSystem.isDirectory (lastArgument)) {
 				
 				Sys.setCwd (lastArgument);
-				args.pop ();
 				
 			}
 			
+			HaxelibHelper.workingDirectory = Sys.getCwd ();
 			var rebuildBinaries = true;
 			
 			for (arg in args) {
@@ -193,7 +194,7 @@ class RunScript {
 					if (StringTools.startsWith (field, "haxelib-")) {
 						
 						var name = field.substr (8);
-						PathHelper.haxelibOverrides.set (name, PathHelper.tryFullPath (argValue));
+						HaxelibHelper.pathOverrides.set (name, PathHelper.tryFullPath (argValue));
 						
 					}
 					
@@ -223,13 +224,13 @@ class RunScript {
 			
 			rebuildTools (rebuildBinaries);
 			
-			if (args[args.length - 1] != "-openfl") {
+			if (args.indexOf ("-openfl") > -1) {
 				
-				Sys.exit (0);
+				Sys.setCwd (cacheDirectory);
 				
 			} else {
 				
-				Sys.setCwd (cacheDirectory);
+				Sys.exit (0);
 				
 			}
 			

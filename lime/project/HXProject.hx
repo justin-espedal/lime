@@ -19,6 +19,7 @@ import sys.FileSystem;
 import sys.io.File;
 
 #if lime
+import haxe.io.Eof;
 import haxe.xml.Fast;
 import lime.text.Font;
 import lime.tools.helpers.FileHelper;
@@ -69,6 +70,7 @@ class HXProject {
 	private var defaultApp:ApplicationData;
 	private var defaultMeta:MetaData;
 	private var defaultWindow:WindowData;
+	private var needRerun:Bool;
 	
 	public static var _command:String;
 	public static var _debug:Bool;
@@ -85,30 +87,37 @@ class HXProject {
 		
 		var args = Sys.args ();
 		
-		if (args.length < 7) {
+		if (args.length < 2) {
 			
 			return;
 			
 		}
 		
-		HXProject._command = args[0];
-		HXProject._target = cast args[2];
-		HXProject._debug = (args[3] == "true");
-		HXProject._targetFlags = Unserializer.run (args[4]);
-		HXProject._templatePaths = Unserializer.run (args[5]);
-		if (args.length > 6) HXProject._userDefines = Unserializer.run (args[6]);
-		if (args.length > 7) HXProject._environment = Unserializer.run (args[7]);
+		var inputData = Unserializer.run (File.getContent (args[0]));
+		var outputFile = args[1];
+		
+		HXProject._command = inputData.command;
+		HXProject._target = cast inputData.target;
+		HXProject._debug = inputData.debug;
+		HXProject._targetFlags = inputData.targetFlags;
+		HXProject._templatePaths = inputData.templatePaths;
+		HXProject._userDefines = inputData.userDefines;
+		HXProject._environment = inputData.environment;
+		LogHelper.verbose = inputData.logVerbose;
+		LogHelper.enableColor = inputData.logEnableColor;
+		ProcessHelper.dryRun = inputData.processDryRun;
+		HaxelibHelper.debug = inputData.haxelibDebug;
 		
 		initialize ();
 		
-		var classRef = Type.resolveClass (args[1]);
+		var classRef = Type.resolveClass (inputData.name);
 		var instance = Type.createInstance (classRef, []);
 		
 		var serializer = new Serializer ();
 		serializer.useCache = true;
 		serializer.serialize (instance);
 		
-		File.saveContent (args[args.length - 1], serializer.toString ());
+		File.saveContent (outputFile, serializer.toString ());
 		
 	}
 	
@@ -125,20 +134,34 @@ class HXProject {
 		templatePaths = _templatePaths.copy ();
 		
 		defaultMeta = { title: "MyApplication", description: "", packageName: "com.example.myapp", version: "1.0.0", company: "", companyUrl: "", buildNumber: null, companyId: "" }
-		defaultApp = { main: "Main", file: "MyApplication", path: "bin", preloader: "", swfVersion: 11.2, url: "", init: null }
-		defaultWindow = { width: 800, height: 600, parameters: "{}", background: 0xFFFFFF, fps: 30, hardware: true, display: 0, resizable: true, borderless: false, orientation: Orientation.AUTO, vsync: false, fullscreen: false, allowHighDPI: true, antialiasing: 0, allowShaders: true, requireShaders: false, depthBuffer: false, stencilBuffer: false }
+		defaultApp = { main: "Main", file: "MyApplication", path: "bin", preloader: "", swfVersion: 17, url: "", init: null }
+		defaultWindow = { width: 800, height: 600, parameters: "{}", background: 0xFFFFFF, fps: 30, hardware: true, display: 0, resizable: true, borderless: false, orientation: Orientation.AUTO, vsync: false, fullscreen: false, allowHighDPI: true, alwaysOnTop: false, antialiasing: 0, allowShaders: true, requireShaders: false, depthBuffer: false, stencilBuffer: false, colorDepth: 16 }
 		
 		platformType = PlatformType.DESKTOP;
 		architectures = [];
 		
 		switch (target) {
 			
+			case AIR:
+				
+				if (targetFlags.exists ("ios") || targetFlags.exists ("android")) {
+					
+					platformType = PlatformType.MOBILE;
+					
+				} else {
+					
+					platformType = PlatformType.DESKTOP;
+					
+				}
+				
+				architectures = [];
+			
 			case FLASH:
 				
 				platformType = PlatformType.WEB;
 				architectures = [];
 			
-			case HTML5, FIREFOX, EMSCRIPTEN:
+			case HTML5, FIREFOX:
 				
 				platformType = PlatformType.WEB;
 				architectures = [];
@@ -146,7 +169,14 @@ class HXProject {
 				defaultWindow.width = 0;
 				defaultWindow.height = 0;
 				defaultWindow.fps = 60;
+				defaultWindow.allowHighDPI = false;
+			
+			case EMSCRIPTEN:
 				
+				platformType = PlatformType.WEB;
+				architectures = [];
+				
+				defaultWindow.fps = 60;
 				defaultWindow.allowHighDPI = false;
 			
 			case ANDROID, BLACKBERRY, IOS, TIZEN, WEBOS, TVOS:
@@ -459,18 +489,79 @@ class HXProject {
 		var tempDirectory = PathHelper.getTemporaryDirectory ();
 		var classFile = PathHelper.combine (tempDirectory, name + ".hx");
 		var nekoOutput = PathHelper.combine (tempDirectory, name + ".n");
-		var temporaryFile = PathHelper.combine (tempDirectory, "output.dat");
 		
 		FileHelper.copyFile (path, classFile);
 		
-		ProcessHelper.runCommand ("", "haxe", [ name, "-main", "lime.project.HXProject", "-cp", tempDirectory, "-neko", nekoOutput, "-cp", PathHelper.combine (PathHelper.getHaxelib (new Haxelib ("lime")), "tools"), "-lib", "lime", "-D", "lime-curl", "-D", "native", "-D", "lime-native", "-D", "lime-cffi" ]);
-		ProcessHelper.runCommand ("", "neko", [ FileSystem.fullPath (nekoOutput), HXProject._command, name, Std.string (HXProject._target), Std.string (HXProject._debug), Serializer.run (HXProject._targetFlags), Serializer.run (HXProject._templatePaths), Serializer.run (HXProject._userDefines), Serializer.run (HXProject._environment), temporaryFile ]);
+		var args = [ name, "-main", "lime.project.HXProject", "-cp", tempDirectory, "-neko", nekoOutput, "-cp", PathHelper.combine (PathHelper.getHaxelib (new Haxelib ("lime")), "tools"), "-lib", "lime", "-D", "lime-curl", "-D", "native", "-D", "lime-native", "-D", "lime-cffi" ];
+		var input = File.read (classFile, false);
+		var tag = "@:compiler(";
 		
-		var tPaths:Array<String> = [];
 		try {
 			
-			var outputPath = PathHelper.combine (tempDirectory, "output.dat");
+			while (true) {
+				
+				var line = input.readLine ();
+				
+				if (StringTools.startsWith (line, tag)) {
+					
+					args.push (line.substring (tag.length + 1, line.length - 2));
+					
+				}
+				
+			}
+			
+		} catch (ex:Eof) {}
 		
+		input.close ();
+		
+		var cacheDryRun = ProcessHelper.dryRun;
+		ProcessHelper.dryRun = false;
+		
+		ProcessHelper.runCommand ("", "haxe", args);
+		
+		var inputFile = PathHelper.combine (tempDirectory, "input.dat");
+		var outputFile = PathHelper.combine (tempDirectory, "output.dat");
+		
+		var inputData = Serializer.run ({
+			
+			command: HXProject._command,
+			name: name,
+			target: HXProject._target,
+			debug: HXProject._debug,
+			targetFlags: HXProject._targetFlags,
+			templatePaths: HXProject._templatePaths,
+			userDefines: HXProject._userDefines,
+			environment: HXProject._environment,
+			logVerbose: LogHelper.verbose,
+			logEnableColor: LogHelper.enableColor,
+			processDryRun: cacheDryRun,
+			haxelibDebug: HaxelibHelper.debug
+			
+		});
+		
+		File.saveContent (inputFile, inputData);
+		
+		try {
+			
+			ProcessHelper.runCommand ("", "neko", [ FileSystem.fullPath (nekoOutput), inputFile, outputFile ]);
+			
+		} catch (e:Dynamic) {
+			
+			FileSystem.deleteFile (inputFile);
+			Sys.exit (1);
+			
+		}
+		
+		ProcessHelper.dryRun = cacheDryRun;
+		
+		var tPaths:Array<String> = [];
+		
+		try {
+			
+			FileSystem.deleteFile (inputFile);
+			
+			var outputPath = PathHelper.combine (tempDirectory, "output.dat");
+			
 			if (FileSystem.exists (outputPath)) {
 				
 				var output = File.getContent (outputPath);
@@ -482,6 +573,9 @@ class HXProject {
 				//Add them after loading template paths from haxelibs below
 				tPaths = project.templatePaths; 
 				project.templatePaths = [];
+				
+				FileSystem.deleteFile (outputPath);
+				
 			}
 			
 		} catch (e:Dynamic) {}
@@ -489,6 +583,12 @@ class HXProject {
 		PathHelper.removeDirectory (tempDirectory);
 		
 		if (project != null) {
+			
+			for (key in project.environment.keys ()) {
+				
+				Sys.putEnv (key, project.environment[key]);
+				
+			}
 			
 			var defines = StringMapHelper.copy (userDefines);
 			StringMapHelper.copyKeys (project.defines, defines);
@@ -871,7 +971,46 @@ class HXProject {
 	
 	public function setenv (name:String, value:String):Void {
 		
-		Sys.putEnv (name, value);
+		if (value == null) {
+			
+			environment.remove (name);
+			value = "";
+			
+		}
+		
+		if (name == "HAXELIB_PATH") {
+			
+			var currentPath = HaxelibHelper.getRepositoryPath ();
+			Sys.putEnv (name, value);
+			var newPath = HaxelibHelper.getRepositoryPath (true);
+			
+			if (currentPath != newPath) {
+				
+				var valid = try { (newPath != null && newPath != "" && FileSystem.exists (FileSystem.fullPath (newPath))); } catch (e:Dynamic) { false; }
+				
+				if (!valid) {
+					
+					LogHelper.error ("The specified haxelib repository path \"" + value + "\" does not exist");
+					
+				} else {
+					
+					needRerun = true;
+					
+				}
+				
+			}
+			
+		} else {
+			
+			Sys.putEnv (name, value);
+			
+		}
+		
+		if (value != "") {
+			
+			environment.set (name, value);
+			
+		}
 		
 	}
 	
@@ -1006,7 +1145,7 @@ class HXProject {
 				
 				if (asset.embed == null) {
 					
-					embeddedAsset.embed = (platformType == PlatformType.WEB);
+					embeddedAsset.embed = (platformType == PlatformType.WEB || target == AIR);
 					
 				}
 				
@@ -1079,29 +1218,33 @@ class HXProject {
 			
 			var name = haxelib.name;
 			
-			if (haxelib.version != "") {
+			// TODO: Handle real version when better/smarter haxelib available
+			var version = haxelib.version;
+			//var version = HaxelibHelper.getVersion (haxelib);
+			
+			if (version != null && version != "") {
 				
-				name += ":" + haxelib.version;
+				name += ":" + version;
 				
 			}
 			
 			#if lime
 			
-			if (PathHelper.haxelibOverrides.exists (name)) {
+			if (HaxelibHelper.pathOverrides.exists (name)) {
 				
-				var param = "-cp " + PathHelper.haxelibOverrides.get (name);
+				var param = "-cp " + HaxelibHelper.pathOverrides.get (name);
 				compilerFlags.remove (param);
 				compilerFlags.push (param);
 				
 			} else {
 				
 				var cache = LogHelper.verbose;
-				LogHelper.verbose = false;
+				LogHelper.verbose = HaxelibHelper.debug;
 				var output = "";
 				
 				try {
 					
-					output = ProcessHelper.runProcess ("", "haxelib", [ "path", name ], true, true, true);
+					output = HaxelibHelper.runProcess ("", [ "path", name ], true, true, true);
 					
 				} catch (e:Dynamic) { }
 				
@@ -1116,7 +1259,11 @@ class HXProject {
 					
 					if (arg != "") {
 						
-						if (!StringTools.startsWith (arg, "-")) {
+						if (StringTools.startsWith (arg, "Error: ")) {
+							
+							LogHelper.error (arg.substr (7));
+							
+						} else if (!StringTools.startsWith (arg, "-")) {
 							
 							var path = PathHelper.standardize (arg);
 							

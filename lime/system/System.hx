@@ -142,22 +142,9 @@ class System {
 			if (Reflect.field (config.windows[0], "rootPath")) {
 				
 				config.rootPath = Reflect.field (config.windows[0], "rootPath");
-				#if (lime < "5.0.0")
-				Reflect.setField (config, "assetsPrefix", config.rootPath);
-				#end
 				Reflect.deleteField (config.windows[0], "rootPath");
 				
 			}
-			
-			#if (lime < "5.0.0")
-			if (Reflect.field (config.windows[0], "assetsPrefix")) {
-				
-				config.rootPath = Reflect.field (config.windows[0], "assetsPrefix");
-				Reflect.setField (config, "assetsPrefix", config.rootPath);
-				Reflect.deleteField (config.windows[0], "assetsPrefix");
-				
-			}
-			#end
 			
 			config.windows[0].element = htmlElement;
 			config.windows[0].width = width;
@@ -304,7 +291,7 @@ class System {
 		#if flash
 		return flash.Lib.getTimer ();
 		#elseif js
-		return cast Date.now ().getTime ();
+		return Std.int (Browser.window.performance.now ());
 		#elseif (!disable_cffi && !macro)
 		return cast NativeCFFI.lime_system_get_timer ();
 		#elseif cpp

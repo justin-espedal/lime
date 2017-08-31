@@ -12,6 +12,7 @@ import lime.graphics.GLRenderContext;
 import lime.graphics.RenderContext;
 import lime.graphics.Renderer;
 import lime.math.Rectangle;
+import lime.system.Clipboard;
 import lime.system.Display;
 import lime.system.DisplayMode;
 import lime.system.Sensor;
@@ -38,6 +39,7 @@ import lime.ui.Window;
 @:access(lime.graphics.opengl.GL)
 @:access(lime.graphics.GLRenderContext)
 @:access(lime.graphics.Renderer)
+@:access(lime.system.Clipboard)
 @:access(lime.system.Sensor)
 @:access(lime.ui.Gamepad)
 @:access(lime.ui.Joystick)
@@ -48,6 +50,7 @@ class NativeApplication {
 	
 	
 	private var applicationEventInfo = new ApplicationEventInfo (UPDATE);
+	private var clipboardEventInfo = new ClipboardEventInfo ();
 	private var currentTouches = new Map<Int, Touch> ();
 	private var dropEventInfo = new DropEventInfo ();
 	private var gamepadEventInfo = new GamepadEventInfo ();
@@ -111,6 +114,7 @@ class NativeApplication {
 		#if !macro
 		
 		NativeCFFI.lime_application_event_manager_register (handleApplicationEvent, applicationEventInfo);
+		NativeCFFI.lime_clipboard_event_manager_register (handleClipboardEvent, clipboardEventInfo);
 		NativeCFFI.lime_drop_event_manager_register (handleDropEvent, dropEventInfo);
 		NativeCFFI.lime_gamepad_event_manager_register (handleGamepadEvent, gamepadEventInfo);
 		NativeCFFI.lime_joystick_event_manager_register (handleJoystickEvent, joystickEventInfo);
@@ -203,6 +207,13 @@ class NativeApplication {
 	}
 	
 	
+	private function handleClipboardEvent ():Void {
+		
+		Clipboard.__update ();
+		
+	}
+	
+	
 	private function handleDropEvent ():Void {
 		
 		for (window in parent.windows) {
@@ -253,17 +264,17 @@ class NativeApplication {
 			case AXIS_MOVE:
 				
 				var joystick = Joystick.devices.get (joystickEventInfo.id);
-				if (joystick != null) joystick.onAxisMove.dispatch (joystickEventInfo.index, joystickEventInfo.value);
+				if (joystick != null) joystick.onAxisMove.dispatch (joystickEventInfo.index, joystickEventInfo.x);
 			
 			case HAT_MOVE:
 				
 				var joystick = Joystick.devices.get (joystickEventInfo.id);
-				if (joystick != null) joystick.onHatMove.dispatch (joystickEventInfo.index, joystickEventInfo.x);
+				if (joystick != null) joystick.onHatMove.dispatch (joystickEventInfo.index, joystickEventInfo.value);
 			
 			case TRACKBALL_MOVE:
 				
 				var joystick = Joystick.devices.get (joystickEventInfo.id);
-				if (joystick != null) joystick.onTrackballMove.dispatch (joystickEventInfo.index, joystickEventInfo.value);
+				if (joystick != null) joystick.onTrackballMove.dispatch (joystickEventInfo.index, joystickEventInfo.x, joystickEventInfo.y);
 			
 			case BUTTON_DOWN:
 				
@@ -427,7 +438,12 @@ class NativeApplication {
 						
 						renderer.render ();
 						renderer.onRender.dispatch ();
-						renderer.flip ();
+						
+						if (!renderer.onRender.canceled) {
+							
+							renderer.flip ();
+							
+						}
 						
 					}
 					
@@ -741,6 +757,36 @@ private class ApplicationEventInfo {
 }
 
 
+private class ClipboardEventInfo {
+	
+	
+	public var type:ClipboardEventType;
+	
+	
+	public function new (type:ClipboardEventType = null) {
+		
+		this.type = type;
+		
+	}
+	
+	
+	public function clone ():ClipboardEventInfo {
+		
+		return new ClipboardEventInfo (type);
+		
+	}
+	
+	
+}
+
+
+@:enum private abstract ClipboardEventType(Int) {
+	
+	var UPDATE = 0;
+	
+}
+
+
 private class DropEventInfo {
 	
 	
@@ -821,12 +867,12 @@ private class JoystickEventInfo {
 	public var id:Int;
 	public var index:Int;
 	public var type:JoystickEventType;
-	public var value:Float;
-	public var x:Int;
-	public var y:Int;
+	public var value:Int;
+	public var x:Float;
+	public var y:Float;
 	
 	
-	public function new (type:JoystickEventType = null, id:Int = 0, index:Int = 0, value:Float = 0, x:Int = 0, y:Int = 0) {
+	public function new (type:JoystickEventType = null, id:Int = 0, index:Int = 0, value:Int = 0, x:Float = 0, y:Float = 0) {
 		
 		this.type = type;
 		this.id = id;

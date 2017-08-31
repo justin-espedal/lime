@@ -29,7 +29,7 @@ class EmscriptenPlatform extends PlatformTarget {
 		
 		super (command, _project, targetFlags);
 		
-		targetDirectory = project.app.path + "/emscripten/" + buildType;
+		targetDirectory = PathHelper.combine (project.app.path, project.config.getString ("emscripten.output-directory", "emscripten"));
 		outputFile = targetDirectory + "/bin/" + project.app.file + ".js";
 		
 	}
@@ -38,8 +38,16 @@ class EmscriptenPlatform extends PlatformTarget {
 	public override function build ():Void {
 		
 		var hxml = targetDirectory + "/haxe/" + buildType + ".hxml";
+		var args = [ hxml, "-D", "emscripten", "-D", "webgl", "-D", "static_link"];
 		
-		ProcessHelper.runCommand ("", "haxe", [ hxml, "-D", "emscripten", "-D", "webgl", "-D", "static_link" ] );
+		if (LogHelper.verbose) {
+			
+			args.push ("-D");
+			args.push ("verbose");
+			
+		}
+		
+		ProcessHelper.runCommand ("", "haxe", args);
 		
 		if (noOutput) return;
 		
@@ -53,7 +61,7 @@ class EmscriptenPlatform extends PlatformTarget {
 		
 		ProcessHelper.runCommand ("", "emcc", [ targetDirectory + "/obj/Main.cpp", "-o", targetDirectory + "/obj/Main.o" ], true, false, true);
 		
-		var args = [ "Main.o" ];
+		args = [ "Main.o" ];
 		
 		for (ndll in project.ndlls) {
 			
@@ -74,9 +82,43 @@ class EmscriptenPlatform extends PlatformTarget {
 		args = args.concat ([ prefix + "ApplicationMain" + (project.debug ? "-debug" : "") + ".a", "-o", "ApplicationMain.o" ]);
 		ProcessHelper.runCommand (targetDirectory + "/obj", "emcc", args, true, false, true);
 		
-		args = [ "ApplicationMain.o", "-s", "ASM_JS=1", "-s", "NO_EXIT_RUNTIME=1", "-s", "USE_SDL=2" ];
+		args = [ "ApplicationMain.o" ];
 		
-		if (!project.debug) {
+		if (project.targetFlags.exists ("webassembly") || project.targetFlags.exists ("wasm")) {
+			
+			args.push ("-s");
+			args.push ("WASM=1");
+			
+		} else {
+			
+			args.push ("-s");
+			args.push ("ASM_JS=1");
+			
+		}
+		
+		args.push ("-s");
+		args.push ("NO_EXIT_RUNTIME=1");
+		
+		args.push ("-s");
+		args.push ("USE_SDL=2");
+		
+		for (dependency in project.dependencies) {
+			
+			if (dependency.name != "") {
+				
+				args.push ("-l" + dependency.name);
+				
+			}
+			
+		}
+		
+		if (project.targetFlags.exists ("final")) {
+			
+			args.push ("-s");
+			args.push ("DISABLE_EXCEPTION_CATCHING=0");
+			args.push ("-O3");
+			
+		} else if (!project.debug) {
 			
 			args.push ("-s");
 			args.push ("DISABLE_EXCEPTION_CATCHING=0");
@@ -99,6 +141,8 @@ class EmscriptenPlatform extends PlatformTarget {
 		
 		if (project.targetFlags.exists ("minify")) {
 			
+			// 02 enables minification
+			
 			//args.push ("--minify");
 			//args.push ("1");
 			//args.push ("--closure");
@@ -118,7 +162,11 @@ class EmscriptenPlatform extends PlatformTarget {
 			
 		}
 		
-		if (LogHelper.verbose) args.push ("-v");
+		if (LogHelper.verbose) {
+			
+			args.push ("-v");
+			
+		}
 		
 		//if (project.targetFlags.exists ("compress")) {
 			//

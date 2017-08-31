@@ -16,6 +16,7 @@ import lime.tools.helpers.NodeJSHelper;
 import lime.tools.helpers.PathHelper;
 import lime.tools.helpers.PlatformHelper;
 import lime.tools.helpers.ProcessHelper;
+import lime.project.Architecture;
 import lime.project.Asset;
 import lime.project.AssetType;
 import lime.project.Haxelib;
@@ -31,12 +32,23 @@ class WindowsPlatform extends PlatformTarget {
 	
 	private var applicationDirectory:String;
 	private var executablePath:String;
+	private var is64:Bool;
 	private var targetType:String;
 	
 	
 	public function new (command:String, _project:HXProject, targetFlags:Map<String, String> ) {
 		
 		super (command, _project, targetFlags);
+		
+		for (architecture in project.architectures) {
+			
+			if (architecture == Architecture.X64) {
+				
+				is64 = true;
+				
+			}
+			
+		}
 		
 		if (project.targetFlags.exists ("neko") || project.target != PlatformHelper.hostPlatform) {
 			
@@ -56,7 +68,8 @@ class WindowsPlatform extends PlatformTarget {
 			
 		}
 		
-		targetDirectory = project.app.path + "/windows/" + targetType + "/" + buildType;
+		targetDirectory = PathHelper.combine (project.app.path, project.config.getString ("windows.output-directory", targetType == "cpp" ? "windows" : targetType));
+		targetDirectory = StringTools.replace (targetDirectory, "arch64", is64 ? "64" : "");
 		applicationDirectory = targetDirectory + "/bin/";
 		executablePath = applicationDirectory + project.app.file + ".exe";
 		
@@ -84,7 +97,7 @@ class WindowsPlatform extends PlatformTarget {
 			
 			for (ndll in project.ndlls) {
 				
-				FileHelper.copyLibrary (project, ndll, "Windows", "", (ndll.haxelib != null && (ndll.haxelib.name == "hxcpp" || ndll.haxelib.name == "hxlibc")) ? ".dll" : ".ndll", applicationDirectory, project.debug);
+				FileHelper.copyLibrary (project, ndll, "Windows" + (is64 ? "64" : ""), "", (ndll.haxelib != null && (ndll.haxelib.name == "hxcpp" || ndll.haxelib.name == "hxlibc")) ? ".dll" : ".ndll", applicationDirectory, project.debug);
 				
 			}
 			
@@ -115,7 +128,7 @@ class WindowsPlatform extends PlatformTarget {
 			}
 			
 			NekoHelper.createWindowsExecutable (project.templatePaths, targetDirectory + "/obj/ApplicationMain.n", executablePath, iconPath);
-			NekoHelper.copyLibraries (project.templatePaths, "windows", applicationDirectory);
+			NekoHelper.copyLibraries (project.templatePaths, "windows" + (is64 ? "64" : ""), applicationDirectory);
 			
 		} else if (targetType == "nodejs") {
 			
@@ -123,8 +136,8 @@ class WindowsPlatform extends PlatformTarget {
 			
 			if (noOutput) return;
 			
-			//NekoHelper.createExecutable (project.templatePaths, "windows", targetDirectory + "/obj/ApplicationMain.n", executablePath);
-			NekoHelper.copyLibraries (project.templatePaths, "windows", applicationDirectory);
+			//NekoHelper.createExecutable (project.templatePaths, "windows" + (is64 ? "64" : ""), targetDirectory + "/obj/ApplicationMain.n", executablePath);
+			NekoHelper.copyLibraries (project.templatePaths, "windows" + (is64 ? "64" : ""), applicationDirectory);
 			
 		} else if (targetType == "cs") {
 			
@@ -143,7 +156,17 @@ class WindowsPlatform extends PlatformTarget {
 			var haxeArgs = [ hxml ];
 			var flags = [];
 			
-			flags.push ("-DHXCPP_M32");
+			if (is64) {
+				
+				haxeArgs.push ("-D");
+				haxeArgs.push ("HXCPP_M64");
+				flags.push ("-DHXCPP_M64");
+				
+			} else {
+				
+				flags.push ("-DHXCPP_M32");
+				
+			}
 			
 			if (!project.environment.exists ("SHOW_CONSOLE")) {
 				
@@ -203,7 +226,7 @@ class WindowsPlatform extends PlatformTarget {
 	
 	public override function deploy ():Void {
 		
-		DeploymentHelper.deploy (project, targetFlags, targetDirectory, "Windows");
+		DeploymentHelper.deploy (project, targetFlags, targetDirectory, "Windows" + (is64 ? "64" : ""));
 		
 	}
 	
@@ -229,7 +252,7 @@ class WindowsPlatform extends PlatformTarget {
 		context.NEKO_FILE = targetDirectory + "/obj/ApplicationMain.n";
 		context.NODE_FILE = targetDirectory + "/bin/ApplicationMain.js";
 		context.CPP_DIR = targetDirectory + "/obj";
-		context.BUILD_DIR = project.app.path + "/windows";
+		context.BUILD_DIR = project.app.path + "/windows" + (is64 ? "64" : "");
 		
 		return context;
 		
@@ -245,7 +268,19 @@ class WindowsPlatform extends PlatformTarget {
 			
 		}
 		
-		CPPHelper.rebuild (project, [[ "-Dwindows" ]]);
+		var commands = [];
+		
+		if (targetFlags.exists ("64")) {
+			
+			commands.push ([ "-Dwindow", "-DHXCPP_M64" ]);
+			
+		} else {
+			
+			commands.push ([ "-Dwindow", "-DHXCPP_M32" ]);
+			
+		}
+		
+		CPPHelper.rebuild (project, commands);
 		
 	}
 	
@@ -316,7 +351,7 @@ class WindowsPlatform extends PlatformTarget {
 				
 				if (ndll.path == null || ndll.path == "") {
 					
-					context.ndlls[i].path = PathHelper.getLibraryPath (ndll, "Windows", "lib", suffix, project.debug);
+					context.ndlls[i].path = PathHelper.getLibraryPath (ndll, "Windows" + (is64 ? "64" : ""), "lib", suffix, project.debug);
 					
 				}
 				

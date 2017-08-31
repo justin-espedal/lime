@@ -9,6 +9,7 @@ import lime.graphics.PixelFormat;
 import lime.math.ColorMatrix;
 import lime.math.Rectangle;
 import lime.math.Vector2;
+import lime.utils.BytePointer;
 import lime.utils.UInt8Array;
 
 #if (js && html5)
@@ -282,8 +283,18 @@ class ImageCanvasUtil {
 			
 		}
 		
-		image.buffer.__srcContext.fillStyle = 'rgba(' + r + ', ' + g + ', ' + b + ', ' + (a / 255) + ')';
-		image.buffer.__srcContext.fillRect (rect.x + image.offsetX, rect.y + image.offsetY, rect.width + image.offsetX, rect.height + image.offsetY);
+		if (a < 255) {
+			
+			image.buffer.__srcContext.clearRect (rect.x + image.offsetX, rect.y + image.offsetY, rect.width + image.offsetX, rect.height + image.offsetY);
+			
+		}
+		
+		if (a > 0) {
+			
+			image.buffer.__srcContext.fillStyle = 'rgba(' + r + ', ' + g + ', ' + b + ', ' + (a / 255) + ')';
+			image.buffer.__srcContext.fillRect (rect.x + image.offsetX, rect.y + image.offsetY, rect.width + image.offsetX, rect.height + image.offsetY);
+			
+		}
 		
 		image.dirty = true;
 		image.version++;
@@ -400,11 +411,11 @@ class ImageCanvasUtil {
 	}
 	
 	
-	public static function setPixels (image:Image, rect:Rectangle, bytes:Bytes, format:PixelFormat):Void {
+	public static function setPixels (image:Image, rect:Rectangle, bytePointer:BytePointer, format:PixelFormat):Void {
 		
 		convertToData (image);
 		
-		ImageDataUtil.setPixels (image, rect, bytes, format);
+		ImageDataUtil.setPixels (image, rect, bytePointer, format);
 		
 	}
 	

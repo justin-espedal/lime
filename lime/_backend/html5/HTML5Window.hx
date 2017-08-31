@@ -8,11 +8,13 @@ import js.html.Element;
 import js.html.FocusEvent;
 import js.html.InputElement;
 import js.html.InputEvent;
+import js.html.LinkElement;
 import js.html.MouseEvent;
 import js.html.TouchEvent;
 import js.html.ClipboardEvent;
 import js.Browser;
 import lime.app.Application;
+import lime.graphics.utils.ImageCanvasUtil;
 import lime.graphics.Image;
 import lime.system.Display;
 import lime.system.DisplayMode;
@@ -50,8 +52,11 @@ class HTML5Window {
 	private var cacheMouseY:Float;
 	private var currentTouches = new Map<Int, Touch> ();
 	private var enableTextEvents:Bool;
+	private var isFullscreen:Bool;
 	private var parent:Window;
 	private var primaryTouch:Touch;
+	private var requestedFullscreen:Bool;
+	private var resizeElement:Bool;
 	private var scale = 1.0;
 	private var setHeight:Int;
 	private var setWidth:Int;
@@ -162,7 +167,7 @@ class HTML5Window {
 			cacheElementWidth = parent.width;
 			cacheElementHeight = parent.height;
 			
-			parent.fullscreen = true;
+			resizeElement = true;
 			
 		}
 		
@@ -276,11 +281,55 @@ class HTML5Window {
 	}
 	
 	
+	private function handleCutOrCopyEvent (event:ClipboardEvent):Void {
+		
+		event.clipboardData.setData ("text/plain", Clipboard.text);
+		event.preventDefault ();
+		
+	}
+	
+	
 	private function handleFocusEvent (event:FocusEvent):Void {
 		
 		if (enableTextEvents) {
 			
 			Timer.delay (function () { textInput.focus (); }, 20);
+			
+		}
+		
+	}
+	
+	
+	private function handleFullscreenEvent (event:Dynamic):Void {
+		
+		var fullscreenElement = untyped (document.fullscreenElement || document.mozFullScreenElement || document.webkitFullscreenElement || document.msFullscreenElement);
+		
+		if (fullscreenElement != null) {
+			
+			isFullscreen = true;
+			parent.__fullscreen = true;
+			
+			if (requestedFullscreen) {
+				
+				requestedFullscreen = false;
+				parent.onFullscreen.dispatch ();
+				
+			}
+			
+		} else {
+			
+			isFullscreen = false;
+			parent.__fullscreen = false;
+			
+			var changeEvents = [ "fullscreenchange", "mozfullscreenchange", "webkitfullscreenchange", "MSFullscreenChange" ];
+			var errorEvents = [ "fullscreenerror", "mozfullscreenerror", "webkitfullscreenerror", "MSFullscreenError" ];
+			
+			for (i in 0...changeEvents.length) {
+				
+				Browser.document.removeEventListener (changeEvents[i], handleFullscreenEvent, false);
+				Browser.document.removeEventListener (errorEvents[i], handleFullscreenEvent, false);
+				
+			}
 			
 		}
 		
@@ -313,27 +362,6 @@ class HTML5Window {
 	}
 	
 	
-	private function handleCutOrCopyEvent (event:ClipboardEvent):Void {
-		
-		event.clipboardData.setData('text/plain', Clipboard.text);
-		event.preventDefault(); // We want our data, not data from any selection, to be written to the clipboard
-		
-	}
-
-
-	private function handlePasteEvent (event:ClipboardEvent):Void {
-		
-		if(untyped event.clipboardData.types.indexOf('text/plain') > -1){
-			var text = Clipboard.text = event.clipboardData.getData('text/plain');
-			parent.onTextInput.dispatch (text);
-			
-			// We are already handling the data from the clipboard, we do not want it inserted into the hidden input
-			event.preventDefault();
-		}
-		
-	}
-
-
 	private function handleInputEvent (event:InputEvent):Void {
 		
 		// In order to ensure that the browser will fire clipboard events, we always need to have something selected.
@@ -470,13 +498,33 @@ class HTML5Window {
 			
 		} else {
 			
-			parent.onMouseWheel.dispatch (untyped event.deltaX, - untyped event.deltaY);
+			parent.onMouseWheel.dispatch (untyped event.deltaX, -untyped event.deltaY);
 			
 			if (parent.onMouseWheel.canceled) {
 				
 				event.preventDefault ();
 				
 			}
+			
+		}
+		
+	}
+	
+	
+	private function handlePasteEvent (event:ClipboardEvent):Void {
+		
+		if (untyped event.clipboardData.types.indexOf ("text/plain") > -1) {
+			
+			var text = event.clipboardData.getData ("text/plain");
+			Clipboard.text = text;
+			
+			if (enableTextEvents) {
+				
+				parent.onTextInput.dispatch (text);
+				
+			}
+			
+			event.preventDefault ();
 			
 		}
 		
@@ -675,23 +723,23 @@ class HTML5Window {
 	
 	public function setClipboard (value:String):Void {
 		
+		var inputEnabled = enableTextEvents;
+		
+		setEnableTextEvents (true); // create textInput if necessary
+		
+		var cacheText = textInput.value;
+		textInput.value = value;
+		textInput.select ();
+		
 		if (Browser.document.queryCommandEnabled ("copy")) {
-			
-			var inputEnabled = enableTextEvents;
-			
-			setEnableTextEvents (true); // create textInput if necessary
-			setEnableTextEvents (false);
-			
-			var cacheText = textInput.value;
-			textInput.value = value;
 			
 			Browser.document.execCommand ("copy");
 			
-			textInput.value = cacheText;
-			
-			setEnableTextEvents (inputEnabled);
-			
 		}
+		
+		textInput.value = cacheText;
+		
+		setEnableTextEvents (inputEnabled);
 		
 	}
 	
@@ -774,6 +822,59 @@ class HTML5Window {
 	
 	public function setFullscreen (value:Bool):Bool {
 		
+		if (value) {
+			
+			if (!requestedFullscreen && !isFullscreen) {
+				
+				requestedFullscreen = true;
+				
+				untyped {
+					
+					if (element.requestFullscreen) {
+						
+						document.addEventListener ("fullscreenchange", handleFullscreenEvent, false);
+						document.addEventListener ("fullscreenerror", handleFullscreenEvent, false);
+						element.requestFullscreen ();
+						
+					} else if (element.mozRequestFullScreen) {
+						
+						document.addEventListener ("mozfullscreenchange", handleFullscreenEvent, false);
+						document.addEventListener ("mozfullscreenerror", handleFullscreenEvent, false);
+						element.mozRequestFullScreen ();
+						
+					} else if (element.webkitRequestFullscreen) {
+						
+						document.addEventListener ("webkitfullscreenchange", handleFullscreenEvent, false);
+						document.addEventListener ("webkitfullscreenerror", handleFullscreenEvent, false);
+						element.webkitRequestFullscreen ();
+						
+					} else if (element.msRequestFullscreen) {
+						
+						document.addEventListener ("MSFullscreenChange", handleFullscreenEvent, false);
+						document.addEventListener ("MSFullscreenError", handleFullscreenEvent, false);
+						element.msRequestFullscreen ();
+						
+					}
+					
+				}
+				
+			}
+			
+		} else if (isFullscreen) {
+			
+			requestedFullscreen = false;
+			
+			untyped {
+				
+				if (document.exitFullscreen) document.exitFullscreen ();
+				else if (document.mozCancelFullScreen) document.mozCancelFullScreen ();
+				else if (document.webkitExitFullscreen) document.webkitExitFullscreen ();
+				else if (document.msExitFullscreen) document.msExitFullscreen ();
+				
+			}
+			
+		}
+		
 		return value;
 		
 	}
@@ -781,7 +882,32 @@ class HTML5Window {
 	
 	public function setIcon (image:Image):Void {
 		
+		//var iconWidth = 16;
+		//var iconHeight = 16;
 		
+		//image = image.clone ();
+		
+		//if (image.width != iconWidth || image.height != iconHeight) {
+			//
+			//image.resize (iconWidth, iconHeight);
+			//
+		//}
+		
+		ImageCanvasUtil.convertToCanvas (image);
+		
+		var link:LinkElement = cast Browser.document.querySelector ("link[rel*='icon']");
+		
+		if (link == null) {
+			
+			link = cast Browser.document.createElement ("link");
+			
+		}
+		
+		link.type = "image/x-icon";
+		link.rel = "shortcut icon";
+		link.href = image.buffer.src.toDataURL ("image/x-icon");
+		
+		Browser.document.getElementsByTagName ("head")[0].appendChild (link);
 		
 	}
 	
@@ -809,6 +935,12 @@ class HTML5Window {
 	
 	public function setTitle (value:String):String {
 		
+		if (value != null) {
+			
+			Browser.document.title = value;
+			
+		}
+		
 		return value;
 		
 	}
@@ -835,7 +967,7 @@ class HTML5Window {
 			cacheElementWidth = elementWidth;
 			cacheElementHeight = elementHeight;
 			
-			var stretch = parent.fullscreen || (setWidth == 0 && setHeight == 0);
+			var stretch = resizeElement || (setWidth == 0 && setHeight == 0);
 			
 			if (element != null && (div == null || (div != null && stretch))) {
 				

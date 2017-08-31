@@ -22,6 +22,7 @@
 #include <media/AudioBuffer.h>
 #include <system/CFFIPointer.h>
 #include <system/Clipboard.h>
+#include <system/ClipboardEvent.h>
 #include <system/JNI.h>
 #include <system/Locale.h>
 #include <system/SensorEvent.h>
@@ -268,6 +269,14 @@ namespace lime {
 		value abstract = alloc_abstract (k_finalizer, callback);
 		val_gc (abstract, lime_cffi_finalizer);
 		return abstract;
+		
+	}
+	
+	
+	void lime_clipboard_event_manager_register (value callback, value eventObject) {
+		
+		ClipboardEvent::callback = new AutoGCRoot (callback);
+		ClipboardEvent::eventObject = new AutoGCRoot (eventObject);
 		
 	}
 	
@@ -969,15 +978,16 @@ namespace lime {
 	}
 	
 	
-	void lime_image_data_util_set_pixels (value image, value rect, value bytes, int format) {
+	void lime_image_data_util_set_pixels (value image, value rect, value bytes, int offset, int format) {
 		
 		Image _image = Image (image);
 		Rectangle _rect = Rectangle (rect);
 		Bytes _bytes (bytes);
 		PixelFormat _format = (PixelFormat)format;
-		ImageDataUtil::SetPixels (&_image, &_rect, &_bytes, _format);
+		ImageDataUtil::SetPixels (&_image, &_rect, &_bytes, offset, _format);
 		
 	}
+	
 	
 	int lime_image_data_util_threshold (value image, value sourceImage, value sourceRect, value destPoint, int operation, int thresholdRG, int thresholdBA, int colorRG, int colorBA, int maskRG, int maskBA, bool copySource) {
 		
@@ -1793,6 +1803,7 @@ namespace lime {
 	DEFINE_PRIME2 (lime_bytes_read_file);
 	DEFINE_PRIME1 (lime_cffi_get_native_pointer);
 	DEFINE_PRIME1 (lime_cffi_set_finalizer);
+	DEFINE_PRIME2v (lime_clipboard_event_manager_register);
 	DEFINE_PRIME0 (lime_clipboard_get_text);
 	DEFINE_PRIME1v (lime_clipboard_set_text);
 	DEFINE_PRIME2 (lime_data_pointer_offset);
@@ -1836,7 +1847,7 @@ namespace lime {
 	DEFINE_PRIME1v (lime_image_data_util_multiply_alpha);
 	DEFINE_PRIME4v (lime_image_data_util_resize);
 	DEFINE_PRIME2v (lime_image_data_util_set_format);
-	DEFINE_PRIME4v (lime_image_data_util_set_pixels);
+	DEFINE_PRIME5v (lime_image_data_util_set_pixels);
 	DEFINE_PRIME12 (lime_image_data_util_threshold);
 	DEFINE_PRIME1v (lime_image_data_util_unmultiply_alpha);
 	DEFINE_PRIME4 (lime_image_encode);

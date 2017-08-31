@@ -24,17 +24,18 @@ import sys.FileSystem;
 		
 		preloadLibraries = new Array ();
 		preloadLibraryNames = new Array ();
+		
 		var rootPath = null;
 		
-		if (config != null && Reflect.hasField (config, "assetsPrefix")) {
+		if (config != null && Reflect.hasField (config, "rootPath")) {
 			
-			rootPath = Reflect.field (config, "assetsPrefix");
+			rootPath = Reflect.field (config, "rootPath");
 			
 		}
 		
 		if (rootPath == null) {
 			
-			#if (ios || tvos)
+			#if (ios || tvos || emscripten)
 			rootPath = "assets/";
 			#elseif (windows && !cs)
 			rootPath = FileSystem.absolutePath (haxe.io.Path.directory (#if (haxe_ver >= 3.3) Sys.programPath () #else Sys.executablePath () #end)) + "/";
@@ -46,7 +47,7 @@ import sys.FileSystem;
 		
 		Assets.defaultRootPath = rootPath;
 		
-		#if (openfl && !flash)
+		#if (openfl && !flash && !display)
 		::if (assets != null)::::foreach assets::::if (type == "font")::openfl.text.Font.registerFont (__ASSET__OPENFL__::flatName::);
 		::end::::end::::end::
 		#end
@@ -74,8 +75,8 @@ import sys.FileSystem;
 #if !display
 #if flash
 
-::foreach assets::::if (embed)::::if (type == "image")::@:keep @:bind #if display private #end class __ASSET__::flatName:: extends flash.display.BitmapData { public function new () { super (0, 0, true, 0); } }::else::@:keep @:bind #if display private #end class __ASSET__::flatName:: extends ::flashClass:: { }
-::end::::end::::end::
+::foreach assets::::if (embed != false)::::if (type == "image")::@:keep @:bind #if display private #end class __ASSET__::flatName:: extends flash.display.BitmapData { public function new () { super (0, 0, true, 0); } }::else::@:keep @:bind #if display private #end class __ASSET__::flatName:: extends ::flashClass:: { }::end::
+::end::::end::
 
 #elseif (desktop || cpp)
 
@@ -90,14 +91,14 @@ import sys.FileSystem;
 
 #else
 
-::if (assets != null)::::foreach assets::::if (type == "font")::@:keep #if display private #end class __ASSET__::flatName:: extends lime.text.Font { public function new () { #if !html5 __fontPath = "::targetPath::"; #end name = "::fontName::"; super (); }}
+::if (assets != null)::::foreach assets::::if (type == "font")::@:keep @:expose('__ASSET__::flatName::') #if display private #end class __ASSET__::flatName:: extends lime.text.Font { public function new () { #if !html5 __fontPath = "::targetPath::"; #end name = "::fontName::"; super (); }}
 ::end::::end::::end::
 
 #end
 
 #if (openfl && !flash)
 
-::if (assets != null)::::foreach assets::::if (type == "font")::@:keep #if display private #end class __ASSET__OPENFL__::flatName:: extends openfl.text.Font { public function new () { ::if (embed)::var font = new __ASSET__::flatName:: (); src = font.src; name = font.name;::else::#if !html5 __fontPath = #if (ios || tvos) "assets/" + #end "::targetPath::"; #end name = "::fontName::";::end:: super (); }}
+::if (assets != null)::::foreach assets::::if (type == "font")::@:keep @:expose('__ASSET__OPENFL__::flatName::') #if display private #end class __ASSET__OPENFL__::flatName:: extends openfl.text.Font { public function new () { ::if (embed)::var font = new __ASSET__::flatName:: (); src = font.src; name = font.name;::else::#if !html5 __fontPath = #if (ios || tvos) "assets/" + #end "::targetPath::"; #end name = "::fontName::";::end:: super (); }}
 ::end::::end::::end::
 
 #end

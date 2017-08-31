@@ -2,6 +2,7 @@ package lime.tools.helpers;
 
 
 import haxe.io.Path;
+import lime.project.Platform;
 import lime.tools.helpers.PathHelper;
 import lime.tools.helpers.ProcessHelper;
 import lime.project.Haxelib;
@@ -120,7 +121,7 @@ class IOSHelper {
 		
 		if (!project.environment.exists ("IPHONE_VER") || project.environment.get ("IPHONE_VER") == "4.2") {
 			
-			if (!project.environment.exists ("DEVELOPER_DIR")) {
+			if (!project.environment.exists ("DEVELOPER_DIR") && PlatformHelper.hostPlatform == MAC) {
 				
 				var process = new Process ("xcode-select", [ "--print-path" ]);
 				var developerDir = process.stdout.readLine ();
@@ -176,16 +177,24 @@ class IOSHelper {
 	}
 	
 	
-	public static function getProvisioningFile ():String {
+	public static function getProvisioningFile (project:HXProject = null):String {
 		
-		var path = PathHelper.expand ("~/Library/MobileDevice/Provisioning Profiles");
-		var files = FileSystem.readDirectory (path);
-		
-		for (file in files) {
+		if (project != null && project.config.exists ("ios.provisioning-profile")) {
 			
-			if (Path.extension (file) == "mobileprovision") {
+			return project.config.getString ("ios.provisioning-profile");
+			
+		} else if (PlatformHelper.hostPlatform == Platform.MAC) {
+			
+			var path = PathHelper.expand ("~/Library/MobileDevice/Provisioning Profiles");
+			var files = FileSystem.readDirectory (path);
+			
+			for (file in files) {
 				
-				return path + "/" + file;
+				if (Path.extension (file) == "mobileprovision") {
+					
+					return path + "/" + file;
+					
+				}
 				
 			}
 			

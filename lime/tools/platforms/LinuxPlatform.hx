@@ -38,7 +38,7 @@ class LinuxPlatform extends PlatformTarget {
 		
 		for (architecture in project.architectures) {
 			
-			if (architecture == Architecture.X64) {
+			if (!targetFlags.exists ("32") && architecture == Architecture.X64) {
 				
 				is64 = true;
 				
@@ -71,7 +71,8 @@ class LinuxPlatform extends PlatformTarget {
 			
 		}
 		
-		targetDirectory = project.app.path + "/linux" + (is64 ? "64" : "") + (isRaspberryPi ? "-rpi" : "") + "/" + targetType + "/" + buildType;
+		targetDirectory = PathHelper.combine (project.app.path, project.config.getString ("linux.output-directory", targetType == "cpp" ? "linux" : targetType));
+		targetDirectory = StringTools.replace (targetDirectory, "arch64", is64 ? "64" : "");
 		applicationDirectory = targetDirectory + "/bin/";
 		executablePath = PathHelper.combine (applicationDirectory, project.app.file);
 		
@@ -136,6 +137,12 @@ class LinuxPlatform extends PlatformTarget {
 				haxeArgs.push ("-D");
 				haxeArgs.push ("HXCPP_M64");
 				flags.push ("-DHXCPP_M64");
+				
+			} else {
+				
+				haxeArgs.push ("-D");
+				haxeArgs.push ("HXCPP_M32");
+				flags.push ("-DHXCPP_M32");
 				
 			}
 			

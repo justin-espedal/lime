@@ -138,8 +138,8 @@
 			<compilerflag value="-I${NATIVE_TOOLKIT_PATH}/openal/include/" unless="emscripten" />
 			<compilerflag value="-DLIME_OPENAL" />
 			<compilerflag value="-DLIME_OPENALSOFT" if="LIME_OPENALSOFT" />
-			<compilerflag value="-DAL_LIBTYPE_STATIC=1" />
-			<compilerflag value="-DAL_ALEXT_PROTOTYPES" />
+			<compilerflag value="-DAL_LIBTYPE_STATIC=1" if="LIME_OPENALSOFT" />
+			<compilerflag value="-DAL_ALEXT_PROTOTYPES" if="LIME_OPENALSOFT" />
 			
 			<file name="src/media/openal/OpenALBindings.cpp" />
 			
@@ -255,6 +255,7 @@
 		<file name="src/media/containers/WAV.cpp" />
 		<file name="src/media/AudioBuffer.cpp" />
 		<file name="src/system/CFFIPointer.cpp" />
+		<file name="src/system/ClipboardEvent.cpp" />
 		<file name="src/system/DisplayMode.cpp" />
 		<file name="src/system/JNI.cpp" if="android" />
 		<file name="src/system/Locale.cpp" unless="mac || ios" />
@@ -429,12 +430,14 @@
 				<vflag name="-framework" value="AudioUnit" />
 				<vflag name="-framework" value="OpenAL"/>
 				<vflag name="-framework" value="CoreMotion"/>
+				<vflag name="-framework" value="CoreText"/>
 				
 				<lib name="-ldl" />
 				<lib name="-lEGL" />
 				<lib name="-lGLESv2" />
 				
 			</section>
+			
 		</section>
 		
 	</target>

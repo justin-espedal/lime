@@ -1,9 +1,9 @@
 package org.haxe.lime;
 
 
-import android.content.res.AssetManager;
 import android.content.Context;
 import android.content.Intent;
+import android.content.res.AssetManager;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
@@ -11,16 +11,16 @@ import android.os.Handler;
 import android.os.Vibrator;
 import android.util.DisplayMetrics;
 import android.util.Log;
-import android.view.KeyEvent;
 import android.view.KeyCharacterMap;
+import android.view.KeyEvent;
 import android.view.View;
 import android.webkit.MimeTypeMap;
+import org.haxe.extension.Extension;
+import org.libsdl.app.SDLActivity;
+
 import java.io.File;
 import java.util.ArrayList;
 import java.util.List;
-
-import org.haxe.extension.Extension;
-import org.libsdl.app.SDLActivity;
 
 
 public class GameActivity extends SDLActivity {
@@ -188,6 +188,25 @@ public class GameActivity extends SDLActivity {
 		}
 		
 	}
+	
+	
+	::if (ANDROID_TARGET_SDK_VERSION >= 23)::
+	@Override public void onRequestPermissionsResult (int requestCode, String permissions[], int[] grantResults) {
+		
+		for (Extension extension : extensions) {
+			
+			if (!extension.onRequestPermissionsResult (requestCode, permissions, grantResults)) {
+				
+				return;
+				
+			}
+			
+		}
+		
+		super.onRequestPermissionsResult (requestCode, permissions, grantResults);
+		
+	}
+	::end::
 	
 	
 	@Override protected void onRestart () {

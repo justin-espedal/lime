@@ -28,6 +28,10 @@ namespace lime {
 		if (flags & WINDOW_FLAG_MINIMIZED) sdlFlags |= SDL_WINDOW_MINIMIZED;
 		if (flags & WINDOW_FLAG_MAXIMIZED) sdlFlags |= SDL_WINDOW_MAXIMIZED;
 		
+		#ifndef EMSCRIPTEN
+		if (flags & WINDOW_FLAG_ALWAYS_ON_TOP) sdlFlags |= SDL_WINDOW_ALWAYS_ON_TOP;
+		#endif
+		
 		#if defined (HX_WINDOWS) && defined (NATIVE_TOOLKIT_SDL_ANGLE)
 		OSVERSIONINFOEXW osvi = { sizeof (osvi), 0, 0, 0, 0, {0}, 0, 0 };
 		DWORDLONG const dwlConditionMask = VerSetConditionMask (VerSetConditionMask (VerSetConditionMask (0, VER_MAJORVERSION, VER_GREATER_EQUAL), VER_MINORVERSION, VER_GREATER_EQUAL), VER_SERVICEPACKMAJOR, VER_GREATER_EQUAL);
@@ -90,9 +94,20 @@ namespace lime {
 				
 			}
 			
-			SDL_GL_SetAttribute (SDL_GL_RED_SIZE, 5);
-			SDL_GL_SetAttribute (SDL_GL_GREEN_SIZE, 6);
-			SDL_GL_SetAttribute (SDL_GL_BLUE_SIZE, 5);
+			if (flags & WINDOW_FLAG_COLOR_DEPTH_32_BIT) {
+				
+				SDL_GL_SetAttribute (SDL_GL_RED_SIZE, 8);
+				SDL_GL_SetAttribute (SDL_GL_GREEN_SIZE, 8);
+				SDL_GL_SetAttribute (SDL_GL_BLUE_SIZE, 8);
+				SDL_GL_SetAttribute (SDL_GL_ALPHA_SIZE, 8);
+				
+			} else {
+				
+				SDL_GL_SetAttribute (SDL_GL_RED_SIZE, 5);
+				SDL_GL_SetAttribute (SDL_GL_GREEN_SIZE, 6);
+				SDL_GL_SetAttribute (SDL_GL_BLUE_SIZE, 5);
+				
+			}
 			
 		}
 		
@@ -119,7 +134,12 @@ namespace lime {
 			if (SDL_GetWindowWMInfo (sdlWindow, &wminfo) == 1) {
 				
 				HWND hwnd = wminfo.info.win.window;
+				
+				#ifdef _WIN64
+				::SetClassLongPtr (hwnd, GCLP_HICON, reinterpret_cast<LONG_PTR>(icon));
+				#else
 				::SetClassLong (hwnd, GCL_HICON, reinterpret_cast<LONG>(icon));
+				#endif
 				
 			}
 			

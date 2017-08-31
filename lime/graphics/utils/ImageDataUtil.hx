@@ -15,6 +15,7 @@ import lime.math.ColorMatrix;
 import lime.math.Rectangle;
 import lime.math.Vector2;
 import lime.system.CFFI;
+import lime.utils.BytePointer;
 import lime.utils.UInt8Array;
 
 #if !lime_debug
@@ -163,84 +164,114 @@ class ImageDataUtil {
 	
 	public static function copyPixels (image:Image, sourceImage:Image, sourceRect:Rectangle, destPoint:Vector2, alphaImage:Image = null, alphaPoint:Vector2 = null, mergeAlpha:Bool = false):Void {
 		
-		#if (lime_cffi && !disable_cffi && !macro)
-		if (CFFI.enabled) NativeCFFI.lime_image_data_util_copy_pixels (image, sourceImage, sourceRect, destPoint, alphaImage, alphaPoint, mergeAlpha); else
-		#end
-		{
+		if (image.width == sourceImage.width && image.height == sourceImage.height && sourceRect.width == sourceImage.width && sourceRect.height == sourceImage.height && sourceRect.x == 0 && sourceRect.y == 0 && destPoint.x == 0 && destPoint.y == 0 && alphaImage == null && alphaPoint == null && mergeAlpha == false && image.format == sourceImage.format) {
 			
-			var sourceData = sourceImage.buffer.data;
-			var destData = image.buffer.data;
+			image.buffer.data.set (sourceImage.buffer.data);
 			
-			if (sourceData == null || destData == null) return;
+		} else {
 			
-			var sourceView = new ImageDataView (sourceImage, sourceRect);
-			var destView = new ImageDataView (image, new Rectangle (destPoint.x, destPoint.y, sourceView.width, sourceView.height));
-			
-			var sourceFormat = sourceImage.buffer.format;
-			var destFormat = image.buffer.format;
-			var sourcePremultiplied = sourceImage.buffer.premultiplied;
-			var destPremultiplied = image.buffer.premultiplied;
-			
-			var sourcePosition, destPosition, sourcePixel:RGBA;
-			
-			if (!mergeAlpha || !sourceImage.transparent) {
+			#if (lime_cffi && !disable_cffi && !macro)
+			if (CFFI.enabled) NativeCFFI.lime_image_data_util_copy_pixels (image, sourceImage, sourceRect, destPoint, alphaImage, alphaPoint, mergeAlpha); else
+			#end
+			{
 				
-				for (y in 0...destView.height) {
-					
-					sourcePosition = sourceView.row (y);
-					destPosition = destView.row (y);
-					
-					for (x in 0...destView.width) {
-						
-						sourcePixel.readUInt8 (sourceData, sourcePosition, sourceFormat, sourcePremultiplied);
-						sourcePixel.writeUInt8 (destData, destPosition, destFormat, destPremultiplied);
-						
-						sourcePosition += 4;
-						destPosition += 4;
-						
-					}
-					
-				}
+				var sourceData = sourceImage.buffer.data;
+				var destData = image.buffer.data;
 				
-			} else {
+				if (sourceData == null || destData == null) return;
 				
+				var sourceView = new ImageDataView (sourceImage, sourceRect);
+				var destRect = new Rectangle (destPoint.x, destPoint.y, sourceView.width, sourceView.height);
+				var destView = new ImageDataView (image, destRect);
+				
+				var sourceFormat = sourceImage.buffer.format;
+				var destFormat = image.buffer.format;
+				
+				var sourcePosition, destPosition;
 				var sourceAlpha, destAlpha, oneMinusSourceAlpha, blendAlpha;
-				var destPixel:RGBA;
+				var sourcePixel:RGBA, destPixel:RGBA;
 				
-				if (alphaImage == null) {
+				var sourcePremultiplied = sourceImage.buffer.premultiplied;
+				var destPremultiplied = image.buffer.premultiplied;
+				var sourceBytesPerPixel = Std.int (sourceImage.buffer.bitsPerPixel / 8);
+				var destBytesPerPixel = Std.int (image.buffer.bitsPerPixel / 8);
+				
+				var useAlphaImage = (alphaImage != null && alphaImage.transparent);
+				var blend = (mergeAlpha || (useAlphaImage && !image.transparent));
+				
+				if (!useAlphaImage) {
 					
-					for (y in 0...destView.height) {
+					if (blend) {
 						
-						sourcePosition = sourceView.row (y);
-						destPosition = destView.row (y);
-						
-						for (x in 0...destView.width) {
+						for (y in 0...destView.height) {
 							
-							sourcePixel.readUInt8 (sourceData, sourcePosition, sourceFormat, sourcePremultiplied);
-							destPixel.readUInt8 (destData, destPosition, destFormat, destPremultiplied);
+							sourcePosition = sourceView.row (y);
+							destPosition = destView.row (y);
 							
-							sourceAlpha = sourcePixel.a / 255.0;
-							destAlpha = destPixel.a / 255.0;
-							oneMinusSourceAlpha = 1 - sourceAlpha;
-							blendAlpha = sourceAlpha + (destAlpha * oneMinusSourceAlpha);
-							
-							if (blendAlpha == 0) {
+							for (x in 0...destView.width) {
 								
-								destPixel = 0;
+								sourcePixel.readUInt8 (sourceData, sourcePosition, sourceFormat, sourcePremultiplied);
+								destPixel.readUInt8 (destData, destPosition, destFormat, destPremultiplied);
 								
-							} else {
+								sourceAlpha = sourcePixel.a / 255.0;
+								destAlpha = destPixel.a / 255.0;
+								oneMinusSourceAlpha = 1 - sourceAlpha;
+								blendAlpha = sourceAlpha + (destAlpha * oneMinusSourceAlpha);
 								
-								destPixel.r = RGBA.__clamp[Math.round ((sourcePixel.r * sourceAlpha + destPixel.r * destAlpha * oneMinusSourceAlpha) / blendAlpha)];
-								destPixel.g = RGBA.__clamp[Math.round ((sourcePixel.g * sourceAlpha + destPixel.g * destAlpha * oneMinusSourceAlpha) / blendAlpha)];
-								destPixel.b = RGBA.__clamp[Math.round ((sourcePixel.b * sourceAlpha + destPixel.b * destAlpha * oneMinusSourceAlpha) / blendAlpha)];
-								destPixel.a = RGBA.__clamp[Math.round (blendAlpha * 255.0)];
+								if (blendAlpha == 0) {
+									
+									destPixel = 0;
+									
+								} else {
+									
+									destPixel.r = RGBA.__clamp[Math.round ((sourcePixel.r * sourceAlpha + destPixel.r * destAlpha * oneMinusSourceAlpha) / blendAlpha)];
+									destPixel.g = RGBA.__clamp[Math.round ((sourcePixel.g * sourceAlpha + destPixel.g * destAlpha * oneMinusSourceAlpha) / blendAlpha)];
+									destPixel.b = RGBA.__clamp[Math.round ((sourcePixel.b * sourceAlpha + destPixel.b * destAlpha * oneMinusSourceAlpha) / blendAlpha)];
+									destPixel.a = RGBA.__clamp[Math.round (blendAlpha * 255.0)];
+									
+								}
+								
+								destPixel.writeUInt8 (destData, destPosition, destFormat, destPremultiplied);
+								
+								sourcePosition += 4;
+								destPosition += 4;
 								
 							}
 							
-							destPixel.writeUInt8 (destData, destPosition, destFormat, destPremultiplied);
+						}
+						
+					} else if (sourceFormat == destFormat && sourcePremultiplied == destPremultiplied && sourceBytesPerPixel == destBytesPerPixel) {
+						
+						for (y in 0...destView.height) {
 							
-							sourcePosition += 4;
-							destPosition += 4;
+							sourcePosition = sourceView.row (y);
+							destPosition = destView.row (y);
+							
+							#if js
+							// TODO: Is this faster on HTML5 than the normal copy method?
+							destData.set (sourceData.subarray (sourcePosition, sourcePosition + destView.width * destBytesPerPixel), destPosition);
+							#else
+							destData.buffer.blit (destPosition, sourceData.buffer, sourcePosition, destView.width * destBytesPerPixel);
+							#end
+							
+						}
+						
+					} else {
+						
+						for (y in 0...destView.height) {
+							
+							sourcePosition = sourceView.row (y);
+							destPosition = destView.row (y);
+							
+							for (x in 0...destView.width) {
+								
+								sourcePixel.readUInt8 (sourceData, sourcePosition, sourceFormat, sourcePremultiplied);
+								sourcePixel.writeUInt8 (destData, destPosition, destFormat, destPremultiplied);
+								
+								sourcePosition += 4;
+								destPosition += 4;
+								
+							}
 							
 						}
 						
@@ -252,45 +283,71 @@ class ImageDataUtil {
 					
 					var alphaData = alphaImage.buffer.data;
 					var alphaFormat = alphaImage.buffer.format;
-					var alphaPremultiplied = alphaImage.buffer.premultiplied;
 					
 					var alphaView = new ImageDataView (alphaImage, new Rectangle (alphaPoint.x, alphaPoint.y, destView.width, destView.height));
 					var alphaPosition, alphaPixel:RGBA;
+					var alphaOffsetY = alphaView.y - destView.y;
 					
-					for (y in 0...alphaView.height) {
+					if (blend) {
 						
-						sourcePosition = sourceView.row (y);
-						destPosition = destView.row (y);
-						alphaPosition = alphaView.row (y);
-						
-						for (x in 0...alphaView.width) {
+						for (y in 0...destView.height) {
 							
-							sourcePixel.readUInt8 (sourceData, sourcePosition, sourceFormat, sourcePremultiplied);
-							destPixel.readUInt8 (destData, destPosition, destFormat, destPremultiplied);
-							alphaPixel.readUInt8 (alphaData, alphaPosition, alphaFormat, alphaPremultiplied);
+							sourcePosition = sourceView.row (y);
+							destPosition = destView.row (y);
+							alphaPosition = alphaView.row (y + alphaOffsetY);
 							
-							sourceAlpha = alphaPixel.a / 0xFF;
-							destAlpha = destPixel.a / 0xFF;
-							oneMinusSourceAlpha = 1 - sourceAlpha;
-							blendAlpha = sourceAlpha + (destAlpha * oneMinusSourceAlpha);
-							
-							if (blendAlpha == 0) {
+							for (x in 0...destView.width) {
 								
-								destPixel = 0;
+								sourcePixel.readUInt8 (sourceData, sourcePosition, sourceFormat, sourcePremultiplied);
+								destPixel.readUInt8 (destData, destPosition, destFormat, destPremultiplied);
+								alphaPixel.readUInt8 (alphaData, alphaPosition, alphaFormat, false);
 								
-							} else {
+								sourceAlpha = (alphaPixel.a / 255.0) * (sourcePixel.a / 255.0);
 								
-								destPixel.r = RGBA.__clamp[Math.round ((sourcePixel.r * sourceAlpha + destPixel.r * destAlpha * oneMinusSourceAlpha) / blendAlpha)];
-								destPixel.g = RGBA.__clamp[Math.round ((sourcePixel.g * sourceAlpha + destPixel.g * destAlpha * oneMinusSourceAlpha) / blendAlpha)];
-								destPixel.b = RGBA.__clamp[Math.round ((sourcePixel.b * sourceAlpha + destPixel.b * destAlpha * oneMinusSourceAlpha) / blendAlpha)];
-								destPixel.a = RGBA.__clamp[Math.round (blendAlpha * 255.0)];
+								if (sourceAlpha > 0) {
+									
+									destAlpha = destPixel.a / 255.0;
+									oneMinusSourceAlpha = 1 - sourceAlpha;
+									blendAlpha = sourceAlpha + (destAlpha * oneMinusSourceAlpha);
+									
+									destPixel.r = RGBA.__clamp[Math.round ((sourcePixel.r * sourceAlpha + destPixel.r * destAlpha * oneMinusSourceAlpha) / blendAlpha)];
+									destPixel.g = RGBA.__clamp[Math.round ((sourcePixel.g * sourceAlpha + destPixel.g * destAlpha * oneMinusSourceAlpha) / blendAlpha)];
+									destPixel.b = RGBA.__clamp[Math.round ((sourcePixel.b * sourceAlpha + destPixel.b * destAlpha * oneMinusSourceAlpha) / blendAlpha)];
+									destPixel.a = RGBA.__clamp[Math.round (blendAlpha * 255.0)];
+									
+									destPixel.writeUInt8 (destData, destPosition, destFormat, destPremultiplied);
+									
+								}
+								
+								sourcePosition += 4;
+								destPosition += 4;
+								alphaPosition += 4;
 								
 							}
 							
-							destPixel.writeUInt8 (destData, destPosition, destFormat, destPremultiplied);
+						}
+						
+					} else {
+						
+						for (y in 0...destView.height) {
 							
-							sourcePosition += 4;
-							destPosition += 4;
+							sourcePosition = sourceView.row (y);
+							destPosition = destView.row (y);
+							alphaPosition = alphaView.row (y + alphaOffsetY);
+							
+							for (x in 0...destView.width) {
+								
+								sourcePixel.readUInt8 (sourceData, sourcePosition, sourceFormat, sourcePremultiplied);
+								alphaPixel.readUInt8 (alphaData, alphaPosition, alphaFormat, false);
+								
+								sourcePixel.a = Math.round (sourcePixel.a * (alphaPixel.a / 0xFF));
+								sourcePixel.writeUInt8 (destData, destPosition, destFormat, destPremultiplied);
+								
+								sourcePosition += 4;
+								destPosition += 4;
+								alphaPosition += 4;
+								
+							}
 							
 						}
 						
@@ -442,6 +499,175 @@ class ImageDataUtil {
 		
 		image.dirty = true;
 		image.version++;
+		
+	}
+	
+	
+	public static function gaussianBlur (image:Image, sourceImage:Image, sourceRect:Rectangle, destPoint:Vector2, blurX:Float = 4, blurY:Float = 4, quality:Int = 1, strength:Float = 1):Image {
+		
+		// TODO: Support sourceRect better, do not modify sourceImage, create C++ implementation for native
+		
+		var fromPreMult = function (col:Float, alpha:Float):Int {
+			var col = Std.int (col / alpha * 255) ;
+			return col < 0 ? 0 : (col > 255 ? 255 : col);
+		}
+		
+		var boxesForGauss = function (sigma:Float, n:Int):Array<Float> {
+			var wIdeal = Math.sqrt((12*sigma*sigma/n)+1);  // Ideal averaging filter width
+			var wl = Math.floor(wIdeal);
+			if (wl % 2 == 0) wl--;
+			var wu = wl+2;
+			
+			var mIdeal = (12*sigma*sigma - n*wl*wl - 4*n*wl - 3*n)/(-4*wl - 4);
+			var m = Math.round(mIdeal);
+			var sizes:Array<Float> = [];
+			for (i in 0...n)
+				sizes.push( i < m ? wl : wu);
+			
+			return sizes;
+		}
+		
+		var boxBlurH = function (imgA:UInt8Array, imgB:UInt8Array, w:Int, h:Int, r:Int, off:Int):Void {
+			var iarr = 1 / (r+r+1);
+			for (i in 0...h) {
+				var ti = i*w, li = ti, ri = ti+r;
+				var fv = imgA[ti * 4 + off], lv = imgA[(ti+w-1) * 4 + off], val = (r+1)*fv;
+				
+				for (j in 0...r)
+					val += imgA[(ti+j) * 4 + off];
+				
+				for (j in 0...r+1) {
+					val += imgA[ri * 4 + off] - fv;
+					imgB[ti * 4 + off] = Math.round(val*iarr);
+					ri++;
+					ti++;
+				}
+				
+				for (j in r+1...w-r) {
+					val += imgA[ri * 4 + off] - imgA[li * 4 + off];
+					imgB[ti * 4 + off] = Math.round(val*iarr);
+					ri++;
+					li++;
+					ti++;
+				}
+				
+				for (j in w-r...w) {
+					val += lv - imgA[li * 4 + off];
+					imgB[ti * 4 + off] = Math.round(val*iarr);
+					li++;
+					ti++;
+				}
+			}
+		}
+		
+		var boxBlurT = function (imgA:UInt8Array, imgB:UInt8Array, w:Int, h:Int, r:Int, off:Int):Void {
+			var iarr = 1 / (r+r+1);
+			var ws = w * 4;
+			for (i in 0...w) {
+				var ti = i * 4 + off, li = ti, ri = ti+(r*ws);
+				var fv = imgA[ti], lv = imgA[ti+(ws*(h-1))], val = (r+1)*fv;
+				for (j in 0...r)
+					val += imgA[ti+j*ws];
+				
+				for (j in 0...r+1) {
+					val += imgA[ri] - fv;
+					imgB[ti] = Math.round(val*iarr);
+					ri+=ws; ti+=ws;
+				}
+				
+				for (j in r+1...h-r) {
+					val += imgA[ri] - imgA[li];
+					imgB[ti] = Math.round(val*iarr);
+					li+=ws;
+					ri+=ws;
+					ti+=ws;
+				}
+				
+				for (j in h-r...h) {
+					val += lv - imgA[li];
+					imgB[ti] = Math.round(val*iarr);
+					li+=ws;
+					ti+=ws;
+				}
+			}
+		}
+		
+		var boxBlur = function (imgA:UInt8Array, imgB:UInt8Array, w:Int, h:Int, bx:Float, by:Float):Void {
+			for(i in 0...imgA.length)
+				imgB[i] = imgA[i];
+			
+			boxBlurH(imgB, imgA, w, h, Std.int(bx), 0);
+			boxBlurH(imgB, imgA, w, h, Std.int(bx), 1);
+			boxBlurH(imgB, imgA, w, h, Std.int(bx), 2);
+			boxBlurH(imgB, imgA, w, h, Std.int(bx), 3);
+			
+			boxBlurT(imgA, imgB, w, h, Std.int(by), 0);
+			boxBlurT(imgA, imgB, w, h, Std.int(by), 1);
+			boxBlurT(imgA, imgB, w, h, Std.int(by), 2);
+			boxBlurT(imgA, imgB, w, h, Std.int(by), 3);
+		}
+		
+		var imgB = image.data;
+		var imgA = sourceImage.data;
+		var w = Std.int (sourceRect.width);
+		var h = Std.int (sourceRect.height);
+		var bx = Std.int (blurX);
+		var by = Std.int (blurY);
+		var oX = Std.int (destPoint.x);
+		var oY = Std.int (destPoint.y);
+		
+		var n = (quality * 2) - 1;
+		var rng = Math.pow(2, quality) * 0.125;
+		
+		var bxs = boxesForGauss(bx * rng, n);
+		var bys = boxesForGauss(by * rng, n);
+		var offset:Int = Std.int( (w * oY + oX) * 4 );
+		
+		boxBlur (imgA, imgB, w, h, (bxs[0]-1)/2, (bys[0]-1)/2);
+		var bIndex:Int = 1;
+		for (i in 0...Std.int(n / 2)) {
+			boxBlur (imgB, imgA, w, h, (bxs[bIndex]-1)/2, (bys[bIndex]-1)/2);
+			boxBlur (imgA, imgB, w, h, (bxs[bIndex+1]-1)/2, (bys[bIndex+1]-1)/2);
+			
+			bIndex += 2;
+		}
+		
+		var i:Int = 0;
+		var a:Int;
+		if (offset < 0) {
+			while (i < imgA.length) {
+				a = Std.int(imgB[ i + 3 ] * strength );
+				a = a < 0 ? 0 : (a > 255 ? 255 : a);
+				imgB[ i ] = fromPreMult( imgB[ i ], a );
+				imgB[ i + 1 ] = fromPreMult( imgB[ i + 1 ], a );
+				imgB[ i + 2 ] = fromPreMult( imgB[ i + 2 ], a );
+				imgB[ i + 3 ] = a;
+				i += 4;
+			}
+			for (i in imgA.length - offset...imgA.length)
+				imgB[ i ] = 0;
+		} else {
+			i = imgA.length - 4;
+			while (i >= 0) {
+				a = Std.int(imgB[ i + 3 ] * strength );
+				a = a < 0 ? 0 : (a > 255 ? 255 : a);
+				imgB[ i + offset] = fromPreMult( imgB[ i ], a );
+				imgB[ i + 1 + offset] = fromPreMult( imgB[ i + 1 ], a );
+				imgB[ i + 2 + offset] = fromPreMult( imgB[ i + 2 ], a );
+				imgB[ i + 3 + offset] = a;
+				i -= 4;
+			}
+			for (i in 0...offset)
+				imgB[ i ] = 0;
+		}
+		
+		image.dirty = true;
+		image.version++;
+		sourceImage.dirty = true;
+		sourceImage.version++;
+		
+		if (imgB == image.data) return image;
+		return sourceImage;
 		
 	}
 	
@@ -1035,12 +1261,12 @@ class ImageDataUtil {
 	}
 	
 	
-	public static function setPixels (image:Image, rect:Rectangle, bytes:Bytes, format:PixelFormat):Void {
+	public static function setPixels (image:Image, rect:Rectangle, bytePointer:BytePointer, format:PixelFormat):Void {
 		
 		if (image.buffer.data == null) return;
 		
 		#if (lime_cffi && !disable_cffi && !macro)
-		if (CFFI.enabled) NativeCFFI.lime_image_data_util_set_pixels (image, rect, bytes, format); else
+		if (CFFI.enabled) NativeCFFI.lime_image_data_util_set_pixels (image, rect, bytePointer.bytes, bytePointer.offset, format); else
 		#end
 		{
 			
@@ -1050,7 +1276,8 @@ class ImageDataUtil {
 			var dataView = new ImageDataView (image, rect);
 			var row, color, pixel:RGBA;
 			var transparent = image.transparent;
-			var dataPosition = 0;
+			var bytes = bytePointer.bytes;
+			var dataPosition = bytePointer.offset;
 			
 			for (y in 0...dataView.height) {
 				

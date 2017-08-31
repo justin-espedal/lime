@@ -107,6 +107,7 @@ class NativeWindow {
 			}
 			
 			if (Reflect.hasField (parent.config, "allowHighDPI") && parent.config.allowHighDPI) flags |= cast WindowFlags.WINDOW_FLAG_ALLOW_HIGHDPI;
+			if (Reflect.hasField (parent.config, "alwaysOnTop") && parent.config.alwaysOnTop) flags |= cast WindowFlags.WINDOW_FLAG_ALWAYS_ON_TOP;
 			//if (Reflect.hasField (parent.config, "borderless") && parent.config.borderless) flags |= cast WindowFlags.WINDOW_FLAG_BORDERLESS;
 			if (parent.__borderless) flags |= cast WindowFlags.WINDOW_FLAG_BORDERLESS;
 			if (Reflect.hasField (parent.config, "depthBuffer") && parent.config.depthBuffer) flags |= cast WindowFlags.WINDOW_FLAG_DEPTH_BUFFER;
@@ -120,6 +121,7 @@ class NativeWindow {
 			if (parent.__resizable) flags |= cast WindowFlags.WINDOW_FLAG_RESIZABLE;
 			if (Reflect.hasField (parent.config, "stencilBuffer") && parent.config.stencilBuffer) flags |= cast WindowFlags.WINDOW_FLAG_STENCIL_BUFFER;
 			if (Reflect.hasField (parent.config, "vsync") && parent.config.vsync) flags |= cast WindowFlags.WINDOW_FLAG_VSYNC;
+			if (Reflect.hasField (parent.config, "colorDepth") && parent.config.colorDepth == 32) flags |= cast WindowFlags.WINDOW_FLAG_COLOR_DEPTH_32_BIT;
 			
 			//if (Reflect.hasField (parent.config, "title")) {
 				//
@@ -411,5 +413,7 @@ class NativeWindow {
 	var WINDOW_FLAG_HIDDEN = 0x00001000;
 	var WINDOW_FLAG_MINIMIZED = 0x00002000;
 	var WINDOW_FLAG_MAXIMIZED = 0x00004000;
+	var WINDOW_FLAG_ALWAYS_ON_TOP = 0x00008000;
+	var WINDOW_FLAG_COLOR_DEPTH_32_BIT = 0x00010000;
 	
 }

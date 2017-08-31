@@ -10,10 +10,10 @@ This product bundles cairo 1.15.2, which is available under an
 This product bundles libcurl 7.37.1, which is available under an
 "MIT/X derivate" license. For details, see [project/lib/curl/](project/lib).
 
-This product bundles freetype 2.5.3, which is available under an
+This product bundles freetype 2.7.1, which is available under an
 "FTL" (BSD-style) license. For details, see [project/lib/freetype/](project/lib).
 
-This product bundles harfbuzz 0.9.32, which is available under an
+This product bundles harfbuzz 1.4.6, which is available under an
 "MIT" license. For details, see [project/lib/harfbuzz/](project/lib).
 
 This product bundles libjpeg 6b, which is available under a
@@ -37,7 +37,7 @@ This product bundles pixman 0.32.8, which is available under an
 This product bundles libpng 1.6.12, which is available under a
 "zlib" (BSD-style) license. For details, see [project/lib/png/](project/lib).
 
-This product bundles SDL 2.0.5, which is available under a
+This product bundles SDL dev (22a0b777d7cd), which is available under a
 "zlib" (BSD-style) license. For details, see [project/lib/sdl/](project/lib).
 
 This product bundles tinyfiledialogs 2.7.2, which is available under a
@@ -72,13 +72,19 @@ The typed array implementation was developed in collaboration with Sven Bergstr√
 and the hxtypedarray project, which is available under an "MIT" license.
 For details, see https://github.com/underscorediscovery/hxtypedarray
 
+The unifill project is included in the [lime/text/unifill/](lime/text/unifill/) directory,
+which is available under an "MIT" license. For details, see https://github.com/mandel59/unifill
+
+lime/project/Version is adapted from thx.semver project, which is available under
+an "MIT" license. For details, see https://github.com/fponticelli/thx.semver
+
 -------
 
 _The following are not embedded in Lime applications directly, but are used
 as dependencies for web-based builds. Their licensing does not affect products
 created with Lime._
 
-This product bundles howler.js 2.0.2, which is available under an
+This product bundles howler.js 2.0.3, which is available under an
 "MIT" license. For details, see [dependencies/howler.min.js](dependencies/howler.min.js).
 
 This product bundles pako 1.0.2, which is available under an
@@ -108,7 +114,7 @@ This product bundles ios-deploy 1.9.0, which is available under an
 This product bundles node.js 0.10.26, which is available under an
 "MIT" license. For details, see https://github.com/joyent/node.
 
-This product bundles http-server 0.7.4, which is available under an
+This product bundles http-server 0.10.0 and its dependencies, which is available under an
 "MIT" license. For details, see https://github.com/nodeapps/http-server.
 
 This product bundles webify 0.1.1.0, which is available under an
