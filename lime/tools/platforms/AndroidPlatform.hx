@@ -321,13 +321,11 @@ class AndroidPlatform extends PlatformTarget {
 		context.ANDROID_INSTALL_LOCATION = project.config.getString ("android.install-location", "auto");
 		context.ANDROID_MINIMUM_SDK_VERSION = project.config.getInt ("android.minimum-sdk-version", 9);
 		context.ANDROID_TARGET_SDK_VERSION = project.config.getInt ("android.target-sdk-version", 19);
-		context.ANDROID_BUILD_TOOLS_VERSION = project.config.getString ("android.build-tools-version");
 		context.ANDROID_EXTENSIONS = project.config.getArrayString ("android.extension");
 		context.ANDROID_PERMISSIONS = project.config.getArrayString ("android.permission", [ "android.permission.WAKE_LOCK", "android.permission.INTERNET", "android.permission.VIBRATE", "android.permission.ACCESS_NETWORK_STATE" ]);
 		context.ANDROID_GRADLE_VERSION = project.config.getString ("android.gradle-version", "2.10");
 		context.ANDROID_GRADLE_PLUGIN = project.config.getString ("android.gradle-plugin", "2.1.0");
 		context.ANDROID_LIBRARY_PROJECTS = [];
-		context.ANDROID_BUILD_DIR = project.config.getString ("android.build-dir");
 		
 		if (!project.environment.exists ("ANDROID_SDK") || !project.environment.exists ("ANDROID_NDK_ROOT")) {
 			
@@ -341,12 +339,6 @@ class AndroidPlatform extends PlatformTarget {
 			
 		}
 
-		if (context.ANDROID_BUILD_TOOLS_VERSION == "") {
-
-			context.ANDROID_BUILD_TOOLS_VERSION = AndroidHelper.getBuildToolsVersion (project);
-
-		}
-		
 		if (project.config.exists ("android.gradle-build-directory")) {
 			
 			context.ANDROID_GRADLE_BUILD_DIRECTORY = project.config.getString ("android.gradle-build-directory");

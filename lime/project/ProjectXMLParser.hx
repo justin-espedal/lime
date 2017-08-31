@@ -1907,10 +1907,6 @@ class ProjectXMLParser extends HXProject {
 									
 									config.set ("android.target-sdk-version", Std.parseInt (value));
 
-								case "build-tools-version":
-
-									config.set ("android.build-tools-version", value);
-								
 								case "install-location":
 									
 									config.set ("android.install-location", value);
@@ -1939,10 +1935,6 @@ class ProjectXMLParser extends HXProject {
 									
 									config.set ("android.gradle-version", value);
 								
-								case "build-dir":
-
-									config.set ("android.build-dir", value);
-
 								default:
 									
 									name = formatAttributeName (attribute);

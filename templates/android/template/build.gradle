@@ -15,7 +15,6 @@ buildscript {
 }
 
 allprojects {
-	::if ANDROID_BUILD_DIR::buildDir = "::ANDROID_BUILD_DIR::/${project.name}"::end::
 	repositories {
 		jcenter {
 			url "http://jcenter.bintray.com/"
