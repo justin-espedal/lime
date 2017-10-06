@@ -23,6 +23,8 @@
 #include <system/CFFIPointer.h>
 #include <system/Clipboard.h>
 #include <system/ClipboardEvent.h>
+#include <system/Endian.h>
+#include <system/FileWatcher.h>
 #include <system/JNI.h>
 #include <system/Locale.h>
 #include <system/SensorEvent.h>
@@ -59,6 +61,16 @@ namespace lime {
 		
 		Application* application = (Application*)val_data (handle);
 		delete application;
+		
+	}
+	
+	
+	void gc_file_watcher (value handle) {
+		
+		#ifdef LIME_EFSW
+		FileWatcher* watcher = (FileWatcher*)val_data (handle);
+		delete watcher;
+		#endif
 		
 	}
 	
@@ -486,6 +498,51 @@ namespace lime {
 		#endif
 		
 		return alloc_null ();
+		
+	}
+	
+	
+	value lime_file_watcher_create (value callback) {
+		
+		#ifdef LIME_EFSW
+		FileWatcher* watcher = new FileWatcher (callback);
+		return CFFIPointer (watcher, gc_file_watcher);
+		#else
+		return alloc_null ();
+		#endif
+		
+	}
+	
+	
+	value lime_file_watcher_add_directory (value handle, value path, bool recursive) {
+		
+		#ifdef LIME_EFSW
+		FileWatcher* watcher = (FileWatcher*)val_data (handle);
+		return alloc_int (watcher->AddDirectory (val_string (path), recursive));
+		#else
+		return alloc_int (0);
+		#endif
+		
+		
+	}
+	
+	
+	void lime_file_watcher_remove_directory (value handle, value watchID) {
+		
+		#ifdef LIME_EFSW
+		FileWatcher* watcher = (FileWatcher*)val_data (handle);
+		watcher->RemoveDirectory (val_int (watchID));
+		#endif
+		
+	}
+	
+	
+	void lime_file_watcher_update (value handle) {
+		
+		#ifdef LIME_EFSW
+		FileWatcher* watcher = (FileWatcher*)val_data (handle);
+		watcher->Update ();
+		#endif
 		
 	}
 	
@@ -978,13 +1035,14 @@ namespace lime {
 	}
 	
 	
-	void lime_image_data_util_set_pixels (value image, value rect, value bytes, int offset, int format) {
+	void lime_image_data_util_set_pixels (value image, value rect, value bytes, int offset, int format, int endian) {
 		
 		Image _image = Image (image);
 		Rectangle _rect = Rectangle (rect);
 		Bytes _bytes (bytes);
 		PixelFormat _format = (PixelFormat)format;
-		ImageDataUtil::SetPixels (&_image, &_rect, &_bytes, offset, _format);
+		Endian _endian = (Endian)endian;
+		ImageDataUtil::SetPixels (&_image, &_rect, &_bytes, offset, _format, _endian);
 		
 	}
 	
@@ -1437,6 +1495,17 @@ namespace lime {
 	}
 	
 	
+	int lime_system_get_windows_console_mode (int handleType) {
+		
+		#ifdef HX_WINDOWS
+		return System::GetWindowsConsoleMode (handleType);
+		#else
+		return 0;
+		#endif
+		
+	}
+	
+	
 	void lime_system_open_file (HxString path) {
 		
 		#ifdef IPHONE
@@ -1458,6 +1527,17 @@ namespace lime {
 	bool lime_system_set_allow_screen_timeout (bool allow) {
 		
 		return System::SetAllowScreenTimeout (allow);
+		
+	}
+	
+	
+	bool lime_system_set_windows_console_mode (int handleType, int mode) {
+		
+		#ifdef HX_WINDOWS
+		return System::SetWindowsConsoleMode (handleType, mode);
+		#else
+		return false;
+		#endif
 		
 	}
 	
@@ -1814,6 +1894,10 @@ namespace lime {
 	DEFINE_PRIME3 (lime_file_dialog_open_file);
 	DEFINE_PRIME3 (lime_file_dialog_open_files);
 	DEFINE_PRIME3 (lime_file_dialog_save_file);
+	DEFINE_PRIME1 (lime_file_watcher_create);
+	DEFINE_PRIME3 (lime_file_watcher_add_directory);
+	DEFINE_PRIME2v (lime_file_watcher_remove_directory);
+	DEFINE_PRIME1v (lime_file_watcher_update);
 	DEFINE_PRIME1 (lime_font_get_ascender);
 	DEFINE_PRIME1 (lime_font_get_descender);
 	DEFINE_PRIME1 (lime_font_get_family_name);
@@ -1847,7 +1931,7 @@ namespace lime {
 	DEFINE_PRIME1v (lime_image_data_util_multiply_alpha);
 	DEFINE_PRIME4v (lime_image_data_util_resize);
 	DEFINE_PRIME2v (lime_image_data_util_set_format);
-	DEFINE_PRIME5v (lime_image_data_util_set_pixels);
+	DEFINE_PRIME6v (lime_image_data_util_set_pixels);
 	DEFINE_PRIME12 (lime_image_data_util_threshold);
 	DEFINE_PRIME1v (lime_image_data_util_unmultiply_alpha);
 	DEFINE_PRIME4 (lime_image_encode);
@@ -1894,9 +1978,11 @@ namespace lime {
 	DEFINE_PRIME0 (lime_system_get_ios_tablet);
 	DEFINE_PRIME0 (lime_system_get_num_displays);
 	DEFINE_PRIME0 (lime_system_get_timer);
+	DEFINE_PRIME1 (lime_system_get_windows_console_mode);
 	DEFINE_PRIME1v (lime_system_open_file);
 	DEFINE_PRIME2v (lime_system_open_url);
 	DEFINE_PRIME1 (lime_system_set_allow_screen_timeout);
+	DEFINE_PRIME2 (lime_system_set_windows_console_mode);
 	DEFINE_PRIME2v (lime_text_event_manager_register);
 	DEFINE_PRIME3 (lime_text_layout_create);
 	DEFINE_PRIME5 (lime_text_layout_position);

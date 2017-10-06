@@ -238,9 +238,17 @@ class IOSPlatform extends PlatformTarget {
 		
 		var requiredCapabilities = [];
 		
-		if (!armv6) {
+		if (!armv6 && armv7) {
 			
-			requiredCapabilities.push( { name: "armv7", value: true } );
+			requiredCapabilities.push ({ name: "armv7", value: true });
+			
+		} else if (!armv6 && !armv7 && armv7s) {
+			
+			requiredCapabilities.push ({ name: "armv7s", value: true });
+			
+		} else if (!armv6 && !armv7 && !armv7s && arm64) {
+			
+			requiredCapabilities.push ({ name: "arm64", value: true });
 			
 		}
 		
@@ -276,6 +284,7 @@ class IOSPlatform extends PlatformTarget {
 		}
 		
 		context.IOS_LINKER_FLAGS = ["-stdlib=libc++"].concat (project.config.getArrayString ("ios.linker-flags"));
+		context.IOS_NON_EXEMPT_ENCRYPTION = project.config.getBool ("ios.non-exempt-encryption", true);
 		
 		switch (project.window.orientation) {
 			
@@ -486,6 +495,7 @@ class IOSPlatform extends PlatformTarget {
 			{ name: "Icon-76@2x.png", size: 152 },
 			{ name: "Icon-83.5@2x.png", size: 167 },
 			{ name: "Icon-60@3x.png", size: 180 },
+			{ name: "Icon-Marketing.png", size: 1024 }
 		];
 		
 		context.HAS_ICON = true;

@@ -424,7 +424,7 @@ class AndroidHelper {
 	}
 	
 	
-	public static function trace (project:HXProject, debug:Bool, deviceID:String = null):Void {
+	public static function trace (project:HXProject, debug:Bool, deviceID:String = null, customFilter:String = null):Void {
 		
 		// Use -DFULL_LOGCAT or  <set name="FULL_LOGCAT" /> if you do not want to filter log messages
 		
@@ -439,7 +439,11 @@ class AndroidHelper {
 			
 		}
 		
-		if (project.environment.exists("FULL_LOGCAT") || LogHelper.verbose) {
+		if (customFilter != null) {
+			
+			ProcessHelper.runCommand (adbPath, adbName, args.concat ([ customFilter ]));
+			
+		} else if (project.environment.exists("FULL_LOGCAT") || LogHelper.verbose) {
 			
 			ProcessHelper.runCommand (adbPath, adbName, args.concat ([ "-c" ]));
 			ProcessHelper.runCommand (adbPath, adbName, args);

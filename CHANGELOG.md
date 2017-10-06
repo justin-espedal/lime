@@ -1,3 +1,45 @@
+5.6.0 (09/26/2017)
+------------------
+
+* Added `lime.system.FileWatcher` for notifications of file events
+* Added support for color output on the Windows 10 standard command prompt
+* Added support for `lime config NAME VALUE` to add/set config values
+* Added initial template support for `lime test winjs` for HTML5/UWP support
+* Updated haxe.io.Bytes to match current official version
+* Improved key events to always set the key modifier on alt/ctrl/shift key press
+* Improved support for Adobe AIR iOS and Android builds
+* Improved Android builds to minimize to background on back button and not exit
+* Improved Linux target to build without HXCPP liblinuxcompat.a
+* Improved support for setting `-dce` on the command-line
+* Fixed support for setting `--window-minimized`, maximized and hidden using CLI
+* Fixed escaping of spaces in Windows paths
+* Fixed the behavior of `image.copyPixels` using an alpha image
+* Fixed the class path order when embedding Flash assets in certain conditions
+* Fixed support for Tizen HTML5 applications
+* Fixed progress event update on HTML5 HTTPRequest uploads
+* Fixed `ImageHelper.resizeImage` to properly handle null parameters
+
+
+5.5.0 (09/12/2017)
+------------------
+
+* Added an instance-based API for cURL (such as `new CURL ()`)
+* Added `<config:ios non-exempt-encryption="true" />` setting value
+* Added generation of source map when minifying HTML5 on debug
+* Deprecated `lime.net.curl.CURLEasy` in favor of `CURL`
+* Updated tinyfiledialogs to 2.9.3
+* Updated bundled Google Closure Compiler to v20170806
+* Improved the functionality of `System.endianness`
+* Improved Adobe AIR `deploy` command to generate a \*.bundle file
+* Improved the behavior of native HTTPRequest for better memory management
+* Fixed endianness issues in `image.setPixels`
+* Fixed support for `image.copyPixels` using alpha image and offset point
+* Fixed support for newer HXCPP, including dynamic libs only on Haxe 3.2.1
+* Fixed ability to exclude default architectures on builds
+* Fixed support for `<window fullscreen="false" />` on Android
+* Fixed minor issues caused by detecting some AWD files as text
+
+
 5.4.0 (08/25/2017)
 ------------------
 

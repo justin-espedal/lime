@@ -10,6 +10,9 @@ This product bundles cairo 1.15.2, which is available under an
 This product bundles libcurl 7.37.1, which is available under an
 "MIT/X derivate" license. For details, see [project/lib/curl/](project/lib).
 
+This product bundles efsw, which is available under an
+"MIT" license. For details, see [project/lib/efsw/](project/lib).
+
 This product bundles freetype 2.7.1, which is available under an
 "FTL" (BSD-style) license. For details, see [project/lib/freetype/](project/lib).
 
@@ -40,7 +43,7 @@ This product bundles libpng 1.6.12, which is available under a
 This product bundles SDL dev (22a0b777d7cd), which is available under a
 "zlib" (BSD-style) license. For details, see [project/lib/sdl/](project/lib).
 
-This product bundles tinyfiledialogs 2.7.2, which is available under a
+This product bundles tinyfiledialogs 2.9.3, which is available under a
 "zlib" (BSD-style) license. For details, see [project/lib/tinyfiledialogs/](project/lib).
 
 This product bundles libvorbis 1.3.3, which is available under a
@@ -105,7 +108,7 @@ _The following are not included in Lime applications, but are used by
 the Lime command-line tools. Their licensing does not affect products
 created with Lime._
 
-This product bundles Closure Compiler v20141215, which is available under an
+This product bundles Closure Compiler v20170806, which is available under an
 "Apache 2.0 License" license. For details, see https://github.com/google/closure-compiler.
 
 This product bundles ios-deploy 1.9.0, which is available under an

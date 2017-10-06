@@ -9,54 +9,64 @@ import sys.FileSystem;
 class AIRHelper {
 	
 	
-	public static function build (project:HXProject, workingDirectory:String, targetPlatform:Platform, targetPath:String, applicationXML:String, files:Array<String>, fileDirectory:String = null):Void {
+	public static function build (project:HXProject, workingDirectory:String, targetPlatform:Platform, targetPath:String, applicationXML:String, files:Array<String>, fileDirectory:String = null):String {
 		
-		var airTarget = "air";
-		var extension = ".air";
+		//var airTarget = "air";
+		//var extension = ".air";
+		var airTarget = "bundle";
+		var extension = "";
 		
-		if (targetPlatform == IOS) {
+		switch (targetPlatform) {
 			
-			if (project.targetFlags.exists ("simulator")) {
+			case MAC:
 				
-				if (project.debug) {
+				// extension = ".app";
+			
+			case IOS:
+				
+				if (project.targetFlags.exists ("simulator")) {
 					
-					airTarget = "ipa-debug-interpreter-simulator";
+					if (project.debug) {
+						
+						airTarget = "ipa-debug-interpreter-simulator";
+						
+					} else {
+						
+						airTarget = "ipa-test-interpreter-simulator";
+						
+					}
 					
 				} else {
 					
-					airTarget = "ipa-test-interpreter-simulator";
+					if (project.debug) {
+						
+						airTarget = "ipa-debug";
+						
+					} else {
+						
+						airTarget = "ipa-test";
+						
+					}
 					
 				}
 				
-			} else {
+				// extension = ".ipa";
+			
+			case ANDROID:
 				
 				if (project.debug) {
 					
-					airTarget = "ipa-debug";
+					airTarget = "apk-debug";
 					
 				} else {
 					
-					airTarget = "ipa-test";
+					airTarget = "apk";
 					
 				}
 				
-			}
+				// extension = ".apk";
 			
-			extension = ".ipa";
-			
-		} else if (targetPlatform == ANDROID) {
-			
-			if (project.debug) {
-				
-				airTarget = "apk-debug";
-				
-			} else {
-				
-				airTarget = "apk";
-				
-			}
-			
-			extension = ".apk";
+			default:
 			
 		}
 		
@@ -112,11 +122,13 @@ class AIRHelper {
 		
 		var args = [ "-package" ];
 		
-		if (airTarget == "air") {
+		// TODO: Is this an old workaround fixed in newer AIR SDK?
+		
+		if (airTarget == "air" || airTarget == "bundle") {
 			
 			args = args.concat (signingOptions);
 			args.push ("-target");
-			args.push ("air");
+			args.push (airTarget);
 			
 		} else {
 			
@@ -139,7 +151,7 @@ class AIRHelper {
 			
 		}
 		
-		args = args.concat ([ targetPath, applicationXML ]);
+		args = args.concat ([ targetPath + extension, applicationXML ]);
 		
 		if (targetPlatform == IOS && PlatformHelper.hostPlatform == Platform.MAC) {
 			
@@ -165,6 +177,8 @@ class AIRHelper {
 		
 		ProcessHelper.runCommand (workingDirectory, project.defines.get ("AIR_SDK") + "/bin/adt", args);
 		
+		return targetPath + extension;
+		
 	}
 	
 	
@@ -173,8 +187,8 @@ class AIRHelper {
 		if (targetPlatform == ANDROID) {
 			
 			AndroidHelper.initialize (project);
-			AndroidHelper.install (project, FileSystem.fullPath (workingDirectory) + "/" + project.app.file + ".apk");
-			AndroidHelper.run ("air." + project.meta.packageName + "/.AppEntry");
+			AndroidHelper.install (project, FileSystem.fullPath (workingDirectory) + "/" + (rootDirectory != null ? rootDirectory + "/" : "") + project.app.file + ".apk");
+			AndroidHelper.run (project.meta.packageName + "/.AppEntry");
 			
 		} else if (targetPlatform == IOS) {
 			
@@ -192,7 +206,7 @@ class AIRHelper {
 			}
 			
 			ProcessHelper.runCommand (workingDirectory, project.defines.get ("AIR_SDK") + "/bin/adt", [ "-uninstallApp" ].concat (args).concat ([ "-appid", project.meta.packageName ]));
-			ProcessHelper.runCommand (workingDirectory, project.defines.get ("AIR_SDK") + "/bin/adt", [ "-installApp" ].concat (args).concat ([ "-package", FileSystem.fullPath (workingDirectory) + "/" + project.app.file + ".ipa" ]));
+			ProcessHelper.runCommand (workingDirectory, project.defines.get ("AIR_SDK") + "/bin/adt", [ "-installApp" ].concat (args).concat ([ "-package", FileSystem.fullPath (workingDirectory) + "/" + (rootDirectory != null ? rootDirectory + "/" : "") + project.app.file + ".ipa" ]));
 			
 			if (project.targetFlags.exists ("simulator")) {
 				
@@ -219,6 +233,48 @@ class AIRHelper {
 			}
 			
 			ProcessHelper.runCommand (workingDirectory, project.defines.get ("AIR_SDK") + "/bin/adl", args);
+			
+		}
+		
+	}
+	
+	
+	public static function trace (project:HXProject, workingDirectory:String, targetPlatform:Platform, applicationXML:String, rootDirectory:String = null) {
+		
+		if (targetPlatform == ANDROID) {
+			
+			AndroidHelper.initialize (project);
+			var deviceID = null;
+			var adbFilter = null;
+			
+			// if (!LogHelper.verbose) {
+				
+				if (project.debug) {
+					
+					adbFilter = project.meta.packageName + ":I ActivityManager:I *:S";
+					
+				} else {
+					
+					adbFilter = project.meta.packageName + ":I *:S";
+					
+				}
+				
+			// }
+			
+			AndroidHelper.trace (project, project.debug, deviceID, adbFilter);
+			
+		}
+		
+	}
+	
+	
+	public static function uninstall (project:HXProject, workingDirectory:String, targetPlatform:Platform, applicationXML:String, rootDirectory:String = null) {
+		
+		if (targetPlatform == ANDROID) {
+			
+			AndroidHelper.initialize (project);
+			var deviceID = null;
+			AndroidHelper.uninstall (project.meta.packageName, deviceID);
 			
 		}
 		
