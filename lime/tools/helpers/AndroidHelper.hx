@@ -308,21 +308,7 @@ class AndroidHelper {
 			
 		}
 		
-		var args = [ "install" ];
-		
-		var platformToolsMajorVersion = Std.parseInt(getPlatformToolsVersion ().split (".")[0]);
-
-		if (platformToolsMajorVersion >= 23) {
-
-			args.push("-rd");
-
-		} else {
-
-			args.push("-r");
-
-		}
-
-		args.push (targetPath);
+		var args = [ "install" , "-r", targetPath ];
 		
 		if (deviceID != null && deviceID != "") {
 			
