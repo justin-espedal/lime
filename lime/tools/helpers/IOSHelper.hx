@@ -81,7 +81,7 @@ class IOSHelper {
 		}
 
 		//XXX: this needs to be formatted so that $PATH is treated as a variable.
-		commands = commands.map(function(s) return s == "PATH=$PATH" ? s : StringTools.quoteUnixArg(s));
+		commands = commands.map(function(s) return s == "PATH=$PATH" ? "PATH=\"$PATH\"" : StringTools.quoteUnixArg(s));
 		var cmd = ["xcodebuild"].concat(commands).join(" ");
 
 		ProcessHelper.runCommand (workingDirectory, cmd, null);
