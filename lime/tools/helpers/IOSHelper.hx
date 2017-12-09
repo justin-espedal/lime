@@ -54,21 +54,27 @@ class IOSHelper {
 			
 			}
 			
-		} else if (project.targetFlags.exists ("armv7")) {
-			
-			commands.push ("-arch");
-			commands.push ("armv7");
-			
-		} else if (project.targetFlags.exists ("armv7s")) {
-			
-			commands.push ("-arch");
-			commands.push ("armv7s");
-			
-		} else if (project.targetFlags.exists ("arm64")) {
-			
-			commands.push ("-arch");
-			commands.push ("arm64");
-			
+		} else {
+
+			var deployment = project.config.getFloat ("ios.deployment", 8);
+
+			if (project.targetFlags.exists ("armv7") && deployment < 11) {
+				
+				commands.push ("-arch");
+				commands.push ("armv7");
+				
+			} else if (project.targetFlags.exists ("armv7s") && deployment < 11) {
+				
+				commands.push ("-arch");
+				commands.push ("armv7s");
+				
+			} else if (project.targetFlags.exists ("arm64")) {
+				
+				commands.push ("-arch");
+				commands.push ("arm64");
+				
+			}
+
 		}
 		
 		commands.push ("-project");
