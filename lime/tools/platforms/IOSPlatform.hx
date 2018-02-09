@@ -213,6 +213,12 @@ class IOSPlatform extends PlatformTarget {
 			}
 			
 		}
+
+		if (project.config.getFloat ("ios.deployment", 8) >= 11) {
+			
+			architectures.remove (Architecture.ARMV7);
+			
+		}
 		
 		for (architecture in project.architectures) {
 			
