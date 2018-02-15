@@ -21,10 +21,35 @@ import neko.vm.Thread;
 import cpp.vm.Thread;
 #end
 
+using StringTools;
+
 
 class HTML5Helper {
 	
 	
+	public static function encodeSourceMap (project:HXProject, sourceFile:String) {
+
+		if (FileSystem.exists (sourceFile)) {
+			
+			var output = File.getContent (sourceFile);
+			
+			var replaceString = "//# sourceMappingURL=" + project.app.file + ".js.map";
+			var replacement = "//# sourceMappingURL=" + project.app.file.urlEncode() + ".js.map";
+			var index = output.indexOf (replaceString);
+			
+			if (index > -1) {
+				
+				output = output.substr (0, index) + replacement + output.substr (index + replaceString.length);
+				File.saveContent (sourceFile, output);
+				
+			}
+			
+		}
+
+	}
+
+
+
 	public static function generateFontData (project:HXProject, font:Asset):String {
 		
 		var sourcePath = font.sourcePath;
