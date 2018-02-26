@@ -429,7 +429,7 @@ class AndroidHelper {
 			
 			ProcessHelper.runCommand (adbPath, adbName, args.concat ([ customFilter ]));
 			
-		} else if (project.environment.exists("FULL_LOGCAT") || LogHelper.verbose) {
+		} else if (project.environment.exists("FULL_LOGCAT")) {
 			
 			ProcessHelper.runCommand (adbPath, adbName, args.concat ([ "-c" ]));
 			ProcessHelper.runCommand (adbPath, adbName, args);
