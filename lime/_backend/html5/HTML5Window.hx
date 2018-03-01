@@ -8,11 +8,14 @@ import js.html.Element;
 import js.html.FocusEvent;
 import js.html.InputElement;
 import js.html.InputEvent;
+import js.html.LinkElement;
 import js.html.MouseEvent;
+import js.html.Node;
 import js.html.TouchEvent;
 import js.html.ClipboardEvent;
 import js.Browser;
 import lime.app.Application;
+import lime.graphics.utils.ImageCanvasUtil;
 import lime.graphics.Image;
 import lime.system.Display;
 import lime.system.DisplayMode;
@@ -50,8 +53,12 @@ class HTML5Window {
 	private var cacheMouseY:Float;
 	private var currentTouches = new Map<Int, Touch> ();
 	private var enableTextEvents:Bool;
+	private var isFullscreen:Bool;
 	private var parent:Window;
 	private var primaryTouch:Touch;
+	private var renderType:String;
+	private var requestedFullscreen:Bool;
+	private var resizeElement:Bool;
 	private var scale = 1.0;
 	private var setHeight:Int;
 	private var setWidth:Int;
@@ -68,13 +75,21 @@ class HTML5Window {
 			
 		}
 		
-		#if !dom
-		if (parent.config != null && Reflect.hasField (parent.config, "allowHighDPI") && parent.config.allowHighDPI) {
+		if (parent.config != null && Reflect.hasField (parent.config, "renderer")) {
+			
+			renderType = parent.config.renderer;
+			
+		}
+		
+		#if dom
+		renderType = "dom";
+		#end
+		
+		if (parent.config != null && Reflect.hasField (parent.config, "allowHighDPI") && parent.config.allowHighDPI && renderType != "dom") {
 			
 			scale = Browser.window.devicePixelRatio;
 			
 		}
-		#end
 		
 		parent.__scale = scale;
 		
@@ -115,11 +130,15 @@ class HTML5Window {
 			
 		} else {
 			
-			#if dom
-			div = cast Browser.document.createElement ("div");
-			#else
-			canvas = cast Browser.document.createElement ("canvas");
-			#end
+			if (renderType == "dom") {
+				
+				div = cast Browser.document.createElement ("div");
+				
+			} else {
+				
+				canvas = cast Browser.document.createElement ("canvas");
+				
+			}
 			
 		}
 		
@@ -162,7 +181,7 @@ class HTML5Window {
 			cacheElementWidth = parent.width;
 			cacheElementHeight = parent.height;
 			
-			parent.fullscreen = true;
+			resizeElement = true;
 			
 		}
 		
@@ -221,6 +240,7 @@ class HTML5Window {
 			element.addEventListener ("touchstart", handleTouchEvent, true);
 			element.addEventListener ("touchmove", handleTouchEvent, true);
 			element.addEventListener ("touchend", handleTouchEvent, true);
+			element.addEventListener ("touchcancel", handleTouchEvent, true);
 			
 			element.addEventListener ("gamepadconnected", handleGamepadEvent, true);
 			element.addEventListener ("gamepaddisconnected", handleGamepadEvent, true);
@@ -276,11 +296,63 @@ class HTML5Window {
 	}
 	
 	
+	private function handleCutOrCopyEvent (event:ClipboardEvent):Void {
+		
+		event.clipboardData.setData ("text/plain", Clipboard.text);
+		event.preventDefault ();
+		
+	}
+	
+	
 	private function handleFocusEvent (event:FocusEvent):Void {
 		
 		if (enableTextEvents) {
 			
-			Timer.delay (function () { textInput.focus (); }, 20);
+			if (event.relatedTarget == null || isDescendent (cast event.relatedTarget)) {
+				
+				Timer.delay (function () {
+					
+					if (enableTextEvents) textInput.focus ();
+					
+				}, 20);
+				
+			}
+			
+		}
+		
+	}
+	
+	
+	private function handleFullscreenEvent (event:Dynamic):Void {
+		
+		var fullscreenElement = untyped (document.fullscreenElement || document.mozFullScreenElement || document.webkitFullscreenElement || document.msFullscreenElement);
+		
+		if (fullscreenElement != null) {
+			
+			isFullscreen = true;
+			parent.__fullscreen = true;
+			
+			if (requestedFullscreen) {
+				
+				requestedFullscreen = false;
+				parent.onFullscreen.dispatch ();
+				
+			}
+			
+		} else {
+			
+			isFullscreen = false;
+			parent.__fullscreen = false;
+			
+			var changeEvents = [ "fullscreenchange", "mozfullscreenchange", "webkitfullscreenchange", "MSFullscreenChange" ];
+			var errorEvents = [ "fullscreenerror", "mozfullscreenerror", "webkitfullscreenerror", "MSFullscreenError" ];
+			
+			for (i in 0...changeEvents.length) {
+				
+				Browser.document.removeEventListener (changeEvents[i], handleFullscreenEvent, false);
+				Browser.document.removeEventListener (errorEvents[i], handleFullscreenEvent, false);
+				
+			}
 			
 		}
 		
@@ -313,27 +385,6 @@ class HTML5Window {
 	}
 	
 	
-	private function handleCutOrCopyEvent (event:ClipboardEvent):Void {
-		
-		event.clipboardData.setData('text/plain', Clipboard.text);
-		event.preventDefault(); // We want our data, not data from any selection, to be written to the clipboard
-		
-	}
-
-
-	private function handlePasteEvent (event:ClipboardEvent):Void {
-		
-		if(untyped event.clipboardData.types.indexOf('text/plain') > -1){
-			var text = Clipboard.text = event.clipboardData.getData('text/plain');
-			parent.onTextInput.dispatch (text);
-			
-			// We are already handling the data from the clipboard, we do not want it inserted into the hidden input
-			event.preventDefault();
-		}
-		
-	}
-
-
 	private function handleInputEvent (event:InputEvent):Void {
 		
 		// In order to ensure that the browser will fire clipboard events, we always need to have something selected.
@@ -341,13 +392,11 @@ class HTML5Window {
 		
 		if (textInput.value != dummyCharacter) {
 			
-			if (textInput.value.charAt (0) == dummyCharacter) {
+			var value = StringTools.replace (textInput.value, dummyCharacter, "");
+			
+			if (value.length > 0) {
 				
-				parent.onTextInput.dispatch (textInput.value.substr (1));
-				
-			} else {
-				
-				parent.onTextInput.dispatch (textInput.value);
+				parent.onTextInput.dispatch (value);
 				
 			}
 			
@@ -470,13 +519,33 @@ class HTML5Window {
 			
 		} else {
 			
-			parent.onMouseWheel.dispatch (untyped event.deltaX, - untyped event.deltaY);
+			parent.onMouseWheel.dispatch (untyped event.deltaX, -untyped event.deltaY);
 			
 			if (parent.onMouseWheel.canceled) {
 				
 				event.preventDefault ();
 				
 			}
+			
+		}
+		
+	}
+	
+	
+	private function handlePasteEvent (event:ClipboardEvent):Void {
+		
+		if (untyped event.clipboardData.types.indexOf ("text/plain") > -1) {
+			
+			var text = event.clipboardData.getData ("text/plain");
+			Clipboard.text = text;
+			
+			if (enableTextEvents) {
+				
+				parent.onTextInput.dispatch (text);
+				
+			}
+			
+			event.preventDefault ();
 			
 		}
 		
@@ -534,10 +603,12 @@ class HTML5Window {
 			
 		}
 		
+		var touch, x, y, cacheX, cacheY;
+		
 		for (data in event.changedTouches) {
 			
-			var x = 0.0;
-			var y = 0.0;
+			x = 0.0;
+			y = 0.0;
 			
 			if (rect != null) {
 				
@@ -551,103 +622,127 @@ class HTML5Window {
 				
 			}
 			
-			switch (event.type) {
+			if (event.type == "touchstart") {
 				
-				case "touchstart":
-					
-					var touch = unusedTouchesPool.pop ();
-					
-					if (touch == null) {
-						
-						touch = new Touch (x / windowWidth, y / windowHeight, data.identifier, 0, 0, data.force, parent.id);
-						
-					} else {
-						
-						touch.x = x / windowWidth;
-						touch.y = y / windowHeight;
-						touch.id = data.identifier;
-						touch.dx = 0;
-						touch.dy = 0;
-						touch.pressure = data.force;
-						touch.device = parent.id;
-						
-					}
-					
-					currentTouches.set (data.identifier, touch);
-					
-					Touch.onStart.dispatch (touch);
-					
-					if (primaryTouch == null) {
-						
-						primaryTouch = touch;
-						
-					}
-					
-					if (touch == primaryTouch) {
-						
-						parent.onMouseDown.dispatch (x, y, 0);
-						
-					}
+				touch = unusedTouchesPool.pop ();
 				
-				case "touchend":
+				if (touch == null) {
 					
-					var touch = currentTouches.get (data.identifier);
+					touch = new Touch (x / windowWidth, y / windowHeight, data.identifier, 0, 0, data.force, parent.id);
 					
-					if (touch != null) {
+				} else {
+					
+					touch.x = x / windowWidth;
+					touch.y = y / windowHeight;
+					touch.id = data.identifier;
+					touch.dx = 0;
+					touch.dy = 0;
+					touch.pressure = data.force;
+					touch.device = parent.id;
+					
+				}
+				
+				currentTouches.set (data.identifier, touch);
+				
+				Touch.onStart.dispatch (touch);
+				
+				if (primaryTouch == null) {
+					
+					primaryTouch = touch;
+					
+				}
+				
+				if (touch == primaryTouch) {
+					
+					parent.onMouseDown.dispatch (x, y, 0);
+					
+				}
+				
+			} else {
+				
+				touch = currentTouches.get (data.identifier);
+				
+				if (touch != null) {
+					
+					cacheX = touch.x;
+					cacheY = touch.y;
+					
+					touch.x = x / windowWidth;
+					touch.y = y / windowHeight;
+					touch.dx = touch.x - cacheX;
+					touch.dy = touch.y - cacheY;
+					touch.pressure = data.force;
+					
+					switch (event.type) {
 						
-						var cacheX = touch.x;
-						var cacheY = touch.y;
-						
-						touch.x = x / windowWidth;
-						touch.y = y / windowHeight;
-						touch.dx = touch.x - cacheX;
-						touch.dy = touch.y - cacheY;
-						touch.pressure = data.force;
-						
-						Touch.onEnd.dispatch (touch);
-						
-						currentTouches.remove (data.identifier);
-						unusedTouchesPool.add (touch);
-						
-						if (touch == primaryTouch) {
+						case "touchmove":
 							
-							parent.onMouseUp.dispatch (x, y, 0);
-							primaryTouch = null;
+							Touch.onMove.dispatch (touch);
 							
-						}
+							if (touch == primaryTouch) {
+								
+								parent.onMouseMove.dispatch (x, y);
+								
+							}
+						
+						case "touchend":
+							
+							Touch.onEnd.dispatch (touch);
+							
+							currentTouches.remove (data.identifier);
+							unusedTouchesPool.add (touch);
+							
+							if (touch == primaryTouch) {
+								
+								parent.onMouseUp.dispatch (x, y, 0);
+								primaryTouch = null;
+								
+							}
+						
+						case "touchcancel":
+							
+							Touch.onCancel.dispatch (touch);
+							
+							currentTouches.remove (data.identifier);
+							unusedTouchesPool.add (touch);
+							
+							if (touch == primaryTouch) {
+								
+								//parent.onMouseUp.dispatch (x, y, 0);
+								primaryTouch = null;
+								
+							}
+						
+						default:
 						
 					}
-				
-				case "touchmove":
 					
-					var touch = currentTouches.get (data.identifier);
-					
-					if (touch != null) {
-						
-						var cacheX = touch.x;
-						var cacheY = touch.y;
-						
-						touch.x = x / windowWidth;
-						touch.y = y / windowHeight;
-						touch.dx = touch.x - cacheX;
-						touch.dy = touch.y - cacheY;
-						touch.pressure = data.force;
-						
-						Touch.onMove.dispatch (touch);
-						
-						if (touch == primaryTouch) {
-							
-							parent.onMouseMove.dispatch (x, y);
-							
-						}
-						
-					}
-				
-				default:
+				}
 				
 			}
 			
 		}
+		
+	}
+	
+	
+	private function isDescendent (node:Node):Bool {
+		
+		if (node == element) return true;
+		
+		while (node != null) {
+			
+			if (node.parentNode == element) {
+				
+				return true;
+				
+			}
+			
+			node = node.parentNode;
+			
+		}
+		
+		return false;
 		
 	}
 	
@@ -675,23 +770,23 @@ class HTML5Window {
 	
 	public function setClipboard (value:String):Void {
 		
+		var inputEnabled = enableTextEvents;
+		
+		setEnableTextEvents (true); // create textInput if necessary
+		
+		var cacheText = textInput.value;
+		textInput.value = value;
+		textInput.select ();
+		
 		if (Browser.document.queryCommandEnabled ("copy")) {
-			
-			var inputEnabled = enableTextEvents;
-			
-			setEnableTextEvents (true); // create textInput if necessary
-			setEnableTextEvents (false);
-			
-			var cacheText = textInput.value;
-			textInput.value = value;
 			
 			Browser.document.execCommand ("copy");
 			
-			textInput.value = cacheText;
-			
-			setEnableTextEvents (inputEnabled);
-			
 		}
+		
+		textInput.value = cacheText;
+		
+		setEnableTextEvents (inputEnabled);
 		
 	}
 	
@@ -774,6 +869,60 @@ class HTML5Window {
 	
 	public function setFullscreen (value:Bool):Bool {
 		
+		if (value) {
+			
+			if (!requestedFullscreen && !isFullscreen) {
+				
+				requestedFullscreen = true;
+				
+				untyped {
+					
+					if (element.requestFullscreen) {
+						
+						document.addEventListener ("fullscreenchange", handleFullscreenEvent, false);
+						document.addEventListener ("fullscreenerror", handleFullscreenEvent, false);
+						element.requestFullscreen ();
+						
+					} else if (element.mozRequestFullScreen) {
+						
+						document.addEventListener ("mozfullscreenchange", handleFullscreenEvent, false);
+						document.addEventListener ("mozfullscreenerror", handleFullscreenEvent, false);
+						element.mozRequestFullScreen ();
+						
+					} else if (element.webkitRequestFullscreen) {
+						
+						document.addEventListener ("webkitfullscreenchange", handleFullscreenEvent, false);
+						document.addEventListener ("webkitfullscreenerror", handleFullscreenEvent, false);
+						element.webkitRequestFullscreen ();
+						document.documentElement.webkitRequestFullScreen (Element.ALLOW_KEYBOARD_INPUT);
+						
+					} else if (element.msRequestFullscreen) {
+						
+						document.addEventListener ("MSFullscreenChange", handleFullscreenEvent, false);
+						document.addEventListener ("MSFullscreenError", handleFullscreenEvent, false);
+						element.msRequestFullscreen ();
+						
+					}
+					
+				}
+				
+			}
+			
+		} else if (isFullscreen) {
+			
+			requestedFullscreen = false;
+			
+			untyped {
+				
+				if (document.exitFullscreen) document.exitFullscreen ();
+				else if (document.mozCancelFullScreen) document.mozCancelFullScreen ();
+				else if (document.webkitExitFullscreen) document.webkitExitFullscreen ();
+				else if (document.msExitFullscreen) document.msExitFullscreen ();
+				
+			}
+			
+		}
+		
 		return value;
 		
 	}
@@ -781,7 +930,32 @@ class HTML5Window {
 	
 	public function setIcon (image:Image):Void {
 		
+		//var iconWidth = 16;
+		//var iconHeight = 16;
 		
+		//image = image.clone ();
+		
+		//if (image.width != iconWidth || image.height != iconHeight) {
+			//
+			//image.resize (iconWidth, iconHeight);
+			//
+		//}
+		
+		ImageCanvasUtil.convertToCanvas (image);
+		
+		var link:LinkElement = cast Browser.document.querySelector ("link[rel*='icon']");
+		
+		if (link == null) {
+			
+			link = cast Browser.document.createElement ("link");
+			
+		}
+		
+		link.type = "image/x-icon";
+		link.rel = "shortcut icon";
+		link.href = image.buffer.src.toDataURL ("image/x-icon");
+		
+		Browser.document.getElementsByTagName ("head")[0].appendChild (link);
 		
 	}
 	
@@ -809,12 +983,20 @@ class HTML5Window {
 	
 	public function setTitle (value:String):String {
 		
+		if (value != null) {
+			
+			Browser.document.title = value;
+			
+		}
+		
 		return value;
 		
 	}
 	
 	
 	private function updateSize ():Void {
+		
+		if (!parent.__resizable) return;
 		
 		var elementWidth, elementHeight;
 		
@@ -835,7 +1017,7 @@ class HTML5Window {
 			cacheElementWidth = elementWidth;
 			cacheElementHeight = elementHeight;
 			
-			var stretch = parent.fullscreen || (setWidth == 0 && setHeight == 0);
+			var stretch = resizeElement || (setWidth == 0 && setHeight == 0);
 			
 			if (element != null && (div == null || (div != null && stretch))) {
 				

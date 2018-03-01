@@ -24,7 +24,7 @@ class Lib {
 	#if macro
 	public static function extraParams ():Void {
 		
-		if (!Context.defined ("tools")) {
+		if (!Context.defined ("tools") && !Context.defined ("nocffi")) {
 			
 			if (!Context.defined ("flash") && (!Context.defined ("js") || Context.defined ("nodejs"))) {
 				
@@ -32,6 +32,14 @@ class Lib {
 				Compiler.define ("native");
 				Compiler.define ("lime-curl");
 				Compiler.define ("lime-vorbis");
+				
+			}
+			
+			if (Context.defined ("js") && !Context.defined ("nodejs") && !Context.defined ("display")) {
+				
+				Compiler.define ("html5");
+				Compiler.define ("web");
+				Compiler.define ("lime-opengl");
 				
 			}
 			

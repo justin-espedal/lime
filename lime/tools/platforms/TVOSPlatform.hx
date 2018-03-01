@@ -16,6 +16,7 @@ import lime.tools.helpers.PathHelper;
 import lime.tools.helpers.PlatformHelper;
 import lime.tools.helpers.ProcessHelper;
 import lime.tools.helpers.StringHelper;
+import lime.tools.helpers.WatchHelper;
 import lime.graphics.Image;
 import lime.project.Architecture;
 import lime.project.Asset;
@@ -38,7 +39,7 @@ class TVOSPlatform extends PlatformTarget {
 		
 		super (command, _project, targetFlags);
 		
-		targetDirectory = PathHelper.combine (project.app.path, "tvos/" + buildType);
+		targetDirectory = PathHelper.combine (project.app.path, project.config.getString ("tvos.output-directory", "tvos"));
 		
 	}
 	
@@ -80,21 +81,14 @@ class TVOSPlatform extends PlatformTarget {
 	
 	public override function deploy ():Void {
 		
-		DeploymentHelper.deploy (project, targetFlags, targetDirectory, "tvOS");
+		TVOSHelper.deploy (project, targetDirectory);
 		
 	}
 	
 	
 	public override function display ():Void {
 		
-		var hxml = PathHelper.findTemplate (project.templatePaths, "tvos/PROJ/haxe/Build.hxml");
-		var template = new Template (File.getContent (hxml));
-		
-		var context = generateContext ();
-		context.OUTPUT_DIR = targetDirectory;
-		
-		Sys.println (template.execute (context));
-		Sys.println ("-D display");
+		Sys.println (getDisplayHXML ());
 		
 	}
 	
@@ -231,6 +225,7 @@ class TVOSPlatform extends PlatformTarget {
 		}
 		
 		context.IOS_LINKER_FLAGS = ["-stdlib=libc++"].concat (project.config.getArrayString ("tvos.linker-flags"));
+		context.IOS_NON_EXEMPT_ENCRYPTION = project.config.getBool ("tvos.non-exempt-encryption", true);
 		
 		switch (project.window.orientation) {
 			
@@ -312,6 +307,19 @@ class TVOSPlatform extends PlatformTarget {
 		}
 		
 		return context;
+		
+	}
+	
+	
+	private function getDisplayHXML ():String {
+		
+		var hxml = PathHelper.findTemplate (project.templatePaths, "tvos/PROJ/haxe/Build.hxml");
+		var template = new Template (File.getContent (hxml));
+		
+		var context = generateContext ();
+		context.OUTPUT_DIR = targetDirectory;
+		
+		return template.execute (context) + "\n-D display";
 		
 	}
 	
@@ -471,15 +479,15 @@ class TVOSPlatform extends PlatformTarget {
 		PathHelper.mkdir (projectDirectory + "/resources");
 		PathHelper.mkdir (projectDirectory + "/haxe/build");
 		
-		FileHelper.recursiveCopyTemplate (project.templatePaths, "tvos/resources", projectDirectory + "/resources", context, true, false);
-		FileHelper.recursiveCopyTemplate (project.templatePaths, "tvos/PROJ/haxe", projectDirectory + "/haxe", context);
-		FileHelper.recursiveCopyTemplate (project.templatePaths, "haxe", projectDirectory + "/haxe", context);
-		FileHelper.recursiveCopyTemplate (project.templatePaths, "tvos/PROJ/Classes", projectDirectory + "/Classes", context);
-		FileHelper.recursiveCopyTemplate (project.templatePaths, "tvos/PROJ/Images.xcassets", projectDirectory + "/Images.xcassets", context);
+		FileHelper.recursiveSmartCopyTemplate (project, "tvos/resources", projectDirectory + "/resources", context, true, false);
+		FileHelper.recursiveSmartCopyTemplate (project, "tvos/PROJ/haxe", projectDirectory + "/haxe", context);
+		FileHelper.recursiveSmartCopyTemplate (project, "haxe", projectDirectory + "/haxe", context);
+		FileHelper.recursiveSmartCopyTemplate (project, "tvos/PROJ/Classes", projectDirectory + "/Classes", context);
+		FileHelper.recursiveSmartCopyTemplate (project, "tvos/PROJ/Images.xcassets", projectDirectory + "/Images.xcassets", context);
 		FileHelper.copyFileTemplate (project.templatePaths, "tvos/PROJ/PROJ-Entitlements.plist", projectDirectory + "/" + project.app.file + "-Entitlements.plist", context);
 		FileHelper.copyFileTemplate (project.templatePaths, "tvos/PROJ/PROJ-Info.plist", projectDirectory + "/" + project.app.file + "-Info.plist", context);
 		FileHelper.copyFileTemplate (project.templatePaths, "tvos/PROJ/PROJ-Prefix.pch", projectDirectory + "/" + project.app.file + "-Prefix.pch", context);
-		FileHelper.recursiveCopyTemplate (project.templatePaths, "tvos/PROJ.xcodeproj", targetDirectory + "/" + project.app.file + ".xcodeproj", context);
+		FileHelper.recursiveSmartCopyTemplate (project, "tvos/PROJ.xcodeproj", targetDirectory + "/" + project.app.file + ".xcodeproj", context);
 		
 		//SWFHelper.generateSWFClasses (project, projectDirectory + "/haxe");
 		
@@ -607,6 +615,15 @@ class TVOSPlatform extends PlatformTarget {
 		context.HAS_LAUNCH_IMAGE = has_launch_image;
 		
 	}*/
+	
+	
+	public override function watch ():Void {
+		
+		var dirs = WatchHelper.processHXML (project, getDisplayHXML ());
+		var command = WatchHelper.getCurrentCommand ();
+		WatchHelper.watch (project, command, dirs);
+		
+	}
 	
 	
 	@ignore public override function install ():Void {}

@@ -53,7 +53,7 @@ class NativeRenderer {
 	
 	public function create ():Void {
 		
-		#if !macro
+		#if (!macro && lime_cffi)
 		handle = NativeCFFI.lime_renderer_create (parent.window.backend.handle);
 		
 		parent.window.__scale = NativeCFFI.lime_renderer_get_scale (handle);
@@ -111,7 +111,7 @@ class NativeRenderer {
 	
 	public function flip ():Void {
 		
-		#if !macro
+		#if (!macro && lime_cffi)
 		if (!useHardware) {
 			
 			#if lime_cairo
@@ -135,20 +135,83 @@ class NativeRenderer {
 		
 		var imageBuffer:ImageBuffer = null;
 		
-		#if !macro
-		#if !cs
-		imageBuffer = NativeCFFI.lime_renderer_read_pixels (handle, rect, new ImageBuffer (new UInt8Array (Bytes.alloc (0))));
-		#else
-		var data:Dynamic = NativeCFFI.lime_renderer_read_pixels (handle, rect, null);
-		if (data != null) {
-			imageBuffer = new ImageBuffer (new UInt8Array (@:privateAccess new Bytes (data.data.length, data.data.b)), data.width, data.height, data.bitsPerPixel);
+		switch (parent.context) {
+			
+			case OPENGL (gl):
+				
+				var windowWidth = Std.int (parent.window.__width * parent.window.__scale);
+				var windowHeight = Std.int (parent.window.__height * parent.window.__scale);
+				
+				var x, y, width, height;
+				
+				if (rect != null) {
+					
+					x = Std.int (rect.x);
+					y = Std.int ((windowHeight - rect.y) - rect.height);
+					width = Std.int (rect.width);
+					height = Std.int (rect.height);
+					
+				} else {
+					
+					x = 0;
+					y = 0;
+					width = windowWidth;
+					height = windowHeight;
+					
+				}
+				
+				var data = new UInt8Array (width * height * 4);
+				
+				gl.readPixels (x, y, width, height, gl.RGBA, gl.UNSIGNED_BYTE, data);
+				
+				#if !js // TODO
+				
+				var rowLength = width * 4;
+				var srcPosition = (height - 1) * rowLength;
+				var destPosition = 0;
+				
+				var temp = Bytes.alloc (rowLength);
+				var buffer = data.buffer;
+				var rows = Std.int (height / 2);
+				
+				while (rows-- > 0) {
+					
+					temp.blit (0, buffer, destPosition, rowLength);
+					buffer.blit (destPosition, buffer, srcPosition, rowLength);
+					buffer.blit (srcPosition, temp, 0, rowLength);
+					
+					destPosition += rowLength;
+					srcPosition -= rowLength;
+					
+				}
+				
+				#end
+				
+				imageBuffer = new ImageBuffer (data, width, height, 32, RGBA32);
+			
+			default:
+				
+				#if (!macro && lime_cffi)
+				#if !cs
+				imageBuffer = NativeCFFI.lime_renderer_read_pixels (handle, rect, new ImageBuffer (new UInt8Array (Bytes.alloc (0))));
+				#else
+				var data:Dynamic = NativeCFFI.lime_renderer_read_pixels (handle, rect, null);
+				if (data != null) {
+					imageBuffer = new ImageBuffer (new UInt8Array (@:privateAccess new Bytes (data.data.length, data.data.b)), data.width, data.height, data.bitsPerPixel);
+				}
+				#end
+				#end
+				
+				if (imageBuffer != null) {
+					
+					imageBuffer.format = RGBA32;
+					
+				}
+			
 		}
-		#end
-		#end
 		
 		if (imageBuffer != null) {
 			
-			imageBuffer.format = RGBA32;
 			return new Image (imageBuffer);
 			
 		}
@@ -160,7 +223,7 @@ class NativeRenderer {
 	
 	public function render ():Void {
 		
-		#if !macro
+		#if (!macro && lime_cffi)
 		NativeCFFI.lime_renderer_make_current (handle);
 		
 		if (!useHardware) {
@@ -168,7 +231,7 @@ class NativeRenderer {
 			#if lime_cairo
 			var lock:Dynamic = NativeCFFI.lime_renderer_lock (handle);
 			
-			if (cacheLock == null || cacheLock.pixels != lock.pixels || cacheLock.width != lock.width || cacheLock.height != lock.height) {
+			if (lock != null && (cacheLock == null || cacheLock.pixels != lock.pixels || cacheLock.width != lock.width || cacheLock.height != lock.height)) {
 				
 				primarySurface = CairoImageSurface.create (lock.pixels, CairoFormat.ARGB32, lock.width, lock.height, lock.pitch);
 				

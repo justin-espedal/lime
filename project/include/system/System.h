@@ -27,17 +27,28 @@ namespace lime {
 		public:
 			
 			static bool GetAllowScreenTimeout ();
+			static std::wstring* GetDeviceModel ();
+			static std::wstring* GetDeviceVendor ();
 			static std::wstring* GetDirectory (SystemDirectory type, const char* company, const char* title);
+			static value GetDisplay (int id);
 			#ifdef IPHONE
 			static std::wstring* GetIOSDirectory (SystemDirectory type);
 			static bool GetIOSTablet ();
 			#endif
-			static value GetDisplay (int id);
 			static int GetNumDisplays ();
+			static std::wstring* GetPlatformLabel ();
+			static std::wstring* GetPlatformName ();
+			static std::wstring* GetPlatformVersion ();
 			static double GetTimer ();
+			#ifdef HX_WINDOWS
+			static int GetWindowsConsoleMode (int handleType);
+			#endif
 			static void OpenFile (const char* path);
 			static void OpenURL (const char* url, const char* target);
 			static bool SetAllowScreenTimeout (bool allow);
+			#ifdef HX_WINDOWS
+			static bool SetWindowsConsoleMode (int handleType, int mode);
+			#endif
 		
 		
 	};

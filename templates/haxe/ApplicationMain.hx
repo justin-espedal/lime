@@ -26,9 +26,11 @@ package;
 				::foreach windows::
 				{
 					allowHighDPI: ::allowHighDPI::,
+					alwaysOnTop: ::alwaysOnTop::,
 					antialiasing: ::antialiasing::,
 					background: ::background::,
 					borderless: ::borderless::,
+					colorDepth: ::colorDepth::,
 					depthBuffer: ::depthBuffer::,
 					display: ::display::,
 					fullscreen: ::fullscreen::,
@@ -87,7 +89,9 @@ package;
 		
 		preloader.load ();
 		
+		#if !munit
 		start (app);
+		#end
 		
 	}
 	
@@ -111,9 +115,11 @@ package;
 	}
 	
 	
-	#if neko
 	@:noCompletion @:dox(hide) public static function __init__ () {
 		
+		var init = lime.app.Application;
+		
+		#if neko
 		// Copy from https://github.com/HaxeFoundation/haxe/blob/development/std/neko/_std/Sys.hx#L164
 		// since Sys.programPath () isn't available in __init__
 		var sys_program_path = {
@@ -138,9 +144,9 @@ package;
 		loader.addPath (haxe.io.Path.directory (#if (haxe_ver >= 3.3) sys_program_path #else Sys.executablePath () #end));
 		loader.addPath ("./");
 		loader.addPath ("@executable_path/");
+		#end
 		
 	}
-	#end
 	
 	
 }

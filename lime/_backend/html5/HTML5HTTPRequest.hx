@@ -1,11 +1,15 @@
 package lime._backend.html5;
 
 
+import js.html.AnchorElement;
+import js.html.ErrorEvent;
 import js.html.Event;
 import js.html.Image in JSImage;
 import js.html.ProgressEvent;
 import js.html.XMLHttpRequest;
+import js.Browser;
 import haxe.io.Bytes;
+import js.html.XMLHttpRequestResponseType;
 import lime.app.Future;
 import lime.app.Promise;
 import lime.graphics.Image;
@@ -15,23 +19,28 @@ import lime.net.HTTPRequestHeader;
 import lime.utils.AssetType;
 
 @:access(lime.graphics.ImageBuffer)
-
+@:access(lime.graphics.Image)
 
 class HTML5HTTPRequest {
 	
 	
 	private static var activeRequests = 0;
+	private static var originElement:AnchorElement;
+	private static var originHostname:String;
+	private static var originPort:String;
+	private static var originProtocol:String;
 	private static var requestLimit = 4;
 	private static var requestQueue = new List<QueueItem> ();
+	private static var supportsImageProgress:Null<Bool>;
 	
 	private var binary:Bool;
 	private var parent:_IHTTPRequest;
 	private var request:XMLHttpRequest;
-	
-	
+	private var validStatus0:Bool;
+		
 	public function new () {
 		
-		
+		 validStatus0 = ~/Tizen/gi.match (Browser.window.navigator.userAgent);
 		
 	}
 	
@@ -57,7 +66,17 @@ class HTML5HTTPRequest {
 	private function load (uri:String, progress:Dynamic, readyStateChange:Dynamic):Void {
 		
 		request = new XMLHttpRequest ();
-		request.addEventListener ("progress", progress, false);
+		
+		if (parent.method == POST) {
+			
+			request.upload.addEventListener ("progress", progress, false);
+			
+		} else {
+			
+			request.addEventListener ("progress", progress, false);
+			
+		}
+		
 		request.onreadystatechange = readyStateChange;
 		
 		var query = "";
@@ -90,8 +109,11 @@ class HTML5HTTPRequest {
 		}
 		
 		request.open (Std.string (parent.method), uri, true);
+		
 		if (parent.timeout > 0) {
+			
 			request.timeout = parent.timeout;
+			
 		}
 		
 		if (binary) {
@@ -100,18 +122,51 @@ class HTML5HTTPRequest {
 			
 		}
 		
-		var hasContentType = false;
+		var contentType = null;
 		
 		for (header in parent.headers) {
 			
-			if (header.name == "Content-Type") hasContentType = true;
-			request.setRequestHeader (header.name, header.value);
+			if (header.name == "Content-Type") {
+				
+				contentType = header.value;
+				
+			} else {
+				
+				request.setRequestHeader (header.name, header.value);
+				
+			}
 			
 		}
 		
-		if (!hasContentType) {
+		if (parent.contentType != null) {
 			
-			request.setRequestHeader ("Content-Type", parent.contentType);
+			contentType = parent.contentType;
+			
+		}
+		
+		if (contentType == null) {
+			
+			if (parent.data != null) {
+				
+				contentType = "application/octet-stream";
+				
+			} else if (query != "") {
+				
+				contentType = "application/x-www-form-urlencoded";
+				
+			}
+			
+		}
+		
+		if (contentType != null) {
+			
+			request.setRequestHeader ("Content-Type", contentType);
+			
+		}
+		
+		if (parent.withCredentials) {
+			
+			request.withCredentials = true;
 			
 		}
 		
@@ -248,6 +303,77 @@ class HTML5HTTPRequest {
 	}
 	
 	
+	private static function __fixHostname (hostname:String):String {
+		
+		return hostname == null ? "" : hostname;
+		
+	}
+	
+	
+	private static function __fixPort (port:String, protocol:String):String {
+		
+		if (port == null || port == "") {
+			
+			return switch (protocol) {
+				
+				case "ftp:": "21";
+				case "gopher:": "70";
+				case "http:": "80";
+				case "https:": "443";
+				case "ws:": "80";
+				case "wss:": "443";
+				default: "";
+				
+			}
+			
+		}
+		
+		return port;
+		
+	}
+	
+	
+	private static function __fixProtocol (protocol:String):String {
+		
+		return (protocol == null || protocol == "") ? "http:" : protocol;
+		
+	}
+	
+	
+	private static function __isSameOrigin (path:String):Bool {
+		
+		if (originElement == null) {
+			
+			originElement = Browser.document.createAnchorElement ();
+			
+			originHostname = __fixHostname (Browser.location.hostname);
+			originProtocol = __fixProtocol (Browser.location.protocol);
+			originPort = __fixPort (Browser.location.port, originProtocol);
+			
+		}
+		
+		var a = originElement;
+		a.href = path;
+		
+		if (a.hostname == "") {
+			
+			// Workaround for IE, updates other properties
+			a.href = a.href;
+			
+		}
+		
+		var hostname = __fixHostname (a.hostname);
+		var protocol = __fixProtocol (a.protocol);
+		var port = __fixPort (a.port, protocol);
+		
+		var sameHost = (hostname == "" || (hostname == originHostname));
+		var samePort = (port == "" || (port == originPort));
+		
+		return (protocol != "file:" && sameHost && samePort);
+		
+	}
+	
+	
 	public function __loadData (uri:String, promise:Promise<Bytes>):Void {
 		
 		var progress = function (event) {
@@ -260,15 +386,19 @@ class HTML5HTTPRequest {
 			
 			if (request.readyState != 4) return;
 			
-			if (request.status != null && request.status >= 200 && request.status <= 400) {
+			if (request.status != null && ((request.status >= 200 && request.status < 400) || (validStatus0 && request.status == 0))) {
 				
-				var bytes;
+				var bytes = null;
 				
 				if (request.responseType == NONE) {
 					
-					bytes = Bytes.ofString (request.responseText);
+					if (request.responseText != null) {
+						
+						bytes = Bytes.ofString (request.responseText);
+						
+					}
 					
-				} else {
+				} else if (request.response != null) {
 					
 					bytes = Bytes.ofData (request.response);
 					
@@ -300,36 +430,88 @@ class HTML5HTTPRequest {
 	private static function __loadImage (uri:String, promise:Promise<Image>):Void {
 		
 		var image = new JSImage ();
-		image.crossOrigin = "Anonymous";
 		
-		image.addEventListener ("load", function (event) {
+		if (!__isSameOrigin (uri)) {
 			
-			var buffer = new ImageBuffer (null, image.width, image.height);
-			buffer.__srcImage = cast image;
+			image.crossOrigin = "Anonymous";
 			
-			activeRequests--;
-			processQueue ();
-			
-			promise.complete (new Image (buffer));
-			
-		}, false);
+		}
 		
-		image.addEventListener ("progress", function (event) {
+		if (supportsImageProgress == null) {
 			
-			promise.progress (event.loaded, event.total);
+			supportsImageProgress = untyped __js__ ("'onprogress' in image");
 			
-		}, false);
+		}
 		
-		image.addEventListener ("error", function (event) {
+		if (supportsImageProgress || StringTools.startsWith (uri, "data:")) {
 			
-			activeRequests--;
-			processQueue ();
+			image.addEventListener ("load", function (event) {
+				
+				var buffer = new ImageBuffer (null, image.width, image.height);
+				buffer.__srcImage = cast image;
+				
+				activeRequests--;
+				processQueue ();
+				
+				promise.complete (new Image (buffer));
+				
+			}, false);
 			
-			promise.error (event.detail);
+			image.addEventListener ("progress", function (event) {
+				
+				promise.progress (event.loaded, event.total);
+				
+			}, false);
 			
-		}, false);
-		
-		image.src = uri;
+			image.addEventListener ("error", function (event) {
+				
+				activeRequests--;
+				processQueue ();
+				
+				promise.error (event.detail);
+				
+			}, false);
+			
+			image.src = uri;
+			
+		} else {
+			
+			var request = new XMLHttpRequest ();
+			
+			request.onload = function (_) {
+				
+				activeRequests--;
+				processQueue ();
+				
+				var img = new Image ();
+				img.__fromBytes (Bytes.ofData (request.response), function (img) {
+					promise.complete (img);
+				});
+				
+			}
+			
+			request.onerror = function (event:ErrorEvent) {
+				
+				promise.error (event.message);
+				
+			}
+			
+			request.onprogress = function (event:ProgressEvent) {
+				
+				if (event.lengthComputable) {
+					
+					promise.progress (event.loaded, event.total);
+					
+				}
+				
+			}
+			
+			request.open ("GET", uri, true);
+			request.responseType = XMLHttpRequestResponseType.ARRAYBUFFER;
+			request.overrideMimeType ('text/plain; charset=x-user-defined'); 
+			request.send (null);
+			
+		}
 		
 	}
 	
@@ -346,7 +528,7 @@ class HTML5HTTPRequest {
 			
 			if (request.readyState != 4) return;
 			
-			if (request.status != null && request.status >= 200 && request.status <= 400) {
+			if (request.status != null && ((request.status >= 200 && request.status <= 400) || (validStatus0 && request.status == 0))) {
 				
 				processResponse ();
 				promise.complete (request.responseText);

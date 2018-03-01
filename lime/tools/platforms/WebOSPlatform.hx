@@ -21,11 +21,11 @@ import sys.FileSystem;
 class WebOSPlatform extends PlatformTarget {
 	
 	
-	public function new (command:String, _project:HXProject, targetFlags:Map<String, String> ) {
+	public function new (command:String, _project:HXProject, targetFlags:Map<String, String>) {
 		
 		super (command, _project, targetFlags);
 		
-		targetDirectory = project.app.path + "/webos/" + buildType;
+		targetDirectory = project.app.path + "/webos";
 		
 	}
 	
@@ -162,9 +162,9 @@ class WebOSPlatform extends PlatformTarget {
 			
 		}
 		
-		FileHelper.recursiveCopyTemplate (project.templatePaths, "webos/template", destination, context);
-		FileHelper.recursiveCopyTemplate (project.templatePaths, "haxe", targetDirectory + "/haxe", context);
-		FileHelper.recursiveCopyTemplate (project.templatePaths, "webos/hxml", targetDirectory + "/haxe", context);
+		FileHelper.recursiveSmartCopyTemplate (project, "webos/template", destination, context);
+		FileHelper.recursiveSmartCopyTemplate (project, "haxe", targetDirectory + "/haxe", context);
+		FileHelper.recursiveSmartCopyTemplate (project, "webos/hxml", targetDirectory + "/haxe", context);
 		
 		//SWFHelper.generateSWFClasses (project, targetDirectory + "/haxe");
 		

@@ -8,6 +8,7 @@ import lime.tools.helpers.CSHelper;
 import lime.tools.helpers.DeploymentHelper;
 import lime.tools.helpers.GUID;
 import lime.tools.helpers.FileHelper;
+import lime.tools.helpers.HaxelibHelper;
 import lime.tools.helpers.IconHelper;
 import lime.tools.helpers.JavaHelper;
 import lime.tools.helpers.LogHelper;
@@ -16,6 +17,7 @@ import lime.tools.helpers.NodeJSHelper;
 import lime.tools.helpers.PathHelper;
 import lime.tools.helpers.PlatformHelper;
 import lime.tools.helpers.ProcessHelper;
+import lime.tools.helpers.WatchHelper;
 import lime.project.AssetType;
 import lime.project.Architecture;
 import lime.project.Haxelib;
@@ -74,7 +76,8 @@ class MacPlatform extends PlatformTarget {
 			
 		}
 		
-		targetDirectory = project.app.path + "/mac" + (is64 ? "64" : "") + "/" + targetType + "/" + buildType;
+		targetDirectory = PathHelper.combine (project.app.path, project.config.getString ("mac.output-directory", targetType == "cpp" ? "macos" : targetType));
+		targetDirectory = StringTools.replace (targetDirectory, "arch64", is64 ? "64" : "");
 		applicationDirectory = targetDirectory + "/bin/" + project.app.file + ".app";
 		contentDirectory = applicationDirectory + "/Contents/Resources";
 		executableDirectory = applicationDirectory + "/Contents/MacOS";
@@ -116,7 +119,7 @@ class MacPlatform extends PlatformTarget {
 			
 			if (noOutput) return;
 			
-			ProcessHelper.runCommand (targetDirectory + "/obj", "haxelib", [ "run", "hxjava", "hxjava_build.txt", "--haxe-version", "3103" ]);
+			HaxelibHelper.runCommand (targetDirectory + "/obj", [ "run", "hxjava", "hxjava_build.txt", "--haxe-version", "3103" ]);
 			FileHelper.recursiveCopy (targetDirectory + "/obj/lib", PathHelper.combine (executableDirectory, "lib"));
 			FileHelper.copyFile (targetDirectory + "/obj/ApplicationMain" + (project.debug ? "-Debug" : "") + ".jar", PathHelper.combine (executableDirectory, project.app.file + ".jar"));
 			JavaHelper.copyLibraries (project.templatePaths, "Mac" + (is64 ? "64" : ""), executableDirectory);
@@ -211,14 +214,7 @@ class MacPlatform extends PlatformTarget {
 	
 	public override function display ():Void {
 		
-		var hxml = PathHelper.findTemplate (project.templatePaths, targetType + "/hxml/" + buildType + ".hxml");
-		var template = new Template (File.getContent (hxml));
-		
-		var context = generateContext ();
-		context.OUTPUT_DIR = targetDirectory;
-		
-		Sys.println (template.execute (context));
-		Sys.println ("-D display");
+		Sys.println (getDisplayHXML ());
 		
 	}
 	
@@ -232,6 +228,19 @@ class MacPlatform extends PlatformTarget {
 		context.BUILD_DIR = project.app.path + "/mac" + (is64 ? "64" : "");
 		
 		return context;
+		
+	}
+	
+	
+	private function getDisplayHXML ():String {
+		
+		var hxml = PathHelper.findTemplate (project.templatePaths, targetType + "/hxml/" + buildType + ".hxml");
+		var template = new Template (File.getContent (hxml));
+		
+		var context = generateContext ();
+		context.OUTPUT_DIR = targetDirectory;
+		
+		return template.execute (context) + "\n-D display";
 		
 	}
 	
@@ -335,12 +344,12 @@ class MacPlatform extends PlatformTarget {
 		
 		//SWFHelper.generateSWFClasses (project, targetDirectory + "/haxe");
 		
-		FileHelper.recursiveCopyTemplate (project.templatePaths, "haxe", targetDirectory + "/haxe", context);
-		FileHelper.recursiveCopyTemplate (project.templatePaths, targetType + "/hxml", targetDirectory + "/haxe", context);
+		FileHelper.recursiveSmartCopyTemplate (project, "haxe", targetDirectory + "/haxe", context);
+		FileHelper.recursiveSmartCopyTemplate (project, targetType + "/hxml", targetDirectory + "/haxe", context);
 		
 		if (targetType == "cpp" && project.targetFlags.exists ("static")) {
 			
-			FileHelper.recursiveCopyTemplate (project.templatePaths, "cpp/static", targetDirectory + "/obj", context);
+			FileHelper.recursiveSmartCopyTemplate (project, "cpp/static", targetDirectory + "/obj", context);
 			
 		}
 		
@@ -376,6 +385,15 @@ class MacPlatform extends PlatformTarget {
 			}
 			
 		}
+		
+	}
+	
+	
+	public override function watch ():Void {
+		
+		var dirs = WatchHelper.processHXML (project, getDisplayHXML ());
+		var command = WatchHelper.getCurrentCommand ();
+		WatchHelper.watch (project, command, dirs);
 		
 	}
 	

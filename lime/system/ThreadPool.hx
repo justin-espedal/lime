@@ -1,6 +1,7 @@
 package lime.system;
 
 
+import haxe.Constraints.Function;
 import lime.app.Application;
 import lime.app.Event;
 
@@ -22,14 +23,16 @@ class ThreadPool {
 	
 	
 	public var currentThreads (default, null):Int;
-	public var doWork = new Event<Dynamic->Void> ();
+	public var doWork = new Event<Function->Void> ();
 	public var maxThreads:Int;
 	public var minThreads:Int;
-	public var onComplete = new Event<Dynamic->Void> ();
-	public var onError = new Event<Dynamic->Void> ();
-	public var onProgress = new Event<Dynamic->Void> ();
+	public var onComplete = new Event<Function->Void> ();
+	public var onError = new Event<Function->Void> ();
+	public var onProgress = new Event<Function->Void> ();
+	public var onRun = new Event<Function->Void> ();
 	
 	#if (cpp || neko)
+	private var __synchronous:Bool;
 	private var __workCompleted:Int;
 	private var __workIncoming = new Deque<ThreadPoolMessage> ();
 	private var __workQueued:Int;
@@ -47,6 +50,10 @@ class ThreadPool {
 		#if (cpp || neko)
 		__workQueued = 0;
 		__workCompleted = 0;
+		#end
+		
+		#if (emscripten || force_synchronous)
+		__synchronous = true;
 		#end
 		
 	}
@@ -70,25 +77,34 @@ class ThreadPool {
 		
 		#if (cpp || neko)
 		
-		__workIncoming.add (new ThreadPoolMessage (WORK, state));
-		__workQueued++;
-		
-		if (currentThreads < maxThreads && currentThreads < (__workQueued - __workCompleted)) {
+		if (Application.current != null && !__synchronous) {
 			
-			currentThreads++;
-			Thread.create (__doWork);
+			__workIncoming.add (new ThreadPoolMessage (WORK, state));
+			__workQueued++;
 			
-		}
-		
-		if (!Application.current.onUpdate.has (__update)) {
+			if (currentThreads < maxThreads && currentThreads < (__workQueued - __workCompleted)) {
+				
+				currentThreads++;
+				Thread.create (__doWork);
+				
+			}
 			
-			Application.current.onUpdate.add (__update);
+			if (!Application.current.onUpdate.has (__update)) {
+				
+				Application.current.onUpdate.add (__update);
+				
+			}
+			
+		} else {
+			
+			__synchronous = true;
+			runWork (state);
 			
 		}
 		
 		#else
 		
-		doWork.dispatch (state);
+		runWork (state);
 		
 		#end
 		
@@ -98,10 +114,15 @@ class ThreadPool {
 	public function sendComplete (state:Dynamic = null):Void {
 		
 		#if (cpp || neko)
-		__workResult.add (new ThreadPoolMessage (COMPLETE, state));
-		#else
-		onComplete.dispatch (state);
+		if (!__synchronous) {
+			
+			__workResult.add (new ThreadPoolMessage (COMPLETE, state));
+			return;
+			
+		}
 		#end
+		
+		onComplete.dispatch (state);
 		
 	}
 	
@@ -109,10 +130,15 @@ class ThreadPool {
 	public function sendError (state:Dynamic = null):Void {
 		
 		#if (cpp || neko)
-		__workResult.add (new ThreadPoolMessage (ERROR, state));
-		#else
-		onError.dispatch (state);
+		if (!__synchronous) {
+			
+			__workResult.add (new ThreadPoolMessage (ERROR, state));
+			return;
+			
+		}
 		#end
+		
+		onError.dispatch (state);
 		
 	}
 	
@@ -120,10 +146,33 @@ class ThreadPool {
 	public function sendProgress (state:Dynamic = null):Void {
 		
 		#if (cpp || neko)
-		__workResult.add (new ThreadPoolMessage (PROGRESS, state));
-		#else
-		onProgress.dispatch (state);
+		if (!__synchronous) {
+			
+			__workResult.add (new ThreadPoolMessage (PROGRESS, state));
+			return;
+			
+		}
 		#end
+		
+		onProgress.dispatch (state);
+		
+	}
+	
+	
+	private function runWork (state:Dynamic = null):Void {
+		
+		#if (cpp || neko)
+		if (!__synchronous) {
+			
+			__workResult.add (new ThreadPoolMessage (WORK, state));
+			doWork.dispatch (state);
+			return;
+			
+		}
+		#end
+		
+		onRun.dispatch (state);
+		doWork.dispatch (state);
 		
 	}
 	
@@ -138,7 +187,7 @@ class ThreadPool {
 			
 			if (message.type == WORK) {
 				
-				doWork.dispatch (message.state);
+				runWork (message.state);
 				
 			} else if (message.type == EXIT) {
 				
@@ -160,6 +209,10 @@ class ThreadPool {
 			while (message != null) {
 				
 				switch (message.type) {
+					
+					case WORK:
+						
+						onRun.dispatch (message.state);
 					
 					case PROGRESS:
 						

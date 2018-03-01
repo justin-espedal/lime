@@ -2,16 +2,7 @@ package lime.app;
 
 
 import lime.graphics.Renderer;
-import lime.graphics.RenderContext;
 import lime.system.System;
-import lime.ui.Gamepad;
-import lime.ui.GamepadAxis;
-import lime.ui.GamepadButton;
-import lime.ui.Joystick;
-import lime.ui.JoystickHatPosition;
-import lime.ui.KeyCode;
-import lime.ui.KeyModifier;
-import lime.ui.Touch;
 import lime.ui.Window;
 
 #if !lime_debug
@@ -29,11 +20,33 @@ import lime.ui.Window;
 class Application extends Module {
 	
 	
+	/**
+	 * The current Application instance that is executing
+	**/
 	public static var current (default, null):Application;
 	
+	
+	/**
+	 * Configuration values for the application, such as window options or a package name
+	**/
 	public var config (default, null):Config;
+	
+	/**
+	 * The current frame rate (measured in frames-per-second) of the application.
+	 *
+	 * On some platforms, a frame rate of 60 or greater may imply vsync, which will
+	 * perform more quickly on displays with a higher refresh rate
+	**/
 	public var frameRate (get, set):Float;
+	
+	/**
+	 * A list of currently attached Module instances
+	**/
 	public var modules (default, null):Array<IModule>;
+	
+	/**
+	 * The Preloader for the current Application
+	**/
 	public var preloader (get, null):Preloader;
 	
 	/**
@@ -41,15 +54,53 @@ class Application extends Module {
 	 */
 	public var onUpdate = new Event<Int->Void> ();
 	
+	/**
+	 * The Renderer associated with this Application, or the first Renderer
+	 * if there are multiple Renderer instances
+	**/
 	public var renderer (get, null):Renderer;
+	
+	/**
+	 * A list of Renderer instances associated with this Application
+	**/
 	public var renderers (get, null):Array<Renderer>;
+	
+	/**
+	 * The Window associated with this Application, or the first Window
+	 * if there are multiple Windows active
+	**/
 	public var window (get, null):Window;
+	
+	/**
+	 * A list of active Window instances associated with this Application
+	**/
 	public var windows (get, null):Array<Window>;
 	
 	@:noCompletion private var backend:ApplicationBackend;
 	@:noCompletion private var windowByID:Map<Int, Window>;
 	
 	
+	private static function __init__ () {
+		
+		var init = ApplicationBackend;
+		#if commonjs
+		var p = untyped Application.prototype;
+		untyped Object.defineProperties (p, {
+			"frameRate": { get: p.get_frameRate, set: p.set_frameRate },
+			"preloader": { get: p.get_preloader },
+			"renderer": { get: p.get_renderer },
+			"renderers": { get: p.get_renderers },
+			"window": { get: p.get_window },
+			"windows": { get: p.get_windows }
+		});
+		#end
+		
+	}
+	
+	
+	/**
+	 * Creates a new Application instance
+	**/
 	public function new () {
 		
 		super ();
@@ -149,7 +200,7 @@ class Application extends Module {
 					var window = new Window (windowConfig);
 					createWindow (window);
 					
-					#if (flash || html5)
+					#if ((flash && !air) || html5)
 					break;
 					#end
 					
@@ -353,7 +404,9 @@ class Application extends Module {
 }
 
 
-#if flash
+#if air
+@:noCompletion private typedef ApplicationBackend = lime._backend.air.AIRApplication;
+#elseif flash
 @:noCompletion private typedef ApplicationBackend = lime._backend.flash.FlashApplication;
 #elseif (js && html5)
 @:noCompletion private typedef ApplicationBackend = lime._backend.html5.HTML5Application;

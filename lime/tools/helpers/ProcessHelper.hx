@@ -274,7 +274,9 @@ class ProcessHelper {
 			
 		}
 		
+		#if (haxe_ver < "3.3.0")
 		command = PathHelper.escape (command);
+		#end
 		
 		if (safeExecute) {
 			
@@ -378,13 +380,13 @@ class ProcessHelper {
 				}
 				
 				result = process.exitCode ();
-				process.close ();
 				
 				output = buffer.getBytes ().toString ();
 				
 				if (output == "") {
 					
 					var error = process.stderr.readAll ().toString ();
+					process.close ();
 					
 					if (result != 0 || error != "") {
 						
@@ -420,6 +422,10 @@ class ProcessHelper {
 						
 					}*/
 					
+				} else {
+				
+					process.close ();
+				
 				}
 				
 			}

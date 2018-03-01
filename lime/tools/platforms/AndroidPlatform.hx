@@ -12,6 +12,7 @@ import lime.tools.helpers.IconHelper;
 import lime.tools.helpers.LogHelper;
 import lime.tools.helpers.PathHelper;
 import lime.tools.helpers.ProcessHelper;
+import lime.tools.helpers.WatchHelper;
 import lime.project.Architecture;
 import lime.project.AssetType;
 import lime.project.Haxelib;
@@ -52,7 +53,7 @@ class AndroidPlatform extends PlatformTarget {
 			
 		}
 		
-		targetDirectory = project.app.path + "/android/" + buildType;
+		targetDirectory = PathHelper.combine (project.app.path, project.config.getString ("android.output-directory", "android"));
 		
 	}
 	
@@ -167,6 +168,13 @@ class AndroidPlatform extends PlatformTarget {
 	
 	public override function display ():Void {
 		
+		Sys.println (getDisplayHXML ());
+		
+	}
+	
+	
+	private function getDisplayHXML ():String {
+		
 		var hxml = PathHelper.findTemplate (project.templatePaths, "android/hxml/" + buildType + ".hxml");
 		
 		var context = project.templateContext;
@@ -175,8 +183,7 @@ class AndroidPlatform extends PlatformTarget {
 		
 		var template = new Template (File.getContent (hxml));
 		
-		Sys.println (template.execute (context));
-		Sys.println ("-D display");
+		return template.execute (context) + "\n-D display";
 		
 	}
 	
@@ -191,7 +198,19 @@ class AndroidPlatform extends PlatformTarget {
 			
 		}
 		
-		var apkPath = FileSystem.fullPath (targetDirectory) + "/bin/app/build/outputs/apk/" + project.app.file + build + ".apk";
+		var outputDirectory = null;
+		
+		if (project.config.exists ("android.gradle-build-directory")) {
+			
+			outputDirectory = PathHelper.combine (project.config.getString ("android.gradle-build-directory"), project.app.file + "/app/outputs/apk");
+			
+		} else {
+			
+			outputDirectory = PathHelper.combine (FileSystem.fullPath (targetDirectory), "bin/app/build/outputs/apk");
+			
+		}
+		
+		var apkPath = PathHelper.combine (outputDirectory, project.app.file + build + ".apk");
 		
 		deviceID = AndroidHelper.install (project, apkPath, deviceID);
 		
@@ -334,6 +353,22 @@ class AndroidPlatform extends PlatformTarget {
 
 		}
 		
+		if (project.config.exists ("android.gradle-build-directory")) {
+			
+			context.ANDROID_GRADLE_BUILD_DIRECTORY = project.config.getString ("android.gradle-build-directory");
+			
+		}
+		
+		if (project.config.exists ("android.build-tools-version")) {
+			
+			context.ANDROID_BUILD_TOOLS_VERSION = project.config.getString ("android.build-tools-version");
+			
+		} else {
+			
+			context.ANDROID_BUILD_TOOLS_VERSION = AndroidHelper.getBuildToolsVersion (project);
+			
+		}
+		
 		var escaped = ~/([ #!=\\:])/g;
 		context.ANDROID_SDK_ESCAPED = escaped.replace(context.ENV_ANDROID_SDK, "\\$1");
 		context.ANDROID_NDK_ROOT_ESCAPED = escaped.replace(context.ENV_ANDROID_NDK_ROOT, "\\$1");
@@ -421,10 +456,10 @@ class AndroidPlatform extends PlatformTarget {
 			
 		}
 		
-		FileHelper.recursiveCopyTemplate (project.templatePaths, "android/template", destination, context);
+		FileHelper.recursiveSmartCopyTemplate (project, "android/template", destination, context);
 		FileHelper.copyFileTemplate (project.templatePaths, "android/MainActivity.java", packageDirectory + "/MainActivity.java", context);
-		FileHelper.recursiveCopyTemplate (project.templatePaths, "haxe", targetDirectory + "/haxe", context);
-		FileHelper.recursiveCopyTemplate (project.templatePaths, "android/hxml", targetDirectory + "/haxe", context);
+		FileHelper.recursiveSmartCopyTemplate (project, "haxe", targetDirectory + "/haxe", context);
+		FileHelper.recursiveSmartCopyTemplate (project, "android/hxml", targetDirectory + "/haxe", context);
 		
 		for (asset in project.assets) {
 			
@@ -437,6 +472,15 @@ class AndroidPlatform extends PlatformTarget {
 			}
 			
 		}
+		
+	}
+	
+	
+	public override function watch ():Void {
+		
+		var dirs = WatchHelper.processHXML (project, getDisplayHXML ());
+		var command = WatchHelper.getCurrentCommand ();
+		WatchHelper.watch (project, command, dirs);
 		
 	}
 	

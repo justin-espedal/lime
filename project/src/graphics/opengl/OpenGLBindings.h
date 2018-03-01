@@ -12,7 +12,12 @@ namespace lime {
 			static bool Init ();
 			
 			static int defaultFramebuffer;
+			static int defaultRenderbuffer;
 			static void* handle;
+			
+			#ifdef NATIVE_TOOLKIT_SDL_ANGLE
+			static void* eglHandle;
+			#endif
 			
 		
 		private:

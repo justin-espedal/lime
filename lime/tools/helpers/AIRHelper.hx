@@ -1,119 +1,129 @@
 package lime.tools.helpers;
 
 
+import haxe.io.Path;
+import lime.project.HXProject;
+import lime.project.Platform;
 import sys.FileSystem;
 
 
 class AIRHelper {
 	
 	
-	/*private static var defines:Map<String, String>;
-	private static var target:String;
-	private static var targetFlags:Map<String, String>;
-	
-	
-	public static function initialize (defines:Map<String, String>, targetFlags:Map<String, String>, target:String, NME:String):Void {
+	public static function build (project:HXProject, workingDirectory:String, targetPlatform:Platform, targetPath:String, applicationXML:String, files:Array<String>, fileDirectory:String = null):String {
 		
-		AIRHelper.defines = defines;
-		AIRHelper.targetFlags = targetFlags;
-		AIRHelper.target = target;
+		//var airTarget = "air";
+		//var extension = ".air";
+		var airTarget = "bundle";
+		var extension = "";
 		
-		switch (target) {
+		switch (targetPlatform) {
 			
-			case "ios":
+			case MAC:
 				
-				IOSHelper.initialize (defines, targetFlags, NME);
+				// extension = ".app";
 			
-			case "android":
+			case IOS:
 				
-				AndroidHelper.initialize (defines);
-			
-		}
-		
-	}
-	
-	
-	public static function build (workingDirectory:String, targetPath:String, applicationXML:String, files:Array<String>, debug:Bool):Void {
-		
-		var airTarget = "air";
-		var extension = ".air";
-		
-		if (target == "ios") {
-			
-			if (targetFlags.exists ("simulator")) {
-				
-				if (debug) {
+				if (project.targetFlags.exists ("simulator")) {
 					
-					airTarget = "ipa-debug-interpreter-simulator";
+					if (project.debug) {
+						
+						airTarget = "ipa-debug-interpreter-simulator";
+						
+					} else {
+						
+						airTarget = "ipa-test-interpreter-simulator";
+						
+					}
 					
 				} else {
 					
-					airTarget = "ipa-test-interpreter-simulator";
+					if (project.debug) {
+						
+						airTarget = "ipa-debug";
+						
+					} else {
+						
+						airTarget = "ipa-test";
+						
+					}
 					
 				}
 				
-			} else {
+				// extension = ".ipa";
+			
+			case ANDROID:
 				
-				if (debug) {
+				if (project.debug) {
 					
-					airTarget = "ipa-debug";
+					airTarget = "apk-debug";
 					
 				} else {
 					
-					airTarget = "ipa-test";
+					airTarget = "apk";
 					
 				}
 				
-			}
+				// extension = ".apk";
 			
-			extension = ".ipa";
-			
-		} else if (target == "android") {
-			
-			if (debug) {
-				
-				airTarget = "apk-debug";
-				
-			} else {
-				
-				airTarget = "apk";
-				
-			}
-			
-			extension = ".apk";
+			default:
 			
 		}
 		
-		var signingOptions = [ "-storetype", defines.get ("KEY_STORE_TYPE"), "-keystore", defines.get ("KEY_STORE") ];
+		var signingOptions = [];
 		
-		if (defines.exists ("KEY_STORE_ALIAS")) {
+		if (project.keystore != null) {
 			
-			signingOptions.push ("-alias");
-			signingOptions.push (defines.get ("KEY_STORE_ALIAS"));
+			var keystore = PathHelper.tryFullPath (project.keystore.path);
+			var keystoreType = project.keystore.type != null ? project.keystore.type : "pkcs12";
 			
-		}
-		
-		if (defines.exists ("KEY_STORE_PASSWORD")) {
+			signingOptions.push ("-storetype");
+			signingOptions.push (keystoreType);
+			signingOptions.push ("-keystore");
+			signingOptions.push (keystore);
 			
+			if (project.keystore.alias != null) {
+				
+				signingOptions.push ("-alias");
+				signingOptions.push (project.keystore.alias);
+				
+			}
+			
+			if (project.keystore.password != null) {
+				
+				signingOptions.push ("-storepass");
+				signingOptions.push (project.keystore.password);
+				
+			}
+			
+			if (project.keystore.aliasPassword != null) {
+				
+				signingOptions.push ("-keypass");
+				signingOptions.push (project.keystore.aliasPassword);
+				
+			}
+			
+		} else {
+			
+			signingOptions.push ("-storetype");
+			signingOptions.push ("pkcs12");
+			signingOptions.push ("-keystore");
+			signingOptions.push (PathHelper.findTemplate (project.templatePaths, "air/debug.pfx"));
 			signingOptions.push ("-storepass");
-			signingOptions.push (defines.get ("KEY_STORE_PASSWORD"));
-			
-		}
-		
-		if (defines.exists ("KEY_STORE_ALIAS_PASSWORD")) {
-			
-			signingOptions.push ("-keypass");
-			signingOptions.push (defines.get ("KEY_STORE_ALIAS_PASSWORD"));
+			signingOptions.push ("samplePassword");
 			
 		}
 		
 		var args = [ "-package" ];
 		
-		if (airTarget == "air") {
+		// TODO: Is this an old workaround fixed in newer AIR SDK?
+		
+		if (airTarget == "air" || airTarget == "bundle") {
 			
 			args = args.concat (signingOptions);
 			args.push ("-target");
-			args.push ("air");
+			args.push (airTarget);
 			
 		} else {
 			
@@ -123,78 +133,210 @@ class AIRHelper {
 			
 		}
 		
-		if (target == "ios") {
+		if (targetPlatform == IOS) {
 			
-			args.push ("-provisioning-profile");
-			args.push (IOSHelper.getProvisioningFile ());
+			var provisioningProfile = IOSHelper.getProvisioningFile (project);
+			
+			if (provisioningProfile != "") {
+				
+				args.push ("-provisioning-profile");
+				args.push (provisioningProfile);
+				
+			}
 			
 		}
 		
-		args = args.concat ([ targetPath, applicationXML ]);
+		args = args.concat ([ targetPath + extension, applicationXML ]);
 		
-		
-		if (target == "ios") {
+		if (targetPlatform == IOS && PlatformHelper.hostPlatform == Platform.MAC && project.targetFlags.exists ("simulator")) {
 			
 			args.push ("-platformsdk");
-			args.push (IOSHelper.getSDKDirectory ());
+			args.push (IOSHelper.getSDKDirectory (project));
+			
+		}
+		
+		if (fileDirectory != null && fileDirectory != "") {
+			
+			args.push ("-C");
+			args.push (fileDirectory);
 			
 		}
 		
 		args = args.concat (files);
+
+		var extDirs:Array<String> = getExtDirs(project);
+
+		if (extDirs.length > 0) {
+
+			args.push("-extdir");
+
+			for (extDir in extDirs) {
+
+				args.push(extDir);
+
+			}
+		}
 		
-		ProcessHelper.runCommand (workingDirectory, defines.get ("AIR_SDK") + "/bin/adt", args);
+		if (targetPlatform == ANDROID) {
+			
+			Sys.putEnv ("AIR_NOANDROIDFLAIR", "true");
+			
+		}
 		
+		ProcessHelper.runCommand (workingDirectory, project.defines.get ("AIR_SDK") + "/bin/adt", args);
+		
+		return targetPath + extension;
+		
+	}
+
+
+	public static function getExtDirs(project:HXProject):Array<String> {
+
+		var extDirs:Array<String> = [];
+
+		for (dependency in project.dependencies) {
+
+			var extDir:String = FileSystem.fullPath(Path.directory(dependency.path));
+
+			if (StringTools.endsWith (dependency.path, ".ane") && extDirs.indexOf(extDir) == -1) {
+
+				extDirs.push(extDir);
+
+			}
+
+		}
+
+		return extDirs;
+
 	}
 	
 	
-	public static function run (workingDirectory:String, debug:Bool):Void {
+	public static function run (project:HXProject, workingDirectory:String, targetPlatform:Platform, applicationXML:String, rootDirectory:String = null):Void {
 		
-		if (target == "android") {
+		if (targetPlatform == ANDROID) {
 			
-			AndroidHelper.install (FileSystem.fullPath (workingDirectory) + "/" + defines.get ("APP_FILE") + ".apk");
-			AndroidHelper.run ("air." + defines.get ("APP_PACKAGE") + "/.AppEntry");
+			AndroidHelper.initialize (project);
+			AndroidHelper.install (project, FileSystem.fullPath (workingDirectory) + "/" + (rootDirectory != null ? rootDirectory + "/" : "") + project.app.file + ".apk");
+			AndroidHelper.run (project.meta.packageName + "/.AppEntry");
 			
-		} else if (target == "ios") {
+		} else if (targetPlatform == IOS) {
 			
 			var args = [ "-platform", "ios" ];
 			
-			if (targetFlags.exists ("simulator")) {
+			if (project.targetFlags.exists ("simulator")) {
 				
 				args.push ("-device");
 				args.push ("ios-simulator");
 				args.push ("-platformsdk");
-				args.push (IOSHelper.getSDKDirectory ());
+				args.push (IOSHelper.getSDKDirectory (project));
 				
 				ProcessHelper.runCommand ("", "killall", [ "iPhone Simulator" ], true, true);
 				
 			}
 			
-			ProcessHelper.runCommand (workingDirectory, defines.get ("AIR_SDK") + "/bin/adt", [ "-uninstallApp" ].concat (args).concat ([ "-appid", defines.get ("APP_PACKAGE") ]));
-			ProcessHelper.runCommand (workingDirectory, defines.get ("AIR_SDK") + "/bin/adt", [ "-installApp" ].concat (args).concat ([ "-package", FileSystem.fullPath (workingDirectory) + "/" + defines.get ("APP_FILE") + ".ipa" ]));
+			ProcessHelper.runCommand (workingDirectory, project.defines.get ("AIR_SDK") + "/bin/adt", [ "-uninstallApp" ].concat (args).concat ([ "-appid", project.meta.packageName ]), true, true);
+			ProcessHelper.runCommand (workingDirectory, project.defines.get ("AIR_SDK") + "/bin/adt", [ "-installApp" ].concat (args).concat ([ "-package", FileSystem.fullPath (workingDirectory) + "/" + (rootDirectory != null ? rootDirectory + "/" : "") + project.app.file + ".ipa" ]));
 			
-			if (targetFlags.exists ("simulator")) {
-				
-				ProcessHelper.runCommand ("", "open", [ "/Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/Applications/iPhone Simulator.app/" ]);
+			if (project.targetFlags.exists ("simulator")) {
+
+				var simulatorAppPath:String = "/Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/Applications/iPhone Simulator.app/";
+
+				if (!FileSystem.exists(simulatorAppPath)) {
+
+					simulatorAppPath = "/Applications/Xcode.app/Contents/Developer/Applications/Simulator.app/";
+
+				}
+
+				ProcessHelper.runCommand ("", "open", [ simulatorAppPath ]);
 				
 			}
-				
+			
 		} else {
+
+			var extDirs:Array<String> = getExtDirs(project);
+
+			var profile:String = extDirs.length > 0 ? "extendedDesktop" : "desktop";
 			
-			var args = [ "-profile", "desktop" ];
+			var args = [ "-profile", profile ];
 			
-			if (!debug) {
+			if (!project.debug) {
 				
 				args.push ("-nodebug");
 				
 			}
+
+			if (extDirs.length > 0) {
+
+				args.push("-extdir");
+
+				for (extDir in extDirs) {
+
+					if (!FileSystem.exists(extDir + "/adl")) {
+
+						LogHelper.error("Create " + extDir + "/adl directory, and extract your ANE files to .ane directories.");
+
+					}
+
+					args.push(extDir + "/adl");
+
+				}
+			}
 			
-			args.push ("application.xml");
+			args.push (applicationXML);
 			
-			ProcessHelper.runCommand (workingDirectory, defines.get ("AIR_SDK") + "/bin/adl", args);
+			if (rootDirectory != null && rootDirectory != "") {
+				
+				args.push (rootDirectory);
+				
+			}
+			
+			ProcessHelper.runCommand (workingDirectory, project.defines.get ("AIR_SDK") + "/bin/adl", args);
 			
 		}
 		
-	}*/
+	}
+	
+	
+	public static function trace (project:HXProject, workingDirectory:String, targetPlatform:Platform, applicationXML:String, rootDirectory:String = null) {
+		
+		if (targetPlatform == ANDROID) {
+			
+			AndroidHelper.initialize (project);
+			var deviceID = null;
+			var adbFilter = null;
+			
+			// if (!LogHelper.verbose) {
+				
+				if (project.debug) {
+					
+					adbFilter = project.meta.packageName + ":I ActivityManager:I *:S";
+					
+				} else {
+					
+					adbFilter = project.meta.packageName + ":I *:S";
+					
+				}
+				
+			// }
+			
+			AndroidHelper.trace (project, project.debug, deviceID, adbFilter);
+			
+		}
+		
+	}
+	
+	
+	public static function uninstall (project:HXProject, workingDirectory:String, targetPlatform:Platform, applicationXML:String, rootDirectory:String = null) {
+		
+		if (targetPlatform == ANDROID) {
+			
+			AndroidHelper.initialize (project);
+			var deviceID = null;
+			AndroidHelper.uninstall (project.meta.packageName, deviceID);
+			
+		}
+		
+	}
 	
 	
 }

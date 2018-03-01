@@ -8,6 +8,7 @@ import lime.graphics.ImageBuffer;
 import lime.math.Vector2;
 import lime.system.Display;
 import lime.system.DisplayMode;
+import lime.system.JNI;
 import lime.system.System;
 import lime.ui.Window;
 
@@ -45,7 +46,7 @@ class NativeWindow {
 		
 		if (handle != null) {
 			
-			#if !macro
+			#if (!macro && lime_cffi)
 			NativeCFFI.lime_window_alert (handle, message, title);
 			#end
 			
@@ -65,7 +66,7 @@ class NativeWindow {
 				
 				if (handle != null) {
 					
-					#if !macro
+					#if (!macro && lime_cffi)
 					NativeCFFI.lime_window_close (handle);
 					#end
 					handle = null;
@@ -107,6 +108,7 @@ class NativeWindow {
 			}
 			
 			if (Reflect.hasField (parent.config, "allowHighDPI") && parent.config.allowHighDPI) flags |= cast WindowFlags.WINDOW_FLAG_ALLOW_HIGHDPI;
+			if (Reflect.hasField (parent.config, "alwaysOnTop") && parent.config.alwaysOnTop) flags |= cast WindowFlags.WINDOW_FLAG_ALWAYS_ON_TOP;
 			//if (Reflect.hasField (parent.config, "borderless") && parent.config.borderless) flags |= cast WindowFlags.WINDOW_FLAG_BORDERLESS;
 			if (parent.__borderless) flags |= cast WindowFlags.WINDOW_FLAG_BORDERLESS;
 			if (Reflect.hasField (parent.config, "depthBuffer") && parent.config.depthBuffer) flags |= cast WindowFlags.WINDOW_FLAG_DEPTH_BUFFER;
@@ -120,6 +122,7 @@ class NativeWindow {
 			if (parent.__resizable) flags |= cast WindowFlags.WINDOW_FLAG_RESIZABLE;
 			if (Reflect.hasField (parent.config, "stencilBuffer") && parent.config.stencilBuffer) flags |= cast WindowFlags.WINDOW_FLAG_STENCIL_BUFFER;
 			if (Reflect.hasField (parent.config, "vsync") && parent.config.vsync) flags |= cast WindowFlags.WINDOW_FLAG_VSYNC;
+			if (Reflect.hasField (parent.config, "colorDepth") && parent.config.colorDepth == 32) flags |= cast WindowFlags.WINDOW_FLAG_COLOR_DEPTH_32_BIT;
 			
 			//if (Reflect.hasField (parent.config, "title")) {
 				//
@@ -129,7 +132,7 @@ class NativeWindow {
 			
 		}
 		
-		#if !macro
+		#if (!macro && lime_cffi)
 		handle = NativeCFFI.lime_window_create (application.backend.handle, parent.width, parent.height, flags, title);
 		
 		if (handle != null) {
@@ -150,7 +153,7 @@ class NativeWindow {
 		
 		if (handle != null) {
 			
-			#if !macro
+			#if (!macro && lime_cffi)
 			NativeCFFI.lime_window_focus (handle);
 			#end
 			
@@ -163,7 +166,7 @@ class NativeWindow {
 		
 		if (handle != null) {
 			
-			#if !macro
+			#if (!macro && lime_cffi)
 			var index = NativeCFFI.lime_window_get_display (handle);
 			
 			if (index > -1) {
@@ -184,7 +187,7 @@ class NativeWindow {
 		
 		if (handle != null) {
 			
-			#if !macro
+			#if (!macro && lime_cffi)
 			var data:Dynamic = NativeCFFI.lime_window_get_display_mode (handle);
 			displayMode.width = data.width;
 			displayMode.height = data.height;
@@ -203,7 +206,7 @@ class NativeWindow {
 		
 		if (handle != null) {
 			
-			#if !macro
+			#if (!macro && lime_cffi)
 			var data:Dynamic = NativeCFFI.lime_window_set_display_mode (handle, value);
 			displayMode.width = data.width;
 			displayMode.height = data.height;
@@ -222,7 +225,7 @@ class NativeWindow {
 		
 		if (handle != null) {
 			
-			#if !macro
+			#if (!macro && lime_cffi)
 			return NativeCFFI.lime_window_get_enable_text_events (handle);
 			#end
 			
@@ -237,7 +240,7 @@ class NativeWindow {
 		
 		if (handle != null) {
 			
-			#if !macro
+			#if (!macro && lime_cffi)
 			NativeCFFI.lime_window_move (handle, x, y);
 			#end
 			
@@ -250,7 +253,7 @@ class NativeWindow {
 		
 		if (handle != null) {
 			
-			#if !macro
+			#if (!macro && lime_cffi)
 			NativeCFFI.lime_window_resize (handle, width, height);
 			#end
 			
@@ -263,7 +266,7 @@ class NativeWindow {
 		
 		if (handle != null) {
 			
-			#if !macro
+			#if (!macro && lime_cffi)
 			NativeCFFI.lime_window_set_borderless (handle, value);
 			#end
 			
@@ -277,8 +280,19 @@ class NativeWindow {
 		
 		if (handle != null) {
 			
-			#if !macro
+			#if (!macro && lime_cffi)
 			NativeCFFI.lime_window_set_enable_text_events (handle, value);
+			#end
+			
+			#if android
+			if (!value) {
+				
+				var updateSystemUI = JNI.createStaticMethod ("org/haxe/lime/GameActivity", "updateSystemUI", "()V");
+				JNI.postUICallback (function () {
+					updateSystemUI ();
+				});
+				
+			}
 			#end
 			
 		}
@@ -292,7 +306,7 @@ class NativeWindow {
 		
 		if (handle != null) {
 			
-			#if !macro
+			#if (!macro && lime_cffi)
 			value = NativeCFFI.lime_window_set_fullscreen (handle, value);
 			
 			parent.__width = NativeCFFI.lime_window_get_width (handle);
@@ -318,7 +332,7 @@ class NativeWindow {
 		
 		if (handle != null) {
 			
-			#if !macro
+			#if (!macro && lime_cffi)
 			NativeCFFI.lime_window_set_icon (handle, image.buffer);
 			#end
 			
@@ -331,7 +345,7 @@ class NativeWindow {
 		
 		if (handle != null) {
 			
-			#if !macro
+			#if (!macro && lime_cffi)
 			return NativeCFFI.lime_window_set_maximized (handle, value);
 			#end
 			
@@ -346,7 +360,7 @@ class NativeWindow {
 		
 		if (handle != null) {
 			
-			#if !macro
+			#if (!macro && lime_cffi)
 			return NativeCFFI.lime_window_set_minimized (handle, value);
 			#end
 			
@@ -361,7 +375,7 @@ class NativeWindow {
 		
 		if (handle != null) {
 			
-			#if !macro
+			#if (!macro && lime_cffi)
 			NativeCFFI.lime_window_set_resizable (handle, value);
 			
 			// TODO: remove need for workaround
@@ -380,7 +394,7 @@ class NativeWindow {
 		
 		if (handle != null) {
 			
-			#if !macro
+			#if (!macro && lime_cffi)
 			return NativeCFFI.lime_window_set_title (handle, value);
 			#end
 			
@@ -411,5 +425,7 @@ class NativeWindow {
 	var WINDOW_FLAG_HIDDEN = 0x00001000;
 	var WINDOW_FLAG_MINIMIZED = 0x00002000;
 	var WINDOW_FLAG_MAXIMIZED = 0x00004000;
+	var WINDOW_FLAG_ALWAYS_ON_TOP = 0x00008000;
+	var WINDOW_FLAG_COLOR_DEPTH_32_BIT = 0x00010000;
 	
 }

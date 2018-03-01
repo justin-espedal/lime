@@ -21,6 +21,8 @@ import flash.media.Sound;
 @:noDebug
 #end
 
+@:access(lime.text.Font)
+
 
 class AssetLibrary {
 	
@@ -362,6 +364,10 @@ class AssetLibrary {
 				
 				cachedAudioBuffers.exists (id);
 			
+			case FONT:
+				
+				cachedFonts.exists (id);
+			
 			default:
 				
 				cachedBytes.exists (id) || cachedText.exists (id);
@@ -556,7 +562,7 @@ class AssetLibrary {
 			var font:Font = Type.createInstance (classTypes.get (id), []);
 			
 			#if (js && html5)
-			return Font.loadFromName (font.name);
+			return font.__loadFromName (font.name);
 			#else
 			return Future.withValue (font);
 			#end
@@ -720,10 +726,29 @@ class AssetLibrary {
 	}
 	
 	
+	private function __cacheBreak (path:String):String {
+		
+		#if web
+		if (path.indexOf ("?") > -1) {
+			
+			path += "&" + Assets.cache.version;
+			
+		} else {
+			
+			path += "?" + Assets.cache.version;
+			
+		}
+		#end
+		
+		return path;
+		
+	}
+	
+	
 	private function __fromManifest (manifest:AssetManifest):Void {
 		
 		var hasSize = (manifest.version >= 2);
-		var size, id, pathGroup:Array<String>;
+		var size, id, pathGroup:Array<String>, classRef;
 		
 		var basePath = manifest.rootPath;
 		if (basePath == null) basePath = "";
@@ -736,7 +761,7 @@ class AssetLibrary {
 			
 			if (Reflect.hasField (asset, "path")) {
 				
-				paths.set (id, basePath + Reflect.field (asset, "path"));
+				paths.set (id, __cacheBreak (basePath + Reflect.field (asset, "path")));
 				
 			}
 			
@@ -746,7 +771,7 @@ class AssetLibrary {
 				
 				for (i in 0...pathGroup.length) {
 					
-					pathGroup[i] = basePath + pathGroup[i];
+					pathGroup[i] = __cacheBreak (basePath + pathGroup[i]);
 					
 				}
 				
@@ -765,7 +790,17 @@ class AssetLibrary {
 			
 			if (Reflect.hasField (asset, "className")) {
 				
-				classTypes.set (id, Type.resolveClass (Reflect.field (asset, "className")));
+				classRef = Type.resolveClass (Reflect.field (asset, "className"));
+				
+				#if (js && html5 && modular)
+				if (classRef == null) {
+					
+					classRef = untyped $hx_exports[asset.className];
+					
+				}
+				#end
+				
+				classTypes.set (id, classRef);
 				
 			}
 			

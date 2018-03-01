@@ -135,6 +135,36 @@ class NativeAudioSource {
 	
 	public function play ():Void {
 		
+		/*var pitch:Float = AL.getSourcef (handle, AL.PITCH);
+		trace(pitch);
+		AL.sourcef (handle, AL.PITCH, pitch*0.9);
+		pitch = AL.getSourcef (handle, AL.PITCH);
+		trace(pitch);*/
+		
+		/*var pos = getPosition();
+		trace(AL.DISTANCE_MODEL);
+		AL.distanceModel(AL.INVERSE_DISTANCE);
+		trace(AL.DISTANCE_MODEL);
+		AL.sourcef(handle, AL.ROLLOFF_FACTOR, 5);
+		setPosition(new Vector4(10, 10, -100));
+		pos = getPosition();
+		trace(pos);*/
+		
+		/*var filter = AL.createFilter();
+		trace(AL.getErrorString());
+		
+		AL.filteri(filter, AL.FILTER_TYPE, AL.FILTER_LOWPASS);
+		trace(AL.getErrorString());
+		
+		AL.filterf(filter, AL.LOWPASS_GAIN, 0.5);
+		trace(AL.getErrorString());
+		
+		AL.filterf(filter, AL.LOWPASS_GAINHF, 0.5);
+		trace(AL.getErrorString());
+		
+		AL.sourcei(handle, AL.DIRECT_FILTER, filter);
+		trace(AL.getErrorString());*/
+		
 		if (playing || handle == null) {
 			
 			return;
@@ -185,6 +215,8 @@ class NativeAudioSource {
 	
 	private function readVorbisFileBuffer (vorbisFile:VorbisFile, length:Int):UInt8Array {
 		
+		#if lime_vorbis
+		
 		var buffer = new UInt8Array (length);
 		var read = 0, total = 0, readMax;
 		
@@ -213,6 +245,12 @@ class NativeAudioSource {
 		}
 		
 		return buffer;
+		
+		#else
+		
+		return null;
+		
+		#end
 		
 	}
 	
@@ -384,7 +422,7 @@ class NativeAudioSource {
 			
 			AL.sourceStop (handle);
 			
-			parent.buffer.__srcVorbisFile.timeSeekPage ((value + parent.offset) / 1000);
+			parent.buffer.__srcVorbisFile.timeSeek ((value + parent.offset) / 1000);
 			AL.sourceUnqueueBuffers (handle, STREAM_NUM_BUFFERS);
 			refillBuffers (buffers);
 			
@@ -508,10 +546,13 @@ class NativeAudioSource {
 	
 	public function getPosition ():Vector4 {
 		
+		#if !emscripten
 		var value = AL.getSource3f (handle, AL.POSITION);
 		position.x = value[0];
 		position.y = value[1];
 		position.z = value[2];
+		#end
+		
 		return position;
 		
 	}

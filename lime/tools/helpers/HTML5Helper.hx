@@ -12,6 +12,7 @@ import lime.project.Asset;
 import lime.project.Haxelib;
 import lime.project.HXProject;
 import lime.project.Platform;
+import lime.project.Version;
 import sys.FileSystem;
 import sys.io.File;
 
@@ -23,6 +24,31 @@ import cpp.vm.Thread;
 
 
 class HTML5Helper {
+	
+	
+	public static function encodeSourceMappingURL (sourceFile:String) {
+		
+		// This is only required for projects with url-unsafe characters built with a Haxe version prior to 4.0.0
+		
+		var filename = Path.withoutDirectory (sourceFile);
+		
+		if (filename != StringTools.urlEncode (filename)) {
+			
+			var output = ProcessHelper.runProcess ("", "haxe", [ "-version" ], true, true, true, false, true);
+			var haxeVer:Version = StringTools.trim (output);
+			
+			if (haxeVer < ("4.0.0" : Version)) {
+				
+				var replaceString = "//# sourceMappingURL=" + filename + ".map";
+				var replacement = "//# sourceMappingURL=" + StringTools.urlEncode (filename) + ".map";
+				
+				FileHelper.replaceText (sourceFile, replaceString, replacement);
+				
+			}
+			
+		}
+		
+	}
 	
 	
 	public static function generateFontData (project:HXProject, font:Asset):String {
@@ -120,7 +146,7 @@ class HTML5Helper {
 			
 			var templatePaths = [ PathHelper.combine (PathHelper.getHaxelib (new Haxelib ("lime")), "templates") ].concat (project.templatePaths);
 			var node = PathHelper.findTemplate (templatePaths, "bin/node/node" + suffix);
-			var server = PathHelper.findTemplate (templatePaths, "bin/node/http-server/http-server");
+			var server = PathHelper.findTemplate (templatePaths, "bin/node/http-server/bin/http-server");
 			
 			if (PlatformHelper.hostPlatform != Platform.WINDOWS) {
 				
@@ -182,12 +208,24 @@ class HTML5Helper {
 			} else {
 				
 				var templatePaths = [ PathHelper.combine (PathHelper.getHaxelib (new Haxelib ("lime")), "templates") ].concat (project.templatePaths);
-				var args = [ "-Dapple.awt.UIElement=true", "-jar", PathHelper.findTemplate (templatePaths, "bin/compiler.jar"), "--js", sourceFile, "--js_output_file", tempFile ];
+				var args = [ "-Dapple.awt.UIElement=true", "-jar", PathHelper.findTemplate (templatePaths, "bin/compiler.jar"), "--strict_mode_input", "false", "--js", sourceFile, "--js_output_file", tempFile ];
 				
 				if (project.targetFlags.exists ("advanced")) {
 					
 					args.push ("--compilation_level");
 					args.push ("ADVANCED_OPTIMIZATIONS");
+					
+				}
+				
+				if (FileSystem.exists (sourceFile + ".map") || project.targetFlags.exists ("source-map")) {
+					
+					// if an input .js.map exists closure automatically detects it (from sourceMappingURL)
+					// --source_map_location_mapping adds file:// to paths (similarly to haxe's .js.map)
+					
+					args.push ("--create_source_map");
+					args.push (tempFile + ".map");
+					args.push ("--source_map_location_mapping");
+					args.push ("/|file:///");
 					
 				}
 				
@@ -198,6 +236,20 @@ class HTML5Helper {
 				}
 				
 				ProcessHelper.runCommand ("", "java", args);
+				
+				if (FileSystem.exists (tempFile + ".map")) {
+					
+					// closure does not include a sourceMappingURL in the created .js, we do it here
+					#if !nodejs
+					var f = File.append (tempFile);
+					f.writeString ("//# sourceMappingURL=" + StringTools.urlEncode (Path.withoutDirectory (sourceFile)) + ".map");
+					f.close ();
+					#end
+					
+					File.copy (tempFile + ".map", sourceFile + ".map");
+					FileSystem.deleteFile (tempFile + ".map");
+					
+				}
 				
 			}
 			

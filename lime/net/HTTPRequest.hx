@@ -2,6 +2,7 @@ package lime.net;
 
 
 import haxe.io.Bytes;
+import haxe.macro.Compiler;
 import lime.app.Event;
 import lime.app.Future;
 import lime.app.Promise;
@@ -40,6 +41,7 @@ private class AbstractHTTPRequest<T> implements _IHTTPRequest {
 	public var timeout:Int;
 	public var uri:String;
 	public var userAgent:String;
+	public var withCredentials:Bool;
 	
 	#if !display
 	private var backend:HTTPRequestBackend;
@@ -52,10 +54,12 @@ private class AbstractHTTPRequest<T> implements _IHTTPRequest {
 		
 		contentType = "application/x-www-form-urlencoded";
 		followRedirects = true;
+		enableResponseHeaders = false;
 		formData = new Map ();
 		headers = [];
 		method = GET;
-		timeout = 30000;
+		timeout = #if lime_default_timeout Std.parseInt (Compiler.getDefine ("lime-default-timeout")) #else 30000 #end;
+		withCredentials = false;
 		
 		#if !display
 		backend = new HTTPRequestBackend ();
@@ -187,6 +191,7 @@ interface _IHTTPRequest {
 	public var timeout:Int;
 	public var uri:String;
 	public var userAgent:String;
+	public var withCredentials:Bool;
 	
 	public function cancel ():Void;
 	

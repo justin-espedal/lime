@@ -162,6 +162,20 @@ class HTML5Application {
 				};
 			}
 			
+			if ('performance' in window == false) {
+				window.performance = {};
+			}
+			
+			if ('now' in window.performance == false) {
+				var offset = Date.now();
+				if (performance.timing && performance.timing.navigationStart) {
+					offset = performance.timing.navigationStart
+				}
+				window.performance.now = function now() {
+					return Date.now() - offset;
+				}
+			}
+			
 			var lastTime = 0;
 			var vendors = ['ms', 'moz', 'webkit', 'o'];
 			for (var x = 0; x < vendors.length && !window.requestAnimationFrame; ++x) {
@@ -248,7 +262,12 @@ class HTML5Application {
 				
 				parent.renderer.render ();
 				parent.renderer.onRender.dispatch ();
-				parent.renderer.flip ();
+				
+				if (!parent.renderer.onRender.canceled) {
+					
+					parent.renderer.flip ();
+					
+				}
 				
 			}
 			
@@ -348,7 +367,17 @@ class HTML5Application {
 				
 				case "beforeunload":
 					
-					parent.window.onClose.dispatch ();
+					if (!event.defaultPrevented) {
+						
+						parent.window.onClose.dispatch ();
+						
+						if (parent.window != null && parent.window.onClose.canceled) {
+							
+							event.preventDefault ();
+							
+						}
+						
+					}
 				
 			}
 			

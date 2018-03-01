@@ -1,6 +1,7 @@
 package lime.media;
 
 
+import haxe.crypto.Base64;
 import haxe.io.Bytes;
 import haxe.io.Path;
 import lime._backend.native.NativeCFFI;
@@ -10,6 +11,7 @@ import lime.media.codecs.vorbis.VorbisFile;
 import lime.media.openal.AL;
 import lime.media.openal.ALBuffer;
 import lime.net.HTTPRequest;
+import lime.utils.Log;
 import lime.utils.UInt8Array;
 
 #if howlerjs
@@ -52,6 +54,18 @@ class AudioBuffer {
 	@:noCompletion private var __srcVorbisFile:#if lime_vorbis VorbisFile #else Dynamic #end;
 	
 	
+	#if commonjs
+	private static function __init__ () {
+		
+		var p = untyped AudioBuffer.prototype;
+		untyped Object.defineProperties (p, {
+			"src": { get: p.get_src, set: p.set_src }
+		});
+		
+	}
+	#end
+	
+	
 	public function new () {
 		
 		
@@ -87,11 +101,78 @@ class AudioBuffer {
 	#end
 	
 	
+	public static function fromBase64 (base64String:String):AudioBuffer {
+		
+		if (base64String == null) return null;
+		
+		#if (js && html5 && howlerjs)
+		
+		// if base64String doesn't contain codec data, add it.
+		if (base64String.indexOf(",") == -1) {
+			
+			base64String = "data:" + __getCodec (Base64.decode (base64String)) + ";base64," + base64String;
+			
+		}
+		
+		var	audioBuffer = new AudioBuffer ();
+		audioBuffer.src = new Howl ({ src: [ base64String ], html5: true, preload: false });
+		return audioBuffer;
+		
+		#elseif lime_console
+		
+		lime.Lib.notImplemented ("AudioBuffer.fromBase64");
+		
+		#elseif (lime_cffi && !macro)
+		#if !cs
+		
+		// if base64String contains codec data, strip it then decode it.
+		var base64StringSplit = base64String.split (",");
+		var base64StringNoEncoding = base64StringSplit[base64StringSplit.length - 1];
+		var bytes: Bytes = Base64.decode (base64StringNoEncoding);
+		var audioBuffer = new AudioBuffer ();
+		audioBuffer.data = new UInt8Array (Bytes.alloc (0));
+		
+		return NativeCFFI.lime_audio_load (bytes, audioBuffer);
+		
+		#else
+		
+		// if base64String contains codec data, strip it then decode it.
+		var base64StringSplit = base64String.split (",");
+		var base64StringNoEncoding = base64StringSplit[base64StringSplit.length - 1];
+		var bytes: Bytes = Base64.decode (base64StringNoEncoding);
+		var data:Dynamic = NativeCFFI.lime_audio_load (bytes, null);
+		
+		if (data != null) {
+			
+			var audioBuffer = new AudioBuffer ();
+			audioBuffer.bitsPerSample = data.bitsPerSample;
+			audioBuffer.channels = data.channels;
+			audioBuffer.data = new UInt8Array (@:privateAccess new Bytes (data.data.length, data.data.b));
+			audioBuffer.sampleRate = data.sampleRate;
+			return audioBuffer;
+			
+		}
+		
+		#end
+		#end
+		
+		return null;
+		
+	}
+	
+	
 	public static function fromBytes (bytes:Bytes):AudioBuffer {
 		
 		if (bytes == null) return null;
 		
-		#if lime_console
+		#if (js && html5 && howlerjs)
+		
+		var	audioBuffer = new AudioBuffer ();
+		audioBuffer.src = new Howl ({ src: [ "data:" + __getCodec (bytes) + ";base64," + Base64.encode (bytes) ], html5: true, preload: false });
+		
+		return audioBuffer;
+		
+		#elseif lime_console
 		
 		lime.Lib.notImplemented ("AudioBuffer.fromBytes");
 		
@@ -133,7 +214,7 @@ class AudioBuffer {
 		#if (js && html5 && howlerjs)
 		
 		var audioBuffer = new AudioBuffer ();
-		audioBuffer.__srcHowl = new Howl ({ src: [ path ] });
+		audioBuffer.__srcHowl = new Howl ({ src: [ path ], preload: false });
 		return audioBuffer;
 		
 		#elseif flash
@@ -214,7 +295,7 @@ class AudioBuffer {
 		#if (js && html5 && howlerjs)
 		
 		var audioBuffer = new AudioBuffer ();
-		audioBuffer.__srcHowl = new Howl ({ src: paths });
+		audioBuffer.__srcHowl = new Howl ({ src: paths, preload: false });
 		return audioBuffer;
 		
 		#else
@@ -294,15 +375,15 @@ class AudioBuffer {
 			
 			if (audioBuffer != null) {
 				
-				audioBuffer.__srcHowl.on ("load", function () { 
+				audioBuffer.__srcHowl.on ("load", function () {
 					
 					promise.complete (audioBuffer);
 					
 				});
 				
-				audioBuffer.__srcHowl.on ("loaderror", function () {
+				audioBuffer.__srcHowl.on ("loaderror", function (id, msg) {
 					
-					promise.error (null);
+					promise.error (msg);
 					
 				});
 				
@@ -358,7 +439,7 @@ class AudioBuffer {
 		
 		if (audioBuffer != null) {
 			
-			audioBuffer.__srcHowl.on ("load", function () { 
+			audioBuffer.__srcHowl.on ("load", function () {
 				
 				promise.complete (audioBuffer);
 				
@@ -385,6 +466,32 @@ class AudioBuffer {
 		#end
 		
 		return promise.future;
+		
+	}
+	
+	
+	private static function __getCodec (bytes:Bytes):String {
+		
+		var signature = bytes.getString (0, 4);
+		
+		switch (signature) {
+			
+			case "OggS": return "audio/ogg";
+			case "fLaC": return "audio/flac";
+			case "RIFF" if (bytes.getString (8, 4) == "WAVE"): return "audio/wav";
+			default:
+				
+				switch ([bytes.get(0), bytes.get(1), bytes.get(2)]) {
+					
+					case [73, 68, 51] | [255, 251, _] | [255, 250, _]: return "audio/mp3";
+					default:
+					
+				}
+			
+		}
+		
+		Log.error ("Unsupported sound format");
+		return null;
 		
 	}
 	

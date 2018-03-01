@@ -643,7 +643,7 @@ class FlashHelper {
 			width : (project.window.width == 0 ? 800 : project.window.width), 
 			height : (project.window.height == 0 ? 500 : project.window.height), 
 			fps : project.window.fps * 256, 
-			nframes : 2
+			nframes : project.target == AIR ? 1 : 2
 		};
 		
 		var tags = new Array<SWFTag> ();
@@ -651,7 +651,12 @@ class FlashHelper {
 		var inserted = false;
 		
 		tags.push (TBackgroundColor (project.window.background));
-		tags.push (TShowFrame);
+		
+		if (project.target != AIR) {
+			
+			tags.push (TShowFrame);
+			
+		}
 		
 		// Might generate ABC later, so we don't need the @:bind calls in DefaultAssetLibrary?
 		
@@ -900,7 +905,8 @@ class FlashHelper {
 		
 		if (assets.length > 0) {
 			
-			project.haxeflags.push ("-swf-lib " + targetDirectory + "/obj/assets.swf");
+			project.haxeflags.push ("-cp " + targetDirectory);
+			project.haxeflags.push ("-swf-lib obj/assets.swf");
 			project.haxedefs.set ("flash-use-stage", "");
 			
 			return true;
@@ -973,7 +979,7 @@ class FlashHelper {
 			
 			var path = switch (PlatformHelper.hostPlatform) {
 				
-				case WINDOWS: PathHelper.escape (Sys.getEnv ("APPDATA") + "/Macromedia/Flash Player/Logs/flashlog.txt");
+				case WINDOWS: Sys.getEnv ("APPDATA") + "/Macromedia/Flash Player/Logs/flashlog.txt";
 				case MAC: Sys.getEnv ("HOME") + "/Library/Preferences/Macromedia/Flash Player/Logs/flashlog.txt";
 				default: Sys.getEnv ("HOME") + "/.macromedia/Flash_Player/Logs/flashlog.txt";
 				

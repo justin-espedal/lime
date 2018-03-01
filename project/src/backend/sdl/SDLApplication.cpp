@@ -48,6 +48,7 @@ namespace lime {
 		nextUpdate = 0;
 		
 		ApplicationEvent applicationEvent;
+		ClipboardEvent clipboardEvent;
 		DropEvent dropEvent;
 		GamepadEvent gamepadEvent;
 		JoystickEvent joystickEvent;
@@ -154,6 +155,11 @@ namespace lime {
 				WindowEvent::Dispatch (&windowEvent);
 				
 				inBackground = false;
+				break;
+			
+			case SDL_CLIPBOARDUPDATE:
+				
+				ProcessClipboardEvent (event);
 				break;
 			
 			case SDL_CONTROLLERAXISMOTION:
@@ -316,6 +322,19 @@ namespace lime {
 	}
 	
 	
+	void SDLApplication::ProcessClipboardEvent (SDL_Event* event) {
+		
+		if (ClipboardEvent::callback) {
+			
+			clipboardEvent.type = CLIPBOARD_UPDATE;
+			
+			ClipboardEvent::Dispatch (&clipboardEvent);
+			
+		}
+		
+	}
+	
+	
 	void SDLApplication::ProcessDropEvent (SDL_Event* event) {
 		
 		if (DropEvent::callback) {
@@ -434,7 +453,7 @@ namespace lime {
 						
 						joystickEvent.type = JOYSTICK_AXIS_MOVE;
 						joystickEvent.index = event->jaxis.axis;
-						joystickEvent.eventValue = event->jaxis.value / (event->jaxis.value > 0 ? 32767.0 : 32768.0);
+						joystickEvent.x = event->jaxis.value / (event->jaxis.value > 0 ? 32767.0 : 32768.0);
 						joystickEvent.id = event->jaxis.which;
 						
 						JoystickEvent::Dispatch (&joystickEvent);
@@ -448,8 +467,8 @@ namespace lime {
 						
 						joystickEvent.type = JOYSTICK_TRACKBALL_MOVE;
 						joystickEvent.index = event->jball.ball;
-						joystickEvent.x = event->jball.xrel;
-						joystickEvent.y = event->jball.yrel;
+						joystickEvent.x = event->jball.xrel / (event->jball.xrel > 0 ? 32767.0 : 32768.0);
+						joystickEvent.y = event->jball.yrel / (event->jball.yrel > 0 ? 32767.0 : 32768.0);
 						joystickEvent.id = event->jball.which;
 						
 						JoystickEvent::Dispatch (&joystickEvent);
@@ -489,7 +508,7 @@ namespace lime {
 						
 						joystickEvent.type = JOYSTICK_HAT_MOVE;
 						joystickEvent.index = event->jhat.hat;
-						joystickEvent.x = event->jhat.value;
+						joystickEvent.eventValue = event->jhat.value;
 						joystickEvent.id = event->jhat.which;
 						
 						JoystickEvent::Dispatch (&joystickEvent);
@@ -543,6 +562,22 @@ namespace lime {
 			keyEvent.keyCode = event->key.keysym.sym;
 			keyEvent.modifier = event->key.keysym.mod;
 			keyEvent.windowID = event->key.windowID;
+			
+			if (keyEvent.type == KEY_DOWN) {
+				
+				if (keyEvent.keyCode == SDLK_CAPSLOCK) keyEvent.modifier |= KMOD_CAPS;
+				if (keyEvent.keyCode == SDLK_LALT) keyEvent.modifier |= KMOD_LALT;
+				if (keyEvent.keyCode == SDLK_LCTRL) keyEvent.modifier |= KMOD_LCTRL;
+				if (keyEvent.keyCode == SDLK_LGUI) keyEvent.modifier |= KMOD_LGUI;
+				if (keyEvent.keyCode == SDLK_LSHIFT) keyEvent.modifier |= KMOD_LSHIFT;
+				if (keyEvent.keyCode == SDLK_MODE) keyEvent.modifier |= KMOD_MODE;
+				if (keyEvent.keyCode == SDLK_NUMLOCKCLEAR) keyEvent.modifier |= KMOD_NUM;
+				if (keyEvent.keyCode == SDLK_RALT) keyEvent.modifier |= KMOD_RALT;
+				if (keyEvent.keyCode == SDLK_RCTRL) keyEvent.modifier |= KMOD_RCTRL;
+				if (keyEvent.keyCode == SDLK_RGUI) keyEvent.modifier |= KMOD_RGUI;
+				if (keyEvent.keyCode == SDLK_RSHIFT) keyEvent.modifier |= KMOD_RSHIFT;
+				
+			}
 			
 			KeyEvent::Dispatch (&keyEvent);
 			

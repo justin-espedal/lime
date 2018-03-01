@@ -2,6 +2,7 @@ package lime.tools.helpers;
 
 
 import haxe.io.Path;
+import lime.project.Platform;
 import lime.tools.helpers.PathHelper;
 import lime.tools.helpers.ProcessHelper;
 import lime.project.Haxelib;
@@ -20,7 +21,80 @@ class IOSHelper {
 		
 		initialize (project);
 		
+		var commands = getXCodeArgs(project);
+		
+		if (project.targetFlags.exists("archive")) {
+			
+			var configuration = project.environment.get ("CONFIGURATION");
+			var platformName = project.environment.get ("PLATFORM_NAME");
+			
+			commands.push ("archive");
+			commands.push ("-scheme");
+			commands.push (project.app.file);
+			commands.push ("-archivePath");
+			commands.push (PathHelper.combine ("build", PathHelper.combine (configuration + "-" + platformName, project.app.file)));
+			
+		} else {
+			
+			commands.push ("build");
+			
+		}
+		
+		if (additionalArguments != null) {
+			
+			commands = commands.concat (additionalArguments);
+			
+		}
+		
+		ProcessHelper.runCommand (workingDirectory, "xcodebuild", commands);
+		
+	}
+	
+	
+	public static function deploy (project:HXProject, workingDirectory:String):Void {
+		
+		initialize (project);
+		
+		var commands = getXCodeArgs (project);
+		var archiveCommands = commands.concat ([]);
+		
+		// generate xcarchive
+		var configuration = project.environment.get ("CONFIGURATION");
+		var platformName = project.environment.get ("PLATFORM_NAME");
+		
+		archiveCommands.push ("archive");
+		archiveCommands.push ("-scheme");
+		archiveCommands.push (project.app.file);
+		archiveCommands.push ("-archivePath");
+		archiveCommands.push (PathHelper.combine ("build", PathHelper.combine (configuration + "-" + platformName, project.app.file)));
+		
+		ProcessHelper.runCommand (workingDirectory, "xcodebuild", archiveCommands);
+		
+		// generate IPA from xcarchive
+		var exportCommands = commands.concat ([]);
+		
+		var exportMethod = project.targetFlags.exists ("adhoc") ? "adhoc"
+			: project.targetFlags.exists ("development") ? "development"
+			: project.targetFlags.exists ("enterprise") ? "enterprise"
+			: "appstore";
+		
+		exportCommands.push ("-exportArchive");
+		exportCommands.push ("-archivePath");
+		exportCommands.push (PathHelper.combine ("build", PathHelper.combine (configuration + "-" + platformName, project.app.file + ".xcarchive")));
+		exportCommands.push ("-exportOptionsPlist");
+		exportCommands.push (PathHelper.combine (project.app.file, "exportOptions-" + exportMethod + ".plist"));
+		exportCommands.push ("-exportPath");
+		exportCommands.push (PathHelper.combine ("dist", exportMethod));
+		
+		ProcessHelper.runCommand (workingDirectory, "xcodebuild", exportCommands);
+		
+	}
+	
+	
+	private static function getXCodeArgs(project:HXProject):Array<String> {
+		
 		var platformName = "iphoneos";
+		var iphoneVersion = project.environment.get ("IPHONE_VER");
 		
 		if (project.targetFlags.exists ("simulator")) {
 			
@@ -36,14 +110,25 @@ class IOSHelper {
 			
 		}
 		
-		var iphoneVersion = project.environment.get ("IPHONE_VER");
-		var commands = [ "-configuration", configuration, "PLATFORM_NAME=" + platformName, "SDKROOT=" + platformName + iphoneVersion, "PATH=$PATH" ];
+		project.setenv ("PLATFORM_NAME", platformName);
+		project.setenv ("CONFIGURATION", configuration);
+		
+		// setting CONFIGURATION and PLATFORM_NAME in project.environment doesn't set them for xcodebuild so also pass via command line
+		var commands = [ "-configuration", configuration, "PLATFORM_NAME=" + platformName, "SDKROOT=" + platformName + iphoneVersion ];
 		
 		if (project.targetFlags.exists ("simulator")) {
 			
-			commands.push ("-arch");
-			//commands.push ("i386");
-			commands.push ("x86_64");
+			if (project.targetFlags.exists ("i386")) {
+				
+				commands.push ("-arch");
+				commands.push ("i386");
+				
+			} else {
+				
+				commands.push ("-arch");
+				commands.push ("x86_64");
+				
+			}
 			
 		} else if (project.targetFlags.exists ("armv7")) {
 			
@@ -65,17 +150,23 @@ class IOSHelper {
 		commands.push ("-project");
 		commands.push (project.app.file + ".xcodeproj");
 		
-		if (additionalArguments != null) {
-			
-			commands = commands.concat (additionalArguments);
-			
+		var xcodeVersions = getXcodeVersion()
+			.split(".")
+			.map(function (i:String) {
+				var ver = Std.parseInt(i);
+				return ver != null ? ver : 0;
+			});
+
+		if (xcodeVersions[0] >= 9) {
+			if (project.config.getBool('ios.allow-provisioning-updates', true)) {
+				commands.push("-allowProvisioningUpdates");
+			}
+			if (project.config.getBool('ios.allow-provisioning-device-registration', true)) {
+				commands.push("-allowProvisioningDeviceRegistration");
+			}
 		}
 
-		//XXX: this needs to be formatted so that $PATH is treated as a variable.
-		commands = commands.map(function(s) return s == "PATH=$PATH" ? s : StringTools.quoteUnixArg(s));
-		var cmd = ["xcodebuild"].concat(commands).join(" ");
-
-		ProcessHelper.runCommand (workingDirectory, cmd, null);
+		return commands;
 		
 	}
 	
@@ -112,7 +203,7 @@ class IOSHelper {
 		
 		if (!project.environment.exists ("IPHONE_VER") || project.environment.get ("IPHONE_VER") == "4.2") {
 			
-			if (!project.environment.exists ("DEVELOPER_DIR")) {
+			if (!project.environment.exists ("DEVELOPER_DIR") && PlatformHelper.hostPlatform == MAC) {
 				
 				var process = new Process ("xcode-select", [ "--print-path" ]);
 				var developerDir = process.stdout.readLine ();
@@ -168,16 +259,24 @@ class IOSHelper {
 	}
 	
 	
-	public static function getProvisioningFile ():String {
+	public static function getProvisioningFile (project:HXProject = null):String {
 		
-		var path = PathHelper.expand ("~/Library/MobileDevice/Provisioning Profiles");
-		var files = FileSystem.readDirectory (path);
-		
-		for (file in files) {
+		if (project != null && project.config.exists ("ios.provisioning-profile")) {
 			
-			if (Path.extension (file) == "mobileprovision") {
+			return PathHelper.tryFullPath (project.config.getString ("ios.provisioning-profile"));
+			
+		} else if (PlatformHelper.hostPlatform == Platform.MAC) {
+			
+			var path = PathHelper.expand ("~/Library/MobileDevice/Provisioning Profiles");
+			var files = FileSystem.readDirectory (path);
+			
+			for (file in files) {
 				
-				return path + "/" + file;
+				if (Path.extension (file) == "mobileprovision") {
+					
+					return path + "/" + file;
+					
+				}
 				
 			}
 			
@@ -317,7 +416,7 @@ class IOSHelper {
 			}
 			
 			waitForDeviceState ("xcrun", [ "simctl", "uninstall", currentDeviceID, project.meta.packageName ]);
-			waitForDeviceState ("xcrun", [ "simctl", "install", currentDeviceID, applicationPath ]);			
+			waitForDeviceState ("xcrun", [ "simctl", "install", currentDeviceID, applicationPath ]);
 			waitForDeviceState ("xcrun", [ "simctl", "launch", currentDeviceID, project.meta.packageName ]);
 			
 			ProcessHelper.runCommand ("", "tail", [ "-F", "~/Library/Logs/CoreSimulator/" + currentDeviceID + "/system.log"]);

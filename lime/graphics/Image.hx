@@ -23,7 +23,10 @@ import lime.math.Rectangle;
 import lime.math.Vector2;
 import lime.net.HTTPRequest;
 import lime.system.CFFI;
+import lime.system.Endian;
+import lime.system.System;
 import lime.utils.ArrayBuffer;
+import lime.utils.BytePointer;
 import lime.utils.Log;
 import lime.utils.UInt8Array;
 
@@ -107,6 +110,24 @@ class Image {
 	public var y:Float;
 	
 	
+	#if commonjs
+	private static function __init__ () {
+		
+		var p = untyped Image.prototype;
+		untyped Object.defineProperties (p, {
+			"data": { get: p.get_data, set: p.set_data },
+			"format": { get: p.get_format, set: p.set_format },
+			"powerOfTwo": { get: p.get_powerOfTwo, set: p.set_powerOfTwo },
+			"premultiplied": { get: p.get_premultiplied, set: p.set_premultiplied },
+			"rect": { get: p.get_rect },
+			"src": { get: p.get_src, set: p.set_src },
+			"transparent": { get: p.get_transparent, set: p.set_transparent }
+		});
+		
+	}
+	#end
+	
+	
 	public function new (buffer:ImageBuffer = null, offsetX:Int = 0, offsetY:Int = 0, width:Int = -1, height:Int = -1, color:Null<Int> = null, type:ImageType = null) {
 		
 		this.offsetX = offsetX;
@@ -118,27 +139,17 @@ class Image {
 		
 		if (type == null) {
 			
-			if (Application.current != null && Application.current.renderer != null) {
-				
-				this.type = switch (Application.current.renderer.context) {
-					
-					case DOM (_), CANVAS (_): CANVAS;
-					case FLASH (_): FLASH;
-					default: DATA;
-					
-				}
-				
-			} else {
-				
-				this.type = DATA;
-				
-			}
-			
-		} else {
-			
-			this.type = type;
+			#if (js && html5)
+			type = CANVAS;
+			#elseif flash
+			type = FLASH;
+			#else
+			type = DATA;
+			#end
 			
 		}
+		
+		this.type = type;
 		
 		if (buffer == null) {
 			
@@ -151,7 +162,7 @@ class Image {
 						this.buffer = new ImageBuffer (null, width, height);
 						ImageCanvasUtil.createCanvas (this, width, height);
 						
-						if (color != null) {
+						if (color != null && color != 0) {
 							
 							fillRect (new Rectangle (0, 0, width, height), color);
 							
@@ -161,7 +172,7 @@ class Image {
 						
 						this.buffer = new ImageBuffer (new UInt8Array (width * height * 4), width, height);
 						
-						if (color != null) {
+						if (color != null && color != 0) {
 							
 							fillRect (new Rectangle (0, 0, width, height), color);
 							
@@ -303,45 +314,49 @@ class Image {
 	
 	public function copyPixels (sourceImage:Image, sourceRect:Rectangle, destPoint:Vector2, alphaImage:Image = null, alphaPoint:Vector2 = null, mergeAlpha:Bool = false):Void {
 		
-		//fast fails -- if source or destination is null or of 0 dimensions, do nothing
 		if (buffer == null || sourceImage == null) return;
 		if (sourceRect.width <= 0 || sourceRect.height <= 0) return;
 		if (width <= 0 || height <= 0) return;
 		
-		//source rect expands too far right or too far below source image boundaries
 		if (sourceRect.x + sourceRect.width > sourceImage.width) sourceRect.width = sourceImage.width - sourceRect.x;
 		if (sourceRect.y + sourceRect.height > sourceImage.height) sourceRect.height = sourceImage.height - sourceRect.y;
 		
-		//source rect starts too far left or too far above source image boundaries
 		if (sourceRect.x < 0) {
-			sourceRect.width += sourceRect.x;	//shrink width by amount off canvas
-			sourceRect.x = 0;					//clamp rect to 0
-		}
-		if (sourceRect.y < 0) {
-			sourceRect.height += sourceRect.y;	//shrink height by amount off canvas
-			sourceRect.y = 0;					//clamp rect to 0
+			
+			sourceRect.width += sourceRect.x;
+			sourceRect.x = 0;
+			
 		}
 		
-		//draw area expands too far right or too far below destination image boundaries
+		if (sourceRect.y < 0) {
+			
+			sourceRect.height += sourceRect.y;
+			sourceRect.y = 0;
+			
+		}
+		
 		if (destPoint.x + sourceRect.width > width) sourceRect.width = width - destPoint.x;
 		if (destPoint.y + sourceRect.height > height) sourceRect.height = height - destPoint.y;
 		
-		//draw area starts too far left or too far above destination image boundaries
 		if (destPoint.x < 0) {
-			sourceRect.width += destPoint.x;	//shrink width by amount off canvas
-			sourceRect.x -= destPoint.x;		//adjust source rect to effective starting point
-			destPoint.x = 0;					//clamp destination point to 0
-		}
-		if (destPoint.y < 0) {
-			sourceRect.height += destPoint.y;	//shrink height by amount off canvas
-			sourceRect.y -= destPoint.y;		//adjust source rect to effective starting point
-			destPoint.y = 0;					//clamp destination point to 0
-		}
-		
-		// TODO: Optimize
-		
-		if (sourceImage == this) {
 			
+			sourceRect.width += destPoint.x;
+			sourceRect.x -= destPoint.x;
+			destPoint.x = 0;
+			
+		}
+		
+		if (destPoint.y < 0) {
+			
+			sourceRect.height += destPoint.y;
+			sourceRect.y -= destPoint.y;
+			destPoint.y = 0;
+			
+		}
+		
+		if (sourceImage == this && destPoint.x < sourceRect.right && destPoint.y < sourceRect.bottom) {
+			
+			// TODO: Optimize further?
 			sourceImage = clone ();
 			
 		}
@@ -350,14 +365,28 @@ class Image {
 			
 			case CANVAS:
 				
-				ImageCanvasUtil.convertToCanvas (this);
-				ImageCanvasUtil.copyPixels (this, sourceImage, sourceRect, destPoint, alphaImage, alphaPoint, mergeAlpha);
+				if (alphaImage != null || sourceImage.type != CANVAS) {
+					
+					ImageCanvasUtil.convertToData (this);
+					ImageCanvasUtil.convertToData (sourceImage);
+					if (alphaImage != null) ImageCanvasUtil.convertToData (alphaImage);
+					
+					ImageDataUtil.copyPixels (this, sourceImage, sourceRect, destPoint, alphaImage, alphaPoint, mergeAlpha);
+					
+				} else {
+
+					ImageCanvasUtil.convertToCanvas (this);
+					ImageCanvasUtil.convertToCanvas (sourceImage);
+					ImageCanvasUtil.copyPixels (this, sourceImage, sourceRect, destPoint, alphaImage, alphaPoint, mergeAlpha);
+					
+				}
 			
 			case DATA:
 				
 				#if (js && html5)
 				ImageCanvasUtil.convertToData (this);
 				ImageCanvasUtil.convertToData (sourceImage);
+				if (alphaImage != null) ImageCanvasUtil.convertToData (alphaImage);
 				#end
 				
 				ImageDataUtil.copyPixels (this, sourceImage, sourceRect, destPoint, alphaImage, alphaPoint, mergeAlpha);
@@ -1063,16 +1092,18 @@ class Image {
 	}
 	
 	
-	public function setPixels (rect:Rectangle, bytes:Bytes, format:PixelFormat = null):Void {
+	public function setPixels (rect:Rectangle, bytePointer:BytePointer, format:PixelFormat = null, endian:Endian = null):Void {
 		
 		rect = __clipRect (rect);
 		if (buffer == null || rect == null) return;
+		//if (endian == null) endian = System.endianness; // TODO: System endian order
+		if (endian == null) endian = BIG_ENDIAN;
 		
 		switch (type) {
 			
 			case CANVAS:
 				
-				ImageCanvasUtil.setPixels (this, rect, bytes, format);
+				ImageCanvasUtil.setPixels (this, rect, bytePointer, format, endian);
 			
 			case DATA:
 				
@@ -1080,7 +1111,7 @@ class Image {
 				ImageCanvasUtil.convertToData (this);
 				#end
 				
-				ImageDataUtil.setPixels (this, rect, bytes, format);
+				ImageDataUtil.setPixels (this, rect, bytePointer, format, endian);
 			
 			case FLASH:
 				
@@ -1093,8 +1124,9 @@ class Image {
 					case ARGB32: // do nothing
 					case BGRA32:
 						
-						var srcData:ByteArray = bytes.getData ();
+						var srcData:ByteArray = bytePointer.bytes.getData ();
 						byteArray = new ByteArray ();
+						byteArray.position = bytePointer.offset;
 						#if flash
 						byteArray.length = srcData.length;
 						#end
@@ -1114,8 +1146,9 @@ class Image {
 					
 					default:
 						
-						var srcData = bytes.getData ();
+						var srcData = bytePointer.bytes.getData ();
 						byteArray = new ByteArray ();
+						byteArray.position = bytePointer.offset;
 						#if flash
 						byteArray.length = srcData.length;
 						#end
@@ -1364,7 +1397,14 @@ class Image {
 		#if (js && html5)
 			
 			var image = new JSImage ();
-			image.crossOrigin = "Anonymous";
+			
+			#if !display
+			if (!HTML5HTTPRequest.__isSameOrigin (path)) {
+				
+				image.crossOrigin = "Anonymous";
+				
+			}
+			#end
 			
 			image.onload = function (_) {
 				
@@ -1468,7 +1508,7 @@ class Image {
 			}
 			#end
 			
-			#if format
+			#if (sys && format)
 			
 			else {
 				
@@ -1554,7 +1594,7 @@ class Image {
 	
 	private static function __isGIF (bytes:Bytes):Bool {
 		
-		if (bytes.length < 6) return false;
+		if (bytes == null || bytes.length < 6) return false;
 		
 		var header = bytes.getString (0, 6);
 		return (header == "GIF87a" || header == "GIF89a");
@@ -1564,7 +1604,7 @@ class Image {
 	
 	private static function __isJPG (bytes:Bytes):Bool {
 		
-		if (bytes.length < 4) return false;
+		if (bytes == null || bytes.length < 4) return false;
 		
 		return bytes.get (0) == 0xFF && bytes.get (1) == 0xD8 && bytes.get (bytes.length - 2) == 0xFF && bytes.get (bytes.length -1) == 0xD9;
 		
@@ -1573,6 +1613,8 @@ class Image {
 	
 	private static function __isPNG (bytes:Bytes):Bool {
 		
+		if (bytes == null || bytes.length < 8) return false;
+		
 		return (bytes.get (0) == 0x89 && bytes.get (1) == "P".code && bytes.get (2) == "N".code && bytes.get (3) == "G".code && bytes.get (4) == "\r".code && bytes.get (5) == "\n".code && bytes.get (6) == 0x1A && bytes.get (7) == "\n".code);
 		
 	}
@@ -1580,7 +1622,7 @@ class Image {
 	
 	private static function __isWebP (bytes:Bytes):Bool {
 		
-		if (bytes.length < 16) return false;
+		if (bytes == null || bytes.length < 16) return false;
 		
 		return (bytes.getString (0, 4) == "RIFF" && bytes.getString (8, 4) == "WEBP");
 		

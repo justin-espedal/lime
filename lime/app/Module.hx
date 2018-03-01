@@ -112,6 +112,7 @@ class Module implements IModule {
 		
 		Joystick.onConnect.add (__onJoystickConnect);
 		
+		Touch.onCancel.add (onTouchCancel);
 		Touch.onStart.add (onTouchStart);
 		Touch.onMove.add (onTouchMove);
 		Touch.onEnd.add (onTouchEnd);
@@ -173,6 +174,7 @@ class Module implements IModule {
 		
 		Gamepad.onConnect.remove (__onGamepadConnect);
 		Joystick.onConnect.remove (__onJoystickConnect);
+		Touch.onCancel.remove (onTouchCancel);
 		Touch.onStart.remove (onTouchStart);
 		Touch.onMove.remove (onTouchMove);
 		Touch.onEnd.remove (onTouchEnd);
@@ -273,9 +275,10 @@ class Module implements IModule {
 	 * Called when a joystick axis move event is fired
 	 * @param	joystick	The current joystick
 	 * @param	trackball	The trackball that was moved
-	 * @param	value	The trackball value (between 0 and 1)
+	 * @param	x	The x movement of the trackball (between 0 and 1)
+	 * @param	y	The y movement of the trackball (between 0 and 1)
 	 */
-	public function onJoystickTrackballMove (joystick:Joystick, trackball:Int, value:Float):Void { }
+	public function onJoystickTrackballMove (joystick:Joystick, trackball:Int, x:Float, y:Float):Void { }
 	
 	
 	/**
@@ -396,6 +399,13 @@ class Module implements IModule {
 	 * @param	text	The current input text
 	 */
 	public function onTextInput (window:Window, text:String):Void { }
+	
+	
+	/**
+	 * Called when a touch cancel event is fired
+	 * @param	touch	The current touch object
+	 */
+	public function onTouchCancel (touch:Touch):Void { }
 	
 	
 	/**

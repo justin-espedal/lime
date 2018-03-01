@@ -45,11 +45,11 @@ class AndroidHelper {
 		if (PlatformHelper.hostPlatform != Platform.WINDOWS) {
 			
 			ProcessHelper.runCommand ("", "chmod", [ "755", PathHelper.combine (projectDirectory, "gradlew") ]);
-			ProcessHelper.runCommand (projectDirectory, "./gradlew", [ task ]);
+			ProcessHelper.runCommand (projectDirectory, "./gradlew", task.split (" "));
 			
 		} else {
 			
-			ProcessHelper.runCommand (projectDirectory, "gradlew", [ task ]);
+			ProcessHelper.runCommand (projectDirectory, "gradlew", task.split (" "));
 			
 		}
 	}
@@ -126,6 +126,70 @@ class AndroidHelper {
 
 	}
 
+	
+	public static function getBuildToolsVersion (project:HXProject):String {
+		
+		var buildToolsPath = PathHelper.combine (project.environment.get ("ANDROID_SDK"), "build-tools/");
+		
+		var version = ~/^(\d+)\.(\d+)\.(\d+)$/i;
+		var current = { major : 0, minor : 0, micro : 0 };
+		
+		if (!FileSystem.exists (buildToolsPath)) {
+			
+			LogHelper.error ("Cannot find directory \"" + buildToolsPath + "\"");
+			
+		}
+		
+		for (buildTool in FileSystem.readDirectory (buildToolsPath)) {
+			
+			//gradle only likes simple version numbers (x.y.z)
+			
+			if (!version.match (buildTool)) {
+				
+				continue;
+				
+			}
+			
+			var newVersion = {
+				
+				major: Std.parseInt (version.matched (1)),
+				minor: Std.parseInt (version.matched (2)),
+				micro: Std.parseInt (version.matched (3))
+				
+			};
+			
+			if (newVersion.major != current.major) {
+				
+				if (newVersion.major > current.major) {
+					
+					current = newVersion;
+					
+				}
+				
+			} else if (newVersion.minor != current.minor) {
+				
+				if (newVersion.minor > current.minor) {
+					
+					current = newVersion;
+					
+				}
+				
+			} else {
+				
+				if (newVersion.micro > current.micro) {
+					
+					current = newVersion;
+					
+				}
+				
+			}
+			
+		}
+		
+		return '${current.major}.${current.minor}.${current.micro}';
+		
+	}
+	
 	
 	public static function getDeviceSDKVersion (deviceID:String):Int {
 		
@@ -419,7 +483,7 @@ class AndroidHelper {
 	}
 	
 	
-	public static function trace (project:HXProject, debug:Bool, deviceID:String = null):Void {
+	public static function trace (project:HXProject, debug:Bool, deviceID:String = null, customFilter:String = null):Void {
 		
 		// Use -DFULL_LOGCAT or  <set name="FULL_LOGCAT" /> if you do not want to filter log messages
 		
@@ -434,7 +498,11 @@ class AndroidHelper {
 			
 		}
 		
-		if (project.environment.exists("FULL_LOGCAT") || LogHelper.verbose) {
+		if (customFilter != null) {
+			
+			ProcessHelper.runCommand (adbPath, adbName, args.concat ([ customFilter ]));
+			
+		} else if (project.environment.exists("FULL_LOGCAT") || LogHelper.verbose) {
 			
 			ProcessHelper.runCommand (adbPath, adbName, args.concat ([ "-c" ]));
 			ProcessHelper.runCommand (adbPath, adbName, args);

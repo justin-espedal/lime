@@ -3,6 +3,7 @@
 
 
 #include <graphics/PixelFormat.h>
+#include <system/Endian.h>
 #include <stdint.h>
 #include <math.h>
 
@@ -19,7 +20,7 @@ namespace lime {
 		
 		for (int i = 0; i < 256; i++) {
 			
-			__alpha16[i] = ceil ((float)(i + 1) * ((1 << 16) / 0xFF)); 
+			__alpha16[i] = (int) ceil ((float)(i + 1) * ((1 << 16) / 0xFF)); 
 			
 		}
 		
@@ -110,23 +111,32 @@ namespace lime {
 			}
 			
 			
-			inline void ReadUInt8 (const unsigned char* data, int offset, PixelFormat format, bool premultiplied) {
+			inline void ReadUInt8 (const unsigned char* data, int offset, PixelFormat format, bool premultiplied, Endian endian) {
 				
 				switch (format) {
 					
 					case BGRA32:
 						
-						Set (data[offset + 2], data[offset + 1], data[offset], data[offset + 3]);
+						if (endian == LIME_LITTLE_ENDIAN)
+							Set (data[offset + 1], data[offset + 2], data[offset + 3], data[offset]);
+						else
+							Set (data[offset + 2], data[offset + 1], data[offset], data[offset + 3]);
 						break;
 					
 					case RGBA32:
 						
-						Set (data[offset], data[offset + 1], data[offset + 2], data[offset + 3]);
+						if (endian == LIME_LITTLE_ENDIAN)
+							Set (data[offset + 3], data[offset + 2], data[offset + 1], data[offset]);
+						else
+							Set (data[offset], data[offset + 1], data[offset + 2], data[offset + 3]);
 						break;
 					
 					case ARGB32:
 						
-						Set (data[offset + 1], data[offset + 2], data[offset + 3], data[offset]);
+						if (endian == LIME_LITTLE_ENDIAN)
+							Set (data[offset + 2], data[offset + 1], data[offset], data[offset + 3]);
+						else
+							Set (data[offset + 1], data[offset + 2], data[offset + 3], data[offset]);
 						break;
 					
 				}

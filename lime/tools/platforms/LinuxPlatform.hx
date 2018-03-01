@@ -6,14 +6,17 @@ import haxe.Template;
 import lime.tools.helpers.CPPHelper;
 import lime.tools.helpers.DeploymentHelper;
 import lime.tools.helpers.FileHelper;
+import lime.tools.helpers.JavaHelper;
 import lime.tools.helpers.LogHelper;
 import lime.tools.helpers.NekoHelper;
 import lime.tools.helpers.NodeJSHelper;
 import lime.tools.helpers.PathHelper;
 import lime.tools.helpers.PlatformHelper;
 import lime.tools.helpers.ProcessHelper;
+import lime.tools.helpers.WatchHelper;
 import lime.project.AssetType;
 import lime.project.Architecture;
+import lime.project.Haxelib;
 import lime.project.HXProject;
 import lime.project.Platform;
 import lime.project.PlatformTarget;
@@ -38,7 +41,7 @@ class LinuxPlatform extends PlatformTarget {
 		
 		for (architecture in project.architectures) {
 			
-			if (architecture == Architecture.X64) {
+			if (!targetFlags.exists ("32") && architecture == Architecture.X64) {
 				
 				is64 = true;
 				
@@ -65,13 +68,18 @@ class LinuxPlatform extends PlatformTarget {
 			
 			targetType = "nodejs";
 			
+		} else if (project.targetFlags.exists ("java")) {
+			
+			targetType = "java";
+			
 		} else {
 			
 			targetType = "cpp";
 			
 		}
 		
-		targetDirectory = project.app.path + "/linux" + (is64 ? "64" : "") + (isRaspberryPi ? "-rpi" : "") + "/" + targetType + "/" + buildType;
+		targetDirectory = PathHelper.combine (project.app.path, project.config.getString ("linux.output-directory", targetType == "cpp" ? "linux" : targetType));
+		targetDirectory = StringTools.replace (targetDirectory, "arch64", is64 ? "64" : "");
 		applicationDirectory = targetDirectory + "/bin/";
 		executablePath = PathHelper.combine (applicationDirectory, project.app.file);
 		
@@ -126,6 +134,29 @@ class LinuxPlatform extends PlatformTarget {
 			//NekoHelper.createExecutable (project.templatePaths, "linux" + (is64 ? "64" : ""), targetDirectory + "/obj/ApplicationMain.n", executablePath);
 			NekoHelper.copyLibraries (project.templatePaths, "linux" + (is64 ? "64" : ""), applicationDirectory);
 			
+		} else if (targetType == "java") {
+			
+			var libPath = PathHelper.combine (PathHelper.getHaxelib (new Haxelib ("lime")), "templates/java/lib/");
+			
+			ProcessHelper.runCommand ("", "haxe", [ hxml, "-java-lib", libPath + "disruptor.jar", "-java-lib", libPath + "lwjgl.jar" ]);
+			//ProcessHelper.runCommand ("", "haxe", [ hxml ]);
+			
+			if (noOutput) return;
+			
+			var haxeVersion = project.environment.get ("haxe_ver");
+			var haxeVersionString = "3404";
+			
+			if (haxeVersion.length > 4) {
+				
+				haxeVersionString = haxeVersion.charAt (0) + haxeVersion.charAt (2) + (haxeVersion.length == 5 ? "0" + haxeVersion.charAt (4) : haxeVersion.charAt (4) + haxeVersion.charAt (5));
+				
+			}
+			
+			ProcessHelper.runCommand (targetDirectory + "/obj", "haxelib", [ "run", "hxjava", "hxjava_build.txt", "--haxe-version", haxeVersionString ]);
+			FileHelper.recursiveCopy (targetDirectory + "/obj/lib", PathHelper.combine (applicationDirectory, "lib"));
+			FileHelper.copyFile (targetDirectory + "/obj/ApplicationMain" + (project.debug ? "-Debug" : "") + ".jar", PathHelper.combine (applicationDirectory, project.app.file + ".jar"));
+			JavaHelper.copyLibraries (project.templatePaths, "Linux" + (is64 ? "64" : ""), applicationDirectory);
+			
 		} else {
 			
 			var haxeArgs = [ hxml ];
@@ -136,6 +167,12 @@ class LinuxPlatform extends PlatformTarget {
 				haxeArgs.push ("-D");
 				haxeArgs.push ("HXCPP_M64");
 				flags.push ("-DHXCPP_M64");
+				
+			} else {
+				
+				haxeArgs.push ("-D");
+				haxeArgs.push ("HXCPP_M32");
+				flags.push ("-DHXCPP_M32");
 				
 			}
 			
@@ -164,7 +201,7 @@ class LinuxPlatform extends PlatformTarget {
 			
 		}
 		
-		if (PlatformHelper.hostPlatform != Platform.WINDOWS && targetType != "nodejs") {
+		if (PlatformHelper.hostPlatform != Platform.WINDOWS && (targetType != "nodejs" && targetType != "java")) {
 			
 			ProcessHelper.runCommand ("", "chmod", [ "755", executablePath ]);
 			
@@ -193,14 +230,7 @@ class LinuxPlatform extends PlatformTarget {
 	
 	public override function display ():Void {
 		
-		var hxml = PathHelper.findTemplate (project.templatePaths, targetType + "/hxml/" + buildType + ".hxml");
-		var template = new Template (File.getContent (hxml));
-		
-		var context = generateContext ();
-		context.OUTPUT_DIR = targetDirectory;
-		
-		Sys.println (template.execute (context));
-		Sys.println ("-D display");
+		Sys.println (getDisplayHXML ());
 		
 	}
 	
@@ -224,6 +254,19 @@ class LinuxPlatform extends PlatformTarget {
 		context.WIN_ALLOW_SHADERS = false;
 		
 		return context;
+		
+	}
+	
+	
+	private function getDisplayHXML ():String {
+		
+		var hxml = PathHelper.findTemplate (project.templatePaths, targetType + "/hxml/" + buildType + ".hxml");
+		var template = new Template (File.getContent (hxml));
+		
+		var context = generateContext ();
+		context.OUTPUT_DIR = targetDirectory;
+		
+		return template.execute (context) + "\n-D display";
 		
 	}
 	
@@ -270,6 +313,10 @@ class LinuxPlatform extends PlatformTarget {
 		if (targetType == "nodejs") {
 			
 			NodeJSHelper.run (project, targetDirectory + "/bin/ApplicationMain.js", arguments);
+			
+		} else if (targetType == "java") {
+			
+			ProcessHelper.runCommand (applicationDirectory, "java", [ "-jar", project.app.file + ".jar" ].concat (arguments));
 			
 		} else if (project.target == PlatformHelper.hostPlatform) {
 			
@@ -339,12 +386,12 @@ class LinuxPlatform extends PlatformTarget {
 		
 		//SWFHelper.generateSWFClasses (project, targetDirectory + "/haxe");
 		
-		FileHelper.recursiveCopyTemplate (project.templatePaths, "haxe", targetDirectory + "/haxe", context);
-		FileHelper.recursiveCopyTemplate (project.templatePaths, targetType + "/hxml", targetDirectory + "/haxe", context);
+		FileHelper.recursiveSmartCopyTemplate (project, "haxe", targetDirectory + "/haxe", context);
+		FileHelper.recursiveSmartCopyTemplate (project, targetType + "/hxml", targetDirectory + "/haxe", context);
 		
 		if (targetType == "cpp" && project.targetFlags.exists ("static")) {
 			
-			FileHelper.recursiveCopyTemplate (project.templatePaths, "cpp/static", targetDirectory + "/obj", context);
+			FileHelper.recursiveSmartCopyTemplate (project, "cpp/static", targetDirectory + "/obj", context);
 			
 		}
 		
@@ -370,6 +417,15 @@ class LinuxPlatform extends PlatformTarget {
 			}
 			
 		}
+		
+	}
+	
+	
+	public override function watch ():Void {
+		
+		var dirs = WatchHelper.processHXML (project, getDisplayHXML ());
+		var command = WatchHelper.getCurrentCommand ();
+		WatchHelper.watch (project, command, dirs);
 		
 	}
 	

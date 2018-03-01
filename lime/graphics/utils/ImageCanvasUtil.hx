@@ -9,6 +9,8 @@ import lime.graphics.PixelFormat;
 import lime.math.ColorMatrix;
 import lime.math.Rectangle;
 import lime.math.Vector2;
+import lime.system.Endian;
+import lime.utils.BytePointer;
 import lime.utils.UInt8Array;
 
 #if (js && html5)
@@ -178,6 +180,9 @@ class ImageCanvasUtil {
 		
 		if (sourceImage.buffer.src != null) {
 			
+			// Set default composition (just in case it is different)
+			image.buffer.__srcContext.globalCompositeOperation = "source-over";
+
 			image.buffer.__srcContext.drawImage (sourceImage.buffer.src, Std.int (sourceRect.x + sourceImage.offsetX), Std.int (sourceRect.y + sourceImage.offsetY), Std.int (sourceRect.width), Std.int (sourceRect.height), Std.int (destPoint.x + image.offsetX), Std.int (destPoint.y + image.offsetY), Std.int (sourceRect.width), Std.int (sourceRect.height));
 			
 		}
@@ -282,8 +287,18 @@ class ImageCanvasUtil {
 			
 		}
 		
-		image.buffer.__srcContext.fillStyle = 'rgba(' + r + ', ' + g + ', ' + b + ', ' + (a / 255) + ')';
-		image.buffer.__srcContext.fillRect (rect.x + image.offsetX, rect.y + image.offsetY, rect.width + image.offsetX, rect.height + image.offsetY);
+		if (a < 255) {
+			
+			image.buffer.__srcContext.clearRect (rect.x + image.offsetX, rect.y + image.offsetY, rect.width + image.offsetX, rect.height + image.offsetY);
+			
+		}
+		
+		if (a > 0) {
+			
+			image.buffer.__srcContext.fillStyle = 'rgba(' + r + ', ' + g + ', ' + b + ', ' + (a / 255) + ')';
+			image.buffer.__srcContext.fillRect (rect.x + image.offsetX, rect.y + image.offsetY, rect.width + image.offsetX, rect.height + image.offsetY);
+			
+		}
 		
 		image.dirty = true;
 		image.version++;
@@ -400,11 +415,11 @@ class ImageCanvasUtil {
 	}
 	
 	
-	public static function setPixels (image:Image, rect:Rectangle, bytes:Bytes, format:PixelFormat):Void {
+	public static function setPixels (image:Image, rect:Rectangle, bytePointer:BytePointer, format:PixelFormat, endian:Endian):Void {
 		
 		convertToData (image);
 		
-		ImageDataUtil.setPixels (image, rect, bytes, format);
+		ImageDataUtil.setPixels (image, rect, bytePointer, format, endian);
 		
 	}
 	

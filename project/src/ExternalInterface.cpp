@@ -22,6 +22,9 @@
 #include <media/AudioBuffer.h>
 #include <system/CFFIPointer.h>
 #include <system/Clipboard.h>
+#include <system/ClipboardEvent.h>
+#include <system/Endian.h>
+#include <system/FileWatcher.h>
 #include <system/JNI.h>
 #include <system/Locale.h>
 #include <system/SensorEvent.h>
@@ -58,6 +61,16 @@ namespace lime {
 		
 		Application* application = (Application*)val_data (handle);
 		delete application;
+		
+	}
+	
+	
+	void gc_file_watcher (value handle) {
+		
+		#ifdef LIME_EFSW
+		FileWatcher* watcher = (FileWatcher*)val_data (handle);
+		delete watcher;
+		#endif
 		
 	}
 	
@@ -272,6 +285,14 @@ namespace lime {
 	}
 	
 	
+	void lime_clipboard_event_manager_register (value callback, value eventObject) {
+		
+		ClipboardEvent::callback = new AutoGCRoot (callback);
+		ClipboardEvent::eventObject = new AutoGCRoot (eventObject);
+		
+	}
+	
+	
 	value lime_clipboard_get_text () {
 		
 		if (Clipboard::HasText ()) {
@@ -477,6 +498,51 @@ namespace lime {
 		#endif
 		
 		return alloc_null ();
+		
+	}
+	
+	
+	value lime_file_watcher_create (value callback) {
+		
+		#ifdef LIME_EFSW
+		FileWatcher* watcher = new FileWatcher (callback);
+		return CFFIPointer (watcher, gc_file_watcher);
+		#else
+		return alloc_null ();
+		#endif
+		
+	}
+	
+	
+	value lime_file_watcher_add_directory (value handle, value path, bool recursive) {
+		
+		#ifdef LIME_EFSW
+		FileWatcher* watcher = (FileWatcher*)val_data (handle);
+		return alloc_int (watcher->AddDirectory (val_string (path), recursive));
+		#else
+		return alloc_int (0);
+		#endif
+		
+		
+	}
+	
+	
+	void lime_file_watcher_remove_directory (value handle, value watchID) {
+		
+		#ifdef LIME_EFSW
+		FileWatcher* watcher = (FileWatcher*)val_data (handle);
+		watcher->RemoveDirectory (val_int (watchID));
+		#endif
+		
+	}
+	
+	
+	void lime_file_watcher_update (value handle) {
+		
+		#ifdef LIME_EFSW
+		FileWatcher* watcher = (FileWatcher*)val_data (handle);
+		watcher->Update ();
+		#endif
 		
 	}
 	
@@ -969,15 +1035,17 @@ namespace lime {
 	}
 	
 	
-	void lime_image_data_util_set_pixels (value image, value rect, value bytes, int format) {
+	void lime_image_data_util_set_pixels (value image, value rect, value bytes, int offset, int format, int endian) {
 		
 		Image _image = Image (image);
 		Rectangle _rect = Rectangle (rect);
 		Bytes _bytes (bytes);
 		PixelFormat _format = (PixelFormat)format;
-		ImageDataUtil::SetPixels (&_image, &_rect, &_bytes, _format);
+		Endian _endian = (Endian)endian;
+		ImageDataUtil::SetPixels (&_image, &_rect, &_bytes, offset, _format, _endian);
 		
 	}
+	
 	
 	int lime_image_data_util_threshold (value image, value sourceImage, value sourceRect, value destPoint, int operation, int thresholdRG, int thresholdBA, int colorRG, int colorBA, int maskRG, int maskBA, bool copySource) {
 		
@@ -1376,6 +1444,44 @@ namespace lime {
 	}
 	
 	
+	value lime_system_get_device_model () {
+		
+		std::wstring* model = System::GetDeviceModel ();
+		
+		if (model) {
+			
+			value result = alloc_wstring (model->c_str ());
+			delete model;
+			return result;
+			
+		} else {
+			
+			return alloc_null ();
+			
+		}
+		
+	}
+	
+	
+	value lime_system_get_device_vendor () {
+		
+		std::wstring* vendor = System::GetDeviceVendor ();
+		
+		if (vendor) {
+			
+			value result = alloc_wstring (vendor->c_str ());
+			delete vendor;
+			return result;
+			
+		} else {
+			
+			return alloc_null ();
+			
+		}
+		
+	}
+	
+	
 	value lime_system_get_directory (int type, HxString company, HxString title) {
 		
 		std::wstring* path = System::GetDirectory ((SystemDirectory)type, company.c_str (), title.c_str ());
@@ -1420,9 +1526,77 @@ namespace lime {
 	}
 	
 	
+	value lime_system_get_platform_label () {
+		
+		std::wstring* label = System::GetPlatformLabel ();
+		
+		if (label) {
+			
+			value result = alloc_wstring (label->c_str ());
+			delete label;
+			return result;
+			
+		} else {
+			
+			return alloc_null ();
+			
+		}
+		
+	}
+	
+	
+	value lime_system_get_platform_name () {
+		
+		std::wstring* name = System::GetPlatformName ();
+		
+		if (name) {
+			
+			value result = alloc_wstring (name->c_str ());
+			delete name;
+			return result;
+			
+		} else {
+			
+			return alloc_null ();
+			
+		}
+		
+	}
+	
+	
+	value lime_system_get_platform_version () {
+		
+		std::wstring* version = System::GetPlatformVersion ();
+		
+		if (version) {
+			
+			value result = alloc_wstring (version->c_str ());
+			delete version;
+			return result;
+			
+		} else {
+			
+			return alloc_null ();
+			
+		}
+		
+	}
+	
+	
 	double lime_system_get_timer () {
 		
 		return System::GetTimer ();
+		
+	}
+	
+	
+	int lime_system_get_windows_console_mode (int handleType) {
+		
+		#ifdef HX_WINDOWS
+		return System::GetWindowsConsoleMode (handleType);
+		#else
+		return 0;
+		#endif
 		
 	}
 	
@@ -1448,6 +1622,17 @@ namespace lime {
 	bool lime_system_set_allow_screen_timeout (bool allow) {
 		
 		return System::SetAllowScreenTimeout (allow);
+		
+	}
+	
+	
+	bool lime_system_set_windows_console_mode (int handleType, int mode) {
+		
+		#ifdef HX_WINDOWS
+		return System::SetWindowsConsoleMode (handleType, mode);
+		#else
+		return false;
+		#endif
 		
 	}
 	
@@ -1793,6 +1978,7 @@ namespace lime {
 	DEFINE_PRIME2 (lime_bytes_read_file);
 	DEFINE_PRIME1 (lime_cffi_get_native_pointer);
 	DEFINE_PRIME1 (lime_cffi_set_finalizer);
+	DEFINE_PRIME2v (lime_clipboard_event_manager_register);
 	DEFINE_PRIME0 (lime_clipboard_get_text);
 	DEFINE_PRIME1v (lime_clipboard_set_text);
 	DEFINE_PRIME2 (lime_data_pointer_offset);
@@ -1803,6 +1989,10 @@ namespace lime {
 	DEFINE_PRIME3 (lime_file_dialog_open_file);
 	DEFINE_PRIME3 (lime_file_dialog_open_files);
 	DEFINE_PRIME3 (lime_file_dialog_save_file);
+	DEFINE_PRIME1 (lime_file_watcher_create);
+	DEFINE_PRIME3 (lime_file_watcher_add_directory);
+	DEFINE_PRIME2v (lime_file_watcher_remove_directory);
+	DEFINE_PRIME1v (lime_file_watcher_update);
 	DEFINE_PRIME1 (lime_font_get_ascender);
 	DEFINE_PRIME1 (lime_font_get_descender);
 	DEFINE_PRIME1 (lime_font_get_family_name);
@@ -1836,7 +2026,7 @@ namespace lime {
 	DEFINE_PRIME1v (lime_image_data_util_multiply_alpha);
 	DEFINE_PRIME4v (lime_image_data_util_resize);
 	DEFINE_PRIME2v (lime_image_data_util_set_format);
-	DEFINE_PRIME4v (lime_image_data_util_set_pixels);
+	DEFINE_PRIME6v (lime_image_data_util_set_pixels);
 	DEFINE_PRIME12 (lime_image_data_util_threshold);
 	DEFINE_PRIME1v (lime_image_data_util_unmultiply_alpha);
 	DEFINE_PRIME4 (lime_image_encode);
@@ -1878,14 +2068,21 @@ namespace lime {
 	DEFINE_PRIME2v (lime_render_event_manager_register);
 	DEFINE_PRIME2v (lime_sensor_event_manager_register);
 	DEFINE_PRIME0 (lime_system_get_allow_screen_timeout);
+	DEFINE_PRIME0 (lime_system_get_device_model);
+	DEFINE_PRIME0 (lime_system_get_device_vendor);
 	DEFINE_PRIME3 (lime_system_get_directory);
 	DEFINE_PRIME1 (lime_system_get_display);
 	DEFINE_PRIME0 (lime_system_get_ios_tablet);
 	DEFINE_PRIME0 (lime_system_get_num_displays);
+	DEFINE_PRIME0 (lime_system_get_platform_label);
+	DEFINE_PRIME0 (lime_system_get_platform_name);
+	DEFINE_PRIME0 (lime_system_get_platform_version);
 	DEFINE_PRIME0 (lime_system_get_timer);
+	DEFINE_PRIME1 (lime_system_get_windows_console_mode);
 	DEFINE_PRIME1v (lime_system_open_file);
 	DEFINE_PRIME2v (lime_system_open_url);
 	DEFINE_PRIME1 (lime_system_set_allow_screen_timeout);
+	DEFINE_PRIME2 (lime_system_set_windows_console_mode);
 	DEFINE_PRIME2v (lime_text_event_manager_register);
 	DEFINE_PRIME3 (lime_text_layout_create);
 	DEFINE_PRIME5 (lime_text_layout_position);

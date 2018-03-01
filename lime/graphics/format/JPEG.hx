@@ -13,6 +13,14 @@ import lime.utils.UInt8Array;
 import js.Browser;
 #end
 
+#if format
+import format.jpg.Data;
+import format.jpg.Writer;
+import format.tools.Deflate;
+import haxe.io.Bytes;
+import haxe.io.BytesOutput;
+#end
+
 #if !lime_debug
 @:fileXml('tags="haxe,release"')
 @:noDebug
@@ -90,6 +98,8 @@ class JPEG {
 		#if java
 		
 		#elseif (sys && (!disable_cffi || !format) && !macro)
+		
+		if (CFFI.enabled) {
 			
 			#if !cs
 			return NativeCFFI.lime_image_encode (image.buffer, 1, quality, Bytes.alloc (0));
@@ -98,14 +108,47 @@ class JPEG {
 			return @:privateAccess new Bytes (data.length, data.b);
 			#end
 			
-		#elseif (js && html5)
+		}
+		#end
 		
+		#if ((!js || !html5) && format)
+		
+		#if (sys && (!disable_cffi || !format) && !macro) else #end {
+			
+			try {
+				
+				var buffer = image.buffer.data.buffer;
+				
+				var data:Data = {
+					width: image.width,
+					height: image.height,
+					quality: quality,
+					pixels: #if js Bytes.ofData (buffer) #else buffer #end
+				};
+				
+				var output = new BytesOutput ();
+				var jpeg = new Writer (output);
+				jpeg.write (data);
+				
+				return output.getBytes ();
+				
+			} catch (e:Dynamic) { }
+			
+		}
+		
+		#elseif js
+		
+		image.type = CANVAS;
 		ImageCanvasUtil.sync (image, false);
 		
 		if (image.buffer.__srcCanvas != null) {
 			
 			var data = image.buffer.__srcCanvas.toDataURL ("image/jpeg", quality / 100);
+			#if nodejs
+			var buffer = new js.node.Buffer ((data.split (";base64,")[1]:String), "base64").toString ("binary");
+			#else
 			var buffer = Browser.window.atob (data.split (";base64,")[1]);
+			#end
 			var bytes = Bytes.alloc (buffer.length);
 			
 			for (i in 0...buffer.length) {

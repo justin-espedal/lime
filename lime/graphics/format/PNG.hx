@@ -6,6 +6,7 @@ import lime._backend.native.NativeCFFI;
 import lime.graphics.utils.ImageCanvasUtil;
 import lime.graphics.Image;
 import lime.system.CFFI;
+import lime.utils.compress.Zlib;
 import lime.utils.UInt8Array;
 
 #if (js && html5)
@@ -15,7 +16,7 @@ import js.Browser;
 #if format
 import format.png.Data;
 import format.png.Writer;
-import format.tools.Deflate;
+// import format.tools.Deflate;
 import haxe.io.Bytes;
 import haxe.io.BytesOutput;
 #end
@@ -110,9 +111,9 @@ class PNG {
 		}
 		#end
 		
-		#if (!html5 && format)
+		#if ((!js || !html5) && format)
 		
-		else {
+		#if (sys && (!disable_cffi || !format) && !macro) else #end {
 			
 			try {
 				
@@ -133,7 +134,7 @@ class PNG {
 				
 				var data = new List ();
 				data.add (CHeader ({ width: image.width, height: image.height, colbits: 8, color: ColTrue (true), interlaced: false }));
-				data.add (CData (Deflate.run (bytes)));
+				data.add (CData (Zlib.compress (bytes)));
 				data.add (CEnd);
 				
 				var output = new BytesOutput ();
@@ -146,14 +147,19 @@ class PNG {
 			
 		}
 		
-		#elseif (js && html5)
+		#elseif js
 		
+		image.type = CANVAS;
 		ImageCanvasUtil.sync (image, false);
 		
 		if (image.buffer.__srcCanvas != null) {
 			
 			var data = image.buffer.__srcCanvas.toDataURL ("image/png");
+			#if nodejs
+			var buffer = new js.node.Buffer ((data.split (";base64,")[1]:String), "base64").toString ("binary");
+			#else
 			var buffer = Browser.window.atob (data.split (";base64,")[1]);
+			#end
 			var bytes = Bytes.alloc (buffer.length);
 			
 			for (i in 0...buffer.length) {

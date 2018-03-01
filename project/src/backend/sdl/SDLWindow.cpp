@@ -28,6 +28,10 @@ namespace lime {
 		if (flags & WINDOW_FLAG_MINIMIZED) sdlFlags |= SDL_WINDOW_MINIMIZED;
 		if (flags & WINDOW_FLAG_MAXIMIZED) sdlFlags |= SDL_WINDOW_MAXIMIZED;
 		
+		#ifndef EMSCRIPTEN
+		if (flags & WINDOW_FLAG_ALWAYS_ON_TOP) sdlFlags |= SDL_WINDOW_ALWAYS_ON_TOP;
+		#endif
+		
 		#if defined (HX_WINDOWS) && defined (NATIVE_TOOLKIT_SDL_ANGLE)
 		OSVERSIONINFOEXW osvi = { sizeof (osvi), 0, 0, 0, 0, {0}, 0, 0 };
 		DWORDLONG const dwlConditionMask = VerSetConditionMask (VerSetConditionMask (VerSetConditionMask (0, VER_MAJORVERSION, VER_GREATER_EQUAL), VER_MINORVERSION, VER_GREATER_EQUAL), VER_SERVICEPACKMAJOR, VER_GREATER_EQUAL);
@@ -66,6 +70,11 @@ namespace lime {
 			SDL_SetHint (SDL_HINT_RENDER_DRIVER, "opengles2");
 			#endif
 			
+			#if defined (IPHONE) || defined (APPLETV)
+			SDL_GL_SetAttribute (SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_ES);
+			SDL_GL_SetAttribute (SDL_GL_CONTEXT_MAJOR_VERSION, 3);
+			#endif
+			
 			if (flags & WINDOW_FLAG_DEPTH_BUFFER) {
 				
 				SDL_GL_SetAttribute (SDL_GL_DEPTH_SIZE, 32 - (flags & WINDOW_FLAG_STENCIL_BUFFER) ? 8 : 0);
@@ -90,13 +99,35 @@ namespace lime {
 				
 			}
 			
-			SDL_GL_SetAttribute (SDL_GL_RED_SIZE, 5);
-			SDL_GL_SetAttribute (SDL_GL_GREEN_SIZE, 6);
-			SDL_GL_SetAttribute (SDL_GL_BLUE_SIZE, 5);
+			if (flags & WINDOW_FLAG_COLOR_DEPTH_32_BIT) {
+				
+				SDL_GL_SetAttribute (SDL_GL_RED_SIZE, 8);
+				SDL_GL_SetAttribute (SDL_GL_GREEN_SIZE, 8);
+				SDL_GL_SetAttribute (SDL_GL_BLUE_SIZE, 8);
+				SDL_GL_SetAttribute (SDL_GL_ALPHA_SIZE, 8);
+				
+			} else {
+				
+				SDL_GL_SetAttribute (SDL_GL_RED_SIZE, 5);
+				SDL_GL_SetAttribute (SDL_GL_GREEN_SIZE, 6);
+				SDL_GL_SetAttribute (SDL_GL_BLUE_SIZE, 5);
+				
+			}
 			
 		}
 		
 		sdlWindow = SDL_CreateWindow (title, SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, width, height, sdlFlags);
+		
+		#if defined (IPHONE) || defined (APPLETV)
+		if (sdlWindow && !SDL_GL_CreateContext (sdlWindow)) {
+			
+			SDL_DestroyWindow (sdlWindow);
+			SDL_GL_SetAttribute (SDL_GL_CONTEXT_MAJOR_VERSION, 2);
+			
+			sdlWindow = SDL_CreateWindow (title, SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, width, height, sdlFlags);
+			
+		}
+		#endif
 		
 		if (!sdlWindow) {
 			
@@ -104,7 +135,7 @@ namespace lime {
 			
 		}
 		
-		((SDLApplication*)currentApplication)->RegisterWindow (this);
+		//((SDLApplication*)currentApplication)->RegisterWindow (this);
 		
 		#ifdef HX_WINDOWS
 		
@@ -119,7 +150,12 @@ namespace lime {
 			if (SDL_GetWindowWMInfo (sdlWindow, &wminfo) == 1) {
 				
 				HWND hwnd = wminfo.info.win.window;
+				
+				#ifdef _WIN64
+				::SetClassLongPtr (hwnd, GCLP_HICON, reinterpret_cast<LONG_PTR>(icon));
+				#else
 				::SetClassLong (hwnd, GCL_HICON, reinterpret_cast<LONG>(icon));
+				#endif
 				
 			}
 			

@@ -41,6 +41,12 @@ class FileHelper {
 			"bmp" => IMAGE,
 			"tiff" => IMAGE,
 			"jfif" => IMAGE,
+			"otf" => FONT,
+			"ttf" => FONT,
+			"wav" => SOUND,
+			"wave" => SOUND,
+			"mp3" => MUSIC,
+			"mp2" => MUSIC,
 			"exe" => BINARY,
 			"bin" => BINARY,
 			"so" => BINARY,
@@ -53,7 +59,9 @@ class FileHelper {
 			"swf" => BINARY,
 			"atf" => BINARY,
 			"psd" => BINARY,
+			"awd" => BINARY,
 			"txt" => TEXT,
+			"text" => TEXT,
 			"xml" => TEXT,
 			"java" => TEXT,
 			"hx" => TEXT,
@@ -185,7 +193,7 @@ class FileHelper {
 			
 			if (_isText) {
 				
-				LogHelper.info ("", " - \x1b[1mCopying template file:\x1b[0m " + source + " \x1b[3;37m->\x1b[0m " + destination);
+				//LogHelper.info ("", " - \x1b[1mProcessing template file:\x1b[0m " + source + " \x1b[3;37m->\x1b[0m " + destination);
 				
 				var fileContents:String = File.getContent (source);
 				var template:Template = new Template (fileContents);
@@ -197,9 +205,22 @@ class FileHelper {
 				
 				try {
 					
-					var fileOutput:FileOutput = File.write (destination, true);
-					fileOutput.writeString (result);
-					fileOutput.close ();
+					if (FileSystem.exists (destination)) {
+						
+						var existingContent = File.getContent (destination);
+						if (result == existingContent) return;
+						
+					}
+					
+				} catch (e:Dynamic) {}
+				
+				PathHelper.mkdir (Path.directory (destination));
+				
+				LogHelper.info ("", " - \x1b[1mCopying template file:\x1b[0m " + source + " \x1b[3;37m->\x1b[0m " + destination);
+				
+				try {
+					
+					File.saveContent (destination, result);
 					
 				} catch (e:Dynamic) {
 					
@@ -218,9 +239,9 @@ class FileHelper {
 	}
 	
 	
-	public static function copyFileTemplate (templatePaths:Array<String>, source:String, destination:String, context:Dynamic = null, process:Bool = true) {
+	public static function copyFileTemplate (templatePaths:Array<String>, source:String, destination:String, context:Dynamic = null, process:Bool = true, warnIfNotFound:Bool = true) {
 		
-		var path = PathHelper.findTemplate (templatePaths, source);
+		var path = PathHelper.findTemplate (templatePaths, source, warnIfNotFound);
 		
 		if (path != null) {
 			
@@ -232,7 +253,7 @@ class FileHelper {
 	
 	
 	public static function copyIfNewer (source:String, destination:String) {
-      
+		
 		//allFiles.push (destination);
 		
 		if (!isNewer (source, destination)) {
@@ -416,13 +437,64 @@ class FileHelper {
 	}
 	
 	
-	public static function recursiveCopyTemplate (templatePaths:Array<String>, source:String, destination:String, context:Dynamic = null, process:Bool = true, warnIfNotFound:Bool = true) {
+	public static function recursiveCopyTemplate (templatePaths:Array<String> = null, source:String, destination:String, context:Dynamic = null, process:Bool = true, warnIfNotFound:Bool = true) {
 		
-		var paths = PathHelper.findTemplates (templatePaths, source, warnIfNotFound);
+		var destinations = [];
+		var paths = PathHelper.findTemplateRecursive (templatePaths, source, warnIfNotFound, destinations);
 		
-		for (path in paths) {
+		if (paths != null) {
 			
-			recursiveCopy (path, destination, context, process);
+			PathHelper.mkdir (destination);
+			var itemDestination;
+			
+			for (i in 0...paths.length) {
+				
+				itemDestination = PathHelper.combine (destination, destinations[i]);
+				copyFile (paths[i], itemDestination, context, process);
+				
+			}
+			
+		}
+		
+	}
+	
+	
+	public static function recursiveSmartCopyTemplate (project:HXProject, source:String, destination:String, context:Dynamic = null, process:Bool = true, warnIfNotFound:Bool = true) {
+		
+		var destinations = [];
+		var paths = PathHelper.findTemplateRecursive (project.templatePaths, source, warnIfNotFound, destinations);
+		
+		if (paths != null) {
+			
+			PathHelper.mkdir (destination);
+			var itemDestination;
+			
+			for (i in 0...paths.length) {
+				
+				itemDestination = PathHelper.combine (destination, PathHelper.substitutePath (project, destinations[i]));
+				copyFile (paths[i], itemDestination, context, process);
+				
+			}
+			
+		}
+		
+	}
+	
+	
+	public static function replaceText (source:String, replaceString:String, replacement:String) {
+		
+		if (FileSystem.exists (source)) {
+			
+			var output = File.getContent (source);
+			
+			var index = output.indexOf (replaceString);
+			
+			if (index > -1) {
+				
+				output = output.substr (0, index) + replacement + output.substr (index + replaceString.length);
+				File.saveContent (source, output);
+				
+			}
 			
 		}
 		

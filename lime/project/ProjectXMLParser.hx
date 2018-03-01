@@ -7,10 +7,12 @@ import lime.tools.helpers.ArrayHelper;
 import lime.tools.helpers.CommandHelper;
 import lime.tools.helpers.HaxelibHelper;
 import lime.tools.helpers.LogHelper;
+import lime.tools.helpers.ModuleHelper;
 import lime.tools.helpers.ObjectHelper;
 import lime.tools.helpers.PathHelper;
 import lime.tools.helpers.PlatformHelper;
 import lime.tools.helpers.StringMapHelper;
+import lime.tools.helpers.StringHelper;
 import lime.project.Asset;
 import lime.project.AssetType;
 import lime.project.Dependency;
@@ -66,45 +68,71 @@ class ProjectXMLParser extends HXProject {
 			
 			case MOBILE:
 				
+				defines.set ("platformType", "mobile");
 				defines.set ("mobile", "1");
 			
 			case DESKTOP:
 				
+				defines.set ("platformType", "desktop");
 				defines.set ("desktop", "1");
 			
 			case WEB:
 				
+				defines.set ("platformType", "web");
 				defines.set ("web", "1");
 			
 			case CONSOLE:
 				
+				defines.set ("platformType", "console");
 				defines.set ("console", "1");
 			
 		}
 		
 		if (targetFlags.exists ("neko")) {
 			
+			defines.set ("targetType", "neko");
 			defines.set ("native", "1");
 			defines.set ("neko", "1");
 			
 		} else if (targetFlags.exists ("java")) {
 			
+			defines.set ("targetType", "java");
 			defines.set ("native", "1");
 			defines.set ("java", "1");
 			
 		} else if (targetFlags.exists ("nodejs")) {
 			
+			defines.set ("targetType", "nodejs");
 			defines.set ("native", "1");
 			defines.set ("nodejs", "1");
 			
 		} else if (targetFlags.exists ("cs")) {
 			
+			defines.set ("targetType", "cs");
 			defines.set ("native", "1");
 			defines.set ("cs", "1");
 			
 		} else if (target == Platform.FIREFOX) {
 			
+			defines.set ("targetType", "js");
 			defines.set ("html5", "1");
+			
+		} else if (target == Platform.AIR) {
+			
+			defines.set ("targetType", "swf");
+			defines.set ("flash", "1");
+			if (targetFlags.exists("ios")) defines.set ("ios", "1");
+			if (targetFlags.exists("android")) defines.set ("android", "1");
+			
+		} else if (target == Platform.WINDOWS && (targetFlags.exists ("uwp") || targetFlags.exists ("winjs"))) {
+			
+			targetFlags.set ("uwp", "");
+			targetFlags.set ("winjs", "");
+			
+			defines.set ("targetType", "js");
+			defines.set ("html5", "1");
+			defines.set ("uwp", "1");
+			defines.set ("winjs", "1");
 			
 		} else if (platformType == DESKTOP && target != PlatformHelper.hostPlatform) {
 			
@@ -112,32 +140,42 @@ class ProjectXMLParser extends HXProject {
 			
 			if (target == Platform.WINDOWS) {
 				
+				defines.set ("targetType", "cpp");
 				defines.set ("cpp", "1");
 				defines.set ("mingw", "1");
 				
 			} else {
 				
+				defines.set ("targetType", "neko");
 				defines.set ("neko", "1");
 				
 			}
 			
 		} else if (targetFlags.exists ("cpp") || ((platformType != PlatformType.WEB) && !targetFlags.exists ("html5")) || target == Platform.EMSCRIPTEN) {
 			
+			defines.set ("targetType", "cpp");
 			defines.set ("native", "1");
 			defines.set ("cpp", "1");
+			
+		} else if (target == Platform.FLASH) {
+			
+			defines.set ("targetType", "swf");
 			
 		}
 		
 		if (debug) {
 			
+			defines.set ("buildType", "debug");
 			defines.set ("debug", "1");
 			
 		} else if (targetFlags.exists ("final")) {
 			
+			defines.set ("buildType", "final");
 			defines.set ("final", "1");
 			
 		} else {
 			
+			defines.set ("buildType", "release");
 			defines.set ("release", "1");
 			
 		}
@@ -156,6 +194,16 @@ class ProjectXMLParser extends HXProject {
 		
 		defines.set (Std.string (target).toLowerCase (), "1");
 		defines.set ("target", Std.string (target).toLowerCase ());
+		defines.set ("platform", defines.get ("target"));
+		
+		switch (PlatformHelper.hostPlatform) {
+			
+			case WINDOWS: defines.set ("host", "windows");
+			case MAC: defines.set ("host", "mac");
+			case LINUX: defines.set ("host", "linux");
+			default: defines.set ("host", "unknown");
+			
+		}
 		
 	}
 	
@@ -223,7 +271,12 @@ class ProjectXMLParser extends HXProject {
 					
 					required = substitute (required);
 					var check = StringTools.trim (required);
-					if (check != "" && !defines.exists (check) && (environment == null || !environment.exists (check)) && check != command) {
+					
+					if (check == "false") {
+						
+						matchRequired = false;
+						
+					} else if (check != "" && check != "true" && !defines.exists (check) && (environment == null || !environment.exists (check)) && check != command) {
 						
 						matchRequired = false;
 						
@@ -368,6 +421,21 @@ class ProjectXMLParser extends HXProject {
 	}
 	
 	
+	public static function fromFile (path:String, defines:Map<String, Dynamic> = null, includePaths:Array<String> = null, useExtensionPath:Bool = false):ProjectXMLParser {
+		
+		if (path == null) return null;
+		
+		if (FileSystem.exists (path)) {
+			
+			return new ProjectXMLParser (path, defines, includePaths, useExtensionPath);
+			
+		}
+		
+		return null;
+		
+	}
+	
+	
 	private function parseAppElement (element:Fast, extensionPath:String):Void {
 		
 		for (attribute in element.x.attributes ()) {
@@ -475,7 +543,21 @@ class ProjectXMLParser extends HXProject {
 			
 		} else if (element.has.type) {
 			
-			type = Reflect.field (AssetType, substitute (element.att.type).toUpperCase ());
+			var typeName = substitute (element.att.type);
+			
+			if (Reflect.hasField (AssetType, typeName.toUpperCase ())) {
+				
+				type = Reflect.field (AssetType, typeName.toUpperCase ());
+				
+			} else if (typeName == "bytes") {
+				
+				type = AssetType.BINARY;
+				
+			} else {
+				
+				LogHelper.warn ("Ignoring unknown asset type \"" + typeName + "\"");
+				
+			}
 			
 		}
 		
@@ -501,7 +583,7 @@ class ProjectXMLParser extends HXProject {
 				
 			}
 			
-			if (!FileSystem.isDirectory (path) || Path.extension (path) == "bundle") {
+			if (!FileSystem.isDirectory (path)) {
 				
 				var asset = new Asset (path, targetPath, type, embed);
 				asset.library = library;
@@ -519,6 +601,31 @@ class ProjectXMLParser extends HXProject {
 				}
 				
 				assets.push (asset);
+				
+			} else if (Path.extension (path) == "bundle") {
+				
+				var includePath = findIncludeFile (path);
+				
+				if (includePath != null && includePath != "" && FileSystem.exists (includePath) && !FileSystem.isDirectory (includePath)) {
+					
+					var includeProject = new ProjectXMLParser (includePath, defines);
+					merge (includeProject);
+					return;
+					
+				} else {
+					
+					var asset = new Asset (path, targetPath, type, embed);
+					asset.library = library;
+					
+					if (element.has.id) {
+						
+						asset.id = substitute (element.att.id);
+						
+					}
+					
+					assets.push (asset);
+					
+				}
 				
 			} else {
 				
@@ -686,20 +793,6 @@ class ProjectXMLParser extends HXProject {
 	
 	private function parseAssetsElementDirectory (path:String, targetPath:String, include:String, exclude:String, type:AssetType, embed:Null<Bool>, library:String, glyphs:String, recursive:Bool):Void {
 		
-		if (StringTools.endsWith (path, ".bundle")) {
-			
-			var includePath = findIncludeFile (path);
-			
-			if (includePath != null && includePath != "" && FileSystem.exists (includePath) && !FileSystem.isDirectory (includePath)) {
-				
-				var includeProject = new ProjectXMLParser (includePath, defines);
-				merge (includeProject);
-				return;
-				
-			}
-			
-		}
-		
 		var files = FileSystem.readDirectory (path);
 		
 		if (targetPath != "") {
@@ -745,6 +838,53 @@ class ProjectXMLParser extends HXProject {
 	private function parseBool (attribute:String):Bool {
 		
 		return substitute (attribute) == "true";
+		
+	}
+	
+	
+	private function parseCommandElement (element:Fast, commandList:Array<CLICommand>):Void {
+		
+		var command:CLICommand = null;
+		
+		if (element.has.haxe) {
+			
+			command = CommandHelper.interpretHaxe (substitute (element.att.haxe));
+			
+		}
+		
+		if (element.has.open) {
+			
+			command = CommandHelper.openFile (substitute (element.att.open));
+			
+		}
+		
+		if (element.has.command) {
+			
+			command = CommandHelper.fromSingleString (substitute (element.att.command));
+			
+		}
+		
+		if (element.has.cmd) {
+			
+			command = CommandHelper.fromSingleString (substitute (element.att.cmd));
+			
+		}
+		
+		if (command != null) {
+			
+			for (arg in element.elements) {
+				
+				if (arg.name == "arg") {
+					
+					command.args.push (arg.innerData);
+					
+				}
+				
+			}
+			
+			commandList.push (command);
+			
+		}
 		
 	}
 	
@@ -820,63 +960,36 @@ class ProjectXMLParser extends HXProject {
 		
 		switch (element.name) {
 			
-			case "module":
+			case "module" | "source":
 				
-				if (element.has.source) {
+				var sourceAttribute = (element.name == "module" ? "source" : "path");
+				
+				if (element.has.resolve (sourceAttribute)) {
 					
-					var source = PathHelper.combine (basePath, substitute (element.att.source));
-					
-					if (!FileSystem.exists (source)) {
-						
-						LogHelper.error ("Could not find module source \"" + source + "\"");
-						return;
-						
-					}
-					
-					moduleData.haxeflags.push ("-cp " + source);
-					
-					var path = source;
+					var source = PathHelper.combine (basePath, substitute (element.att.resolve (sourceAttribute)));
+					var packageName = "";
 					
 					if (element.has.resolve ("package")) {
 						
-						path = PathHelper.combine (source, StringTools.replace (substitute (element.att.resolve ("package")), ".", "/"));
+						packageName = element.att.resolve ("package");
 						
 					}
 					
-					parseModuleElementSource (source, moduleData, include.split ("|"), exclude.split ("|"), path);
-					
-				}
-			
-			case "source":
-				
-				if (element.has.path) {
-					
-					var source = PathHelper.combine (basePath, substitute (element.att.path));
-					
-					if (!FileSystem.exists (source)) {
-						
-						LogHelper.error ("Could not find module source \"" + source + "\"");
-						return;
-						
-					}
-					
-					moduleData.haxeflags.push ("-cp " + source);
-					
-					var path = source;
-					
-					if (element.has.resolve ("package")) {
-						
-						path = PathHelper.combine (source, StringTools.replace (substitute (element.att.resolve ("package")), ".", "/"));
-						
-					}
-					
-					parseModuleElementSource (source, moduleData, include.split ("|"), exclude.split ("|"), path);
+					ModuleHelper.addModuleSource (source, moduleData, include.split ("|"), exclude.split ("|"), packageName);
 					
 				}
 			
 			case "class":
 				
-				moduleData.classNames.push (substitute (element.att.name));
+				if (element.has.remove) {
+					
+					moduleData.classNames.remove (substitute (element.att.remove));
+					
+				} else {
+					
+					moduleData.classNames.push (substitute (element.att.name));
+					
+				}
 			
 			case "haxedef":
 				
@@ -929,44 +1042,6 @@ class ProjectXMLParser extends HXProject {
 	}
 	
 	
-	private function parseModuleElementSource (source:String, moduleData:ModuleData, include:Array<String>, exclude:Array<String>, currentPath:String):Void {
-		
-		var files = FileSystem.readDirectory (currentPath);
-		var filePath, className;
-		
-		for (file in files) {
-			
-			filePath = PathHelper.combine (currentPath, file);
-			
-			if (FileSystem.isDirectory (filePath)) {
-				
-				parseModuleElementSource (source, moduleData, include, exclude, filePath);
-				
-			} else {
-				
-				if (Path.extension (file) != "hx") continue;
-				
-				className = StringTools.replace (filePath, source, "");
-				className = StringTools.replace (className, "\\", "/");
-				
-				while (StringTools.startsWith (className, "/")) className = className.substr (1);
-				
-				className = StringTools.replace (className, "/", ".");
-				className = StringTools.replace (className, ".hx", "");
-				
-				if (filter (className, include, exclude)) {
-					
-					moduleData.classNames.push (className);
-					
-				}
-				
-			}
-			
-		}
-		
-	}
-	
-	
 	private function parseOutputElement (element:Fast, extensionPath:String):Void {
 		
 		if (element.has.name) {
@@ -990,55 +1065,8 @@ class ProjectXMLParser extends HXProject {
 	}
 	
 	
-	private function parseCommandElement (element:Fast, commandList:Array<CLICommand>):Void {
-		
-		var command:CLICommand = null;
-		
-		if (element.has.haxe) {
-			
-			command = CommandHelper.interpretHaxe (substitute (element.att.haxe));
-			
-		}
-		
-		if (element.has.open) {
-			
-			command = CommandHelper.openFile (substitute (element.att.open));
-			
-		}
-		
-		if (element.has.command) {
-			
-			command = CommandHelper.fromSingleString (substitute (element.att.command));
-			
-		}
-		
-		if (element.has.cmd) {
-			
-			command = CommandHelper.fromSingleString (substitute (element.att.cmd));
-			
-		}
-		
-		if (command != null) {
-			
-			for (arg in element.elements) {
-				
-				if (arg.name == "arg") {
-					
-					command.args.push (arg.innerData);
-					
-				}
-				
-			}
-			
-			commandList.push (command);
-			
-		}
-		
-	}
-	
-	
 	private function parseXML (xml:Fast, section:String, extensionPath:String = ""):Void {
-		
+
 		for (element in xml.elements) {
 			
 			var isValid = isValidElement (element, section);
@@ -1107,6 +1135,8 @@ class ProjectXMLParser extends HXProject {
 						defines.set (name, value);
 						environment.set (name, value);
 						setenv (name, value);
+						
+						if (needRerun) return;
 					
 					case "error":
 						
@@ -1162,16 +1192,6 @@ class ProjectXMLParser extends HXProject {
 							
 						}
 						
-						/*if (defines.get ("HOST") == "windows") {
-							
-							Sys.putEnv ("PATH", value + ";" + Sys.getEnv ("PATH"));
-							
-						} else {
-							
-							Sys.putEnv ("PATH", value + ":" + Sys.getEnv ("PATH"));
-							
-						}*/
-						
 						path (value);
 					
 					case "include":
@@ -1183,7 +1203,7 @@ class ProjectXMLParser extends HXProject {
 						if (element.has.haxelib) {
 							
 							haxelib = new Haxelib (substitute (element.att.haxelib));
-							path = findIncludeFile (PathHelper.getHaxelib (haxelib, true));
+							path = findIncludeFile (HaxelibHelper.getPath (haxelib, true));
 							addSourcePath = false;
 							
 						} else if (element.has.path) {
@@ -1223,7 +1243,7 @@ class ProjectXMLParser extends HXProject {
 								
 								if (dir != "") {
 									
-									includeProject.sources.push (dir);
+									includeProject.sources.unshift (dir);
 									
 								}
 								
@@ -1275,6 +1295,14 @@ class ProjectXMLParser extends HXProject {
 					
 					case "haxelib":
 						
+						if (element.has.repository) {
+							
+							setenv ("HAXELIB_PATH", PathHelper.combine (Sys.getCwd (), element.att.repository));
+							if (needRerun) return;
+							continue;
+							
+						}
+						
 						var name = substitute (element.att.name);
 						var version = "";
 						var optional = false;
@@ -1298,24 +1326,24 @@ class ProjectXMLParser extends HXProject {
 							
 						}
 						
-						/*if (name == "nme" && defines.exists ("openfl")) {
-							
-							name = "openfl-nme-compatibility";
-							version = "";
-							
-						}*/
-						
 						var haxelib = new Haxelib (name, version);
+						
+						if (version != "" && defines.exists (name) && !haxelib.versionMatches (defines.get (name))) {
+							
+							LogHelper.warn ("Ignoring requested haxelib \"" + name + "\" version \"" + version + "\" (version \"" + defines.get (name) + "\" was already included)");
+							continue;
+							
+						}
 						
 						if (path == null) {
 							
 							if (defines.exists ("setup")) {
 								
-								path = PathHelper.getHaxelib (haxelib);
+								path = HaxelibHelper.getPath (haxelib);
 								
 							} else {
 								
-								path = PathHelper.getHaxelib (haxelib, !optional);
+								path = HaxelibHelper.getPath (haxelib, !optional);
 								
 								if (optional && path == "") {
 									
@@ -1331,11 +1359,11 @@ class ProjectXMLParser extends HXProject {
 							
 							if (version != "") {
 								
-								PathHelper.haxelibOverrides.set (name + ":" + version, path);
+								HaxelibHelper.pathOverrides.set (name + ":" + version, path);
 								
 							} else {
 								
-								PathHelper.haxelibOverrides.set (name, path);
+								HaxelibHelper.pathOverrides.set (name, path);
 								
 							}
 							
@@ -1343,7 +1371,7 @@ class ProjectXMLParser extends HXProject {
 						
 						if (!defines.exists (haxelib.name)) {
 							
-							defines.set (haxelib.name, HaxelibHelper.getVersion (haxelib));
+							defines.set (haxelib.name, Std.string (HaxelibHelper.getVersion (haxelib)));
 							
 						}
 						
@@ -1392,18 +1420,6 @@ class ProjectXMLParser extends HXProject {
 							haxelib = new Haxelib (config.getString ("cpp.buildLibrary", "hxcpp"));
 							
 						}
-						
-						/*if (haxelib != null && haxelib.name == "nme" && !defines.exists ("nme")) {
-							
-							haxelib = new Haxelib ("lime");
-							
-						}
-						
-						if (name == "nme" && !defines.exists ("nme")) {
-							
-							name = "lime";
-							
-						}*/
 						
 						if (element.has.type) {
 							
@@ -1679,7 +1695,7 @@ class ProjectXMLParser extends HXProject {
 							
 							if (element.has.haxelib) {
 								
-								var haxelibPath = PathHelper.getHaxelib (new Haxelib (substitute (element.att.haxelib)), true);
+								var haxelibPath = HaxelibHelper.getPath (new Haxelib (substitute (element.att.haxelib)), true);
 								var path = PathHelper.combine (haxelibPath, substitute (element.att.path));
 								templatePaths.push (path);
 								
@@ -1717,7 +1733,7 @@ class ProjectXMLParser extends HXProject {
 					
 					case "output":
 						
-						// deprecated?
+						// deprecated
 						
 						parseOutputElement (element, extensionPath);
 					
@@ -1838,6 +1854,8 @@ class ProjectXMLParser extends HXProject {
 					
 					case "android":
 						
+						// deprecated
+						
 						for (attribute in element.x.attributes ()) {
 							
 							var name = attribute;
@@ -1870,8 +1888,6 @@ class ProjectXMLParser extends HXProject {
 										config.push ("android.extension", value);
 										
 									}
-									
-									//ArrayHelper.addUnique (config.android.extensions, value);
 								
 								case "permission":
 									
@@ -1882,8 +1898,6 @@ class ProjectXMLParser extends HXProject {
 										config.push ("android.permission", value);
 										
 									}
-									
-									//ArrayHelper.addUnique (config.android.permissions, value);
 								
 								case "gradle-version":
 									
@@ -1892,18 +1906,14 @@ class ProjectXMLParser extends HXProject {
 								default:
 									
 									name = formatAttributeName (attribute);
-									
-									//if (Reflect.hasField (config.android, name)) {
-										
-										//Reflect.setField (config.android, name, value);
-										
-									//}
 								
 							}
 							
 						}
 					
 					case "cpp":
+						
+						// deprecated
 						
 						for (attribute in element.x.attributes ()) {
 							
@@ -1919,18 +1929,14 @@ class ProjectXMLParser extends HXProject {
 								default:
 									
 									name = formatAttributeName (attribute);
-									
-									///if (Reflect.hasField (config.android, name)) {
-										
-										//Reflect.setField (config.android, name, value);
-										
-									//}
 								
 							}
 							
 						}
 					
 					case "ios":
+						
+						// deprecated
 						
 						if (target == Platform.IOS) {
 							
@@ -1988,13 +1994,14 @@ class ProjectXMLParser extends HXProject {
 							if (element.has.resolve ("linker-flags")) {
 								
 								config.push ("ios.linker-flags", substitute (element.att.resolve ("linker-flags")));
-								//config.ios.linkerFlags.push (substitute (element.att.resolve ("linker-flags")));
 								
 							}
 							
 						}
-
+					
 					case "tvos":
+						
+						// deprecated
 						
 						if (target == Platform.TVOS) {
 							
@@ -2041,15 +2048,14 @@ class ProjectXMLParser extends HXProject {
 							if (element.has.resolve ("linker-flags")) {
 								
 								config.push ("tvos.linker-flags", substitute (element.att.resolve ("linker-flags")));
-								//config.ios.linkerFlags.push (substitute (element.att.resolve ("linker-flags")));
 								
 							}
 							
 						}
 					
-					case "config": 
+					case "config":
 						
-						config.parse (element);
+						config.parse (element, substitute);
 					
 					case "prebuild":
 						
@@ -2063,7 +2069,7 @@ class ProjectXMLParser extends HXProject {
 						
 						if (StringTools.startsWith (element.name, "config:")) {
 							
-							config.parse (element);
+							config.parse (element, substitute);
 							
 						}
 					
@@ -2153,6 +2159,14 @@ class ProjectXMLParser extends HXProject {
 						
 					}
 				
+				case "color-depth":
+					
+					if (Reflect.hasField (windows[id], "colorDepth")) {
+						
+						Reflect.setField (windows[id], "colorDepth", Std.parseInt (value));
+						
+					}
+				
 				default:
 					
 					if (Reflect.hasField (windows[id], name)) {
@@ -2193,109 +2207,19 @@ class ProjectXMLParser extends HXProject {
 	}
 	
 	
-	private function replaceVariable (string:String):String {
-		
-		if (string.substr (0, 8) == "haxelib:") {
-			
-			var path = PathHelper.getHaxelib (new Haxelib (string.substr (8)), true);
-			return PathHelper.standardize (path);
-			
-		} else if (defines.exists (string)) {
-			
-			return defines.get (string);
-			
-		} else if (environment != null && environment.exists (string)) {
-			
-			return environment.get (string);
-			
-		} else {
-			
-			var substring = StringTools.replace (string, " ", "");
-			var index, value;
-			
-			if (substring.indexOf ("==") > -1) {
-				
-				index = substring.indexOf ("==");
-				value = replaceVariable (substring.substr (0, index));
-				
-				return Std.string (value == substring.substr (index + 2));
-				
-			} else if (substring.indexOf ("!=") > -1) {
-				
-				index = substring.indexOf ("!=");
-				value = replaceVariable (substring.substr (0, index));
-				
-				return Std.string (value != substring.substr (index + 2));
-				
-			} else if (substring.indexOf ("<=") > -1) {
-				
-				index = substring.indexOf ("<=");
-				value = replaceVariable (substring.substr (0, index));
-				
-				return Std.string (value <= substring.substr (index + 2));
-				
-			} else if (substring.indexOf ("<") > -1) {
-				
-				index = substring.indexOf ("<");
-				value = replaceVariable (substring.substr (0, index));
-				
-				return Std.string (value < substring.substr (index + 1));
-				
-			} else if (substring.indexOf (">=") > -1) {
-				
-				index = substring.indexOf (">=");
-				value = replaceVariable (substring.substr (0, index));
-				
-				return Std.string (value >= substring.substr (index + 2));
-				
-			} else if (substring.indexOf (">") > -1) {
-				
-				index = substring.indexOf (">");
-				value = replaceVariable (substring.substr (0, index));
-				
-				return Std.string (value > substring.substr (index + 1));
-				
-			} else if (substring.indexOf (".") > -1) {
-				
-				var index = substring.indexOf (".");
-				var fieldName = substring.substr (0, index);
-				var subField = substring.substr (index + 1);
-				
-				if (Reflect.hasField (this, fieldName)) {
-					
-					var field = Reflect.field (this, fieldName);
-					
-					if (Reflect.hasField (field, subField)) {
-						
-						return Std.string (Reflect.field (field, subField));
-						
-					}
-					
-				}
-				
-				
-			}
-			
-		}
-		
-		return string;
-		
-	}
-	
-	
 	private function substitute (string:String):String {
 		
 		var newString = string;
 		
 		while (doubleVarMatch.match (newString)) {
 			
-			newString = doubleVarMatch.matchedLeft () + "${" + replaceVariable (doubleVarMatch.matched (1)) + "}" + doubleVarMatch.matchedRight ();
+			newString = doubleVarMatch.matchedLeft () + "${" + StringHelper.replaceVariable (this, doubleVarMatch.matched (1)) + "}" + doubleVarMatch.matchedRight ();
 			
 		}
 		
 		while (varMatch.match (newString)) {
 			
-			newString = varMatch.matchedLeft () + replaceVariable (varMatch.matched (1)) + varMatch.matchedRight ();
+			newString = varMatch.matchedLeft () + StringHelper.replaceVariable (this, varMatch.matched (1)) + varMatch.matchedRight ();
 			
 		}
 		

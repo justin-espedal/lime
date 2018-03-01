@@ -4,8 +4,10 @@ package lime.tools.helpers;
 import haxe.io.Path;
 import lime.tools.helpers.LogHelper;
 import lime.tools.helpers.ProcessHelper;
+import lime.tools.helpers.StringHelper;
 import lime.project.Architecture;
 import lime.project.Haxelib;
+import lime.project.HXProject;
 import lime.project.NDLL;
 import lime.project.Platform;
 import sys.io.Process;
@@ -15,9 +17,8 @@ import sys.FileSystem;
 class PathHelper {
 	
 	
-	public static var haxelibOverrides = new Map<String, String> ();
-	
-	private static var haxelibPaths = new Map<String, String> ();
+	//private static var doubleVarMatch = new EReg ("\\$\\${(.*?)}", "");
+	private static var varMatch = new EReg ("{{(.*?)}}", "");
 	
 	
 	public static function combine (firstPath:String, secondPath:String):String {
@@ -85,6 +86,8 @@ class PathHelper {
 			
 			path = StringTools.replace (path, "^,", ",");
 			path = StringTools.replace (path, ",", "^,");
+			path = StringTools.replace (path, "^ ", " ");
+			path = StringTools.replace (path, " ", "^ ");
 			
 		}
 		
@@ -131,6 +134,90 @@ class PathHelper {
 	}
 	
 	
+	public static function findTemplateRecursive (templatePaths:Array<String>, path:String, warnIfNotFound:Bool = true, destinationPaths:Array<String> = null):Array<String> {
+		
+		var paths = findTemplates (templatePaths, path, warnIfNotFound);
+		if (paths.length == 0) return null;
+		
+		try {
+			
+			if (FileSystem.isDirectory (paths[0])) {
+				
+				var templateFiles = new Array<String> ();
+				var templateMatched = new Map<String, Bool> ();
+				
+				paths.reverse ();
+				
+				findTemplateRecursive_ (paths, "", templateFiles, templateMatched, destinationPaths);
+				return templateFiles;
+				
+			}
+			
+		} catch (e:Dynamic) {}
+		
+		paths.splice (0, paths.length - 1);
+		
+		if (destinationPaths != null) {
+			
+			destinationPaths.push (paths[0]);
+			
+		}
+		
+		return paths;
+		
+	}
+	
+	
+	private static function findTemplateRecursive_ (templatePaths:Array<String>, source:String, templateFiles:Array<String>, templateMatched:Map<String, Bool>, destinationPaths:Array<String>):Void {
+		
+		var files:Array<String>;
+		
+		for (templatePath in templatePaths) {
+			
+			try {
+				
+				files = FileSystem.readDirectory (PathHelper.combine (templatePath, source));
+				
+				for (file in files) {
+					
+					//if (file.substr (0, 1) != ".") {
+						
+						var itemSource = PathHelper.combine (source, file);
+						
+						if (!templateMatched.exists (itemSource)) {
+							
+							templateMatched.set (itemSource, true);
+							var path = PathHelper.combine (templatePath, itemSource);
+							
+							if (FileSystem.isDirectory (path)) {
+								
+								findTemplateRecursive_ (templatePaths, itemSource, templateFiles, templateMatched, destinationPaths);
+								
+							} else {
+								
+								templateFiles.push (path);
+								
+								if (destinationPaths != null) {
+									
+									destinationPaths.push (itemSource);
+									
+								}
+								
+							}
+							
+						}
+						
+					//}
+					
+				}
+				
+			} catch (e:Dynamic) {}
+			
+		}
+		
+	}
+	
+	
 	public static function findTemplates (templatePaths:Array<String>, path:String, warnIfNotFound:Bool = true):Array<String> {
 		
 		var matches = [];
@@ -160,145 +247,7 @@ class PathHelper {
 	
 	public static function getHaxelib (haxelib:Haxelib, validate:Bool = false, clearCache:Bool = false):String {
 		
-		var name = haxelib.name;
-		
-		if (haxelibOverrides.exists (name)) {
-			
-			return haxelibOverrides.get (name);
-			
-		}
-		
-		if (haxelib.version != "") {
-			
-			name += ":" + haxelib.version;
-			
-		}
-		
-		if (haxelibOverrides.exists (name)) {
-			
-			return haxelibOverrides.get (name);
-			
-		}
-		
-		if (clearCache) {
-			
-			haxelibPaths.remove (name);
-			
-		}
-		
-		if (!haxelibPaths.exists (name)) {
-			
-			var cache = LogHelper.verbose;
-			LogHelper.verbose = false;
-			var output = "";
-			
-			try {
-				
-				var cacheDryRun = ProcessHelper.dryRun;
-				ProcessHelper.dryRun = false;
-				
-				output = ProcessHelper.runProcess (Sys.getEnv ("HAXEPATH"), "haxelib", [ "path", name ], true, true, true);
-				if (output == null) output = "";
-				
-				ProcessHelper.dryRun = cacheDryRun;
-				
-			} catch (e:Dynamic) { }
-			
-			LogHelper.verbose = cache;
-			
-			var lines = output.split ("\n");
-			var result = "";
-			
-			for (i in 1...lines.length) {
-				
-				var trim = StringTools.trim (lines[i]);
-				
-				if (trim == "-D " + haxelib.name || StringTools.startsWith (trim, "-D " + haxelib.name + "=")) {
-					
-					result = StringTools.trim (lines[i - 1]);
-					
-				}
-				
-			}
-			
-			if (result == "") {
-				
-				try {
-					
-					for (line in lines) {
-						
-						if (line != "" && line.substr (0, 1) != "-") {
-							
-							if (FileSystem.exists (line)) {
-								
-								result = line;
-								break;
-								
-							}
-							
-						}
-						
-					}
-					
-				} catch (e:Dynamic) {}
-				
-			}
-			
-			if (validate) {
-				
-				if (result == "") {
-					
-					if (output.indexOf ("does not have") > -1) {
-						
-						var directoryName = "";
-						
-						if (PlatformHelper.hostPlatform == Platform.WINDOWS) {
-							
-							directoryName = "Windows";
-							
-						} else if (PlatformHelper.hostPlatform == Platform.MAC) {
-							
-							directoryName = PlatformHelper.hostArchitecture == Architecture.X64 ? "Mac64" : "Mac";
-							
-						} else {
-							
-							directoryName = PlatformHelper.hostArchitecture == Architecture.X64 ? "Linux64" : "Linux";
-							
-						}
-						
-						LogHelper.error ("haxelib \"" + haxelib.name + "\" does not have an \"ndll/" + directoryName + "\" directory");
-						
-					} else if (output.indexOf ("haxelib install ") > -1 && output.indexOf ("haxelib install " + haxelib.name) == -1) {
-						
-						var start = output.indexOf ("haxelib install ") + 16;
-						var end = output.lastIndexOf ("'");
-						var dependencyName = output.substring (start, end);
-						
-						LogHelper.error ("Could not find haxelib \"" + dependencyName + "\" (dependency of \"" + haxelib.name + "\"), does it need to be installed?");
-						
-					} else {
-						
-						if (haxelib.version != "") {
-							
-							LogHelper.error ("Could not find haxelib \"" + haxelib.name + "\" version \"" + haxelib.version + "\", does it need to be installed?");
-							
-						} else {
-							
-							LogHelper.error ("Could not find haxelib \"" + haxelib.name + "\", does it need to be installed?");
-							
-						}
-						
-					}
-					
-				}
-				
-			}
-			
-			haxelibPaths.set (name, result);
-			
-		}
-		
-		return haxelibPaths.get (name);
+		return HaxelibHelper.getPath (haxelib, validate, clearCache);
 		
 	}
 	
@@ -733,6 +682,8 @@ class PathHelper {
 	
 	public static function standardize (path:String, trailingSlash:Bool = false):String {
 		
+		if (path == null) return null;
+		
 		path = StringTools.replace (path, "\\", "/");
 		path = StringTools.replace (path, "//", "/");
 		path = StringTools.replace (path, "//", "/");
@@ -754,6 +705,27 @@ class PathHelper {
 		}
 		
 		return path;
+		
+	}
+	
+	
+	public static function substitutePath (project:HXProject, path:String):String {
+		
+		var newString = path;
+		
+		// while (doubleVarMatch.match (newString)) {
+			
+		// 	newString = doubleVarMatch.matchedLeft () + "${" + StringHelper.replaceVariable (this, doubleVarMatch.matched (1)) + "}" + doubleVarMatch.matchedRight ();
+			
+		// }
+		
+		while (varMatch.match (newString)) {
+			
+			newString = varMatch.matchedLeft () + StringHelper.replaceVariable (project, varMatch.matched (1)) + varMatch.matchedRight ();
+			
+		}
+		
+		return newString;
 		
 	}
 	

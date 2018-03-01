@@ -13,6 +13,7 @@ import lime.tools.helpers.LogHelper;
 import lime.tools.helpers.PathHelper;
 import lime.tools.helpers.PlatformHelper;
 import lime.tools.helpers.ProcessHelper;
+import lime.tools.helpers.WatchHelper;
 import lime.project.AssetType;
 import lime.project.Haxelib;
 import lime.project.HXProject;
@@ -37,72 +38,14 @@ class FlashPlatform extends PlatformTarget {
 		
 		super (command, _project, targetFlags);
 		
-		targetDirectory = project.app.path + "/flash/" + buildType;
+		targetDirectory = PathHelper.combine (project.app.path, project.config.getString ("flash.output-directory", "flash"));
 		
 	}
 	
 	
 	public override function build ():Void {
 		
-		var destination = targetDirectory + "/bin";
-		
-		if (embedded) {
-			
-			var hxml = File.getContent (targetDirectory + "/haxe/" + buildType + ".hxml");
-			var args = new Array<String> ();
-			
-			for (line in ~/[\r\n]+/g.split (hxml)) {
-				
-				line = StringTools.ltrim (line);
-				
-				if (StringTools.startsWith (line, "#") || line.indexOf ("-swf-header") > -1) {
-					
-					continue;
-					
-				}
-				
-				var space = line.indexOf (" ");
-				
-				if (space == -1) {
-					
-					args.push (StringTools.rtrim (line));
-					
-				} else {
-					
-					args.push (line.substr (0, space));
-					
-					args.push (StringTools.trim (line.substr (space + 1)));
-					
-				}
-				
-			}
-			
-			ProcessHelper.runCommand ("", "haxe", args);
-			
-		} else {
-			
-			var hxml = targetDirectory + "/haxe/" + buildType + ".hxml";
-			ProcessHelper.runCommand ("", "haxe", [ hxml ] );
-			
-		}
-		
-		/*var usesOpenFL = false;
-		
-		for (haxelib in project.haxelibs) {
-			
-			if (haxelib.name == "nme" || haxelib.name == "openfl") {
-				
-				usesOpenFL = true;
-				
-			}
-			
-		}
-		
-		if (usesOpenFL) {
-			
-			FlashHelper.embedAssets (destination + "/" + project.app.file + ".swf", project.assets);
-			
-		}*/
+		ProcessHelper.runCommand ("", "haxe", [ targetDirectory + "/haxe/" + buildType + ".hxml" ]);
 		
 	}
 	
@@ -129,16 +72,7 @@ class FlashPlatform extends PlatformTarget {
 	
 	public override function display ():Void {
 		
-		var hxml = PathHelper.findTemplate (project.templatePaths, "flash/hxml/" + buildType + ".hxml");
-		
-		var context = project.templateContext;
-		context.WIN_FLASHBACKGROUND = StringTools.hex (project.window.background, 6);
-		context.OUTPUT_DIR = targetDirectory;
-		
-		var template = new Template (File.getContent (hxml));
-		
-		Sys.println (template.execute (context));
-		Sys.println ("-D display");
+		Sys.println (getDisplayHXML ());
 		
 	}
 	
@@ -184,6 +118,21 @@ class FlashPlatform extends PlatformTarget {
 	}
 	
 	
+	private function getDisplayHXML ():String {
+		
+		var hxml = PathHelper.findTemplate (project.templatePaths, "flash/hxml/" + buildType + ".hxml");
+		
+		var context = project.templateContext;
+		context.WIN_FLASHBACKGROUND = StringTools.hex (project.window.background, 6);
+		context.OUTPUT_DIR = targetDirectory;
+		
+		var template = new Template (File.getContent (hxml));
+		
+		return template.execute (context) + "\n-D display";
+		
+	}
+	
+	
 	public override function run ():Void {
 		
 		if (traceEnabled) {
@@ -213,7 +162,7 @@ class FlashPlatform extends PlatformTarget {
 					#if neko Thread.create (function () { #end
 						
 						FlashHelper.run (project, destination, targetPath);
-						Sys.exit (0);
+						//Sys.exit (0);
 						
 					#if neko }); #end
 					
@@ -232,6 +181,14 @@ class FlashPlatform extends PlatformTarget {
 	}
 	
 	
+	public override function trace ():Void {
+		
+		FlashHelper.enableLogging ();
+		FlashHelper.tailLog (logLength);
+		
+	}
+	
+	
 	public override function update ():Void {
 		
 		var destination = targetDirectory + "/bin/";
@@ -244,14 +201,48 @@ class FlashPlatform extends PlatformTarget {
 		var context = generateContext ();
 		context.OUTPUT_DIR = targetDirectory;
 		
-		FileHelper.recursiveCopyTemplate (project.templatePaths, "haxe", targetDirectory + "/haxe", context);
-		FileHelper.recursiveCopyTemplate (project.templatePaths, "flash/hxml", targetDirectory + "/haxe", context);
-		FileHelper.recursiveCopyTemplate (project.templatePaths, "flash/haxe", targetDirectory + "/haxe", context, true, false);
+		FileHelper.recursiveSmartCopyTemplate (project, "haxe", targetDirectory + "/haxe", context);
+		FileHelper.recursiveSmartCopyTemplate (project, "flash/hxml", targetDirectory + "/haxe", context);
+		FileHelper.recursiveSmartCopyTemplate (project, "flash/haxe", targetDirectory + "/haxe", context, true, false);
 		
 		if (project.targetFlags.exists ("web") || project.app.url != "") {
 			
 			PathHelper.mkdir (destination);
-			FileHelper.recursiveCopyTemplate (project.templatePaths, "flash/templates/web", destination, generateContext ());
+			FileHelper.recursiveSmartCopyTemplate (project, "flash/templates/web", destination, generateContext ());
+			
+		}
+		
+		if (embedded) {
+			
+			var files = [ "debug.hxml", "release.hxml", "final.hxml" ];
+			var path, hxml, lines, output;
+			
+			for (file in files) {
+				
+				path = targetDirectory + "/haxe/" + file;
+				hxml = File.getContent (path);
+				
+				if (hxml.indexOf ("-swf-header") > -1) {
+					
+					lines = ~/[\r\n]+/g.split (hxml);
+					output = [];
+					
+					for (line in lines) {
+						
+						if (line.indexOf ("-swf-header") > -1) continue;
+						output.push (line);
+						
+					}
+					
+					if (output.length < lines.length) {
+						
+						File.saveContent (path, output.join ("\n"));
+						
+					}
+					
+				}
+				
+			}
 			
 		}
 		
@@ -271,14 +262,6 @@ class FlashPlatform extends PlatformTarget {
 	}
 	
 	
-	public override function trace ():Void {
-		
-		FlashHelper.enableLogging ();
-		FlashHelper.tailLog (logLength);
-		
-	}
-	
-	
 	/*private function getIcon (size:Int, targetPath:String):Void {
 		
 		var icon = icons.findIcon (size, size);
@@ -294,6 +277,15 @@ class FlashPlatform extends PlatformTarget {
 		}
 		
 	}*/
+	
+	
+	public override function watch ():Void {
+		
+		var dirs = WatchHelper.processHXML (project, getDisplayHXML ());
+		var command = WatchHelper.getCurrentCommand ();
+		WatchHelper.watch (project, command, dirs);
+		
+	}
 	
 	
 	@ignore public override function install ():Void {}

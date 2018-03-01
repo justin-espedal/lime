@@ -12,8 +12,10 @@ import lime.graphics.GLRenderContext;
 import lime.graphics.RenderContext;
 import lime.graphics.Renderer;
 import lime.math.Rectangle;
+import lime.system.Clipboard;
 import lime.system.Display;
 import lime.system.DisplayMode;
+import lime.system.JNI;
 import lime.system.Sensor;
 import lime.system.SensorType;
 import lime.system.System;
@@ -38,6 +40,7 @@ import lime.ui.Window;
 @:access(lime.graphics.opengl.GL)
 @:access(lime.graphics.GLRenderContext)
 @:access(lime.graphics.Renderer)
+@:access(lime.system.Clipboard)
 @:access(lime.system.Sensor)
 @:access(lime.ui.Gamepad)
 @:access(lime.ui.Joystick)
@@ -48,6 +51,7 @@ class NativeApplication {
 	
 	
 	private var applicationEventInfo = new ApplicationEventInfo (UPDATE);
+	private var clipboardEventInfo = new ClipboardEventInfo ();
 	private var currentTouches = new Map<Int, Touch> ();
 	private var dropEventInfo = new DropEventInfo ();
 	private var gamepadEventInfo = new GamepadEventInfo ();
@@ -66,6 +70,15 @@ class NativeApplication {
 	private var frameRate:Float;
 	private var parent:Application;
 	private var toggleFullscreen:Bool;
+	
+	
+	private static function __init__ () {
+		
+		#if (lime_cffi && !macro)
+		var init = NativeCFFI;
+		#end
+		
+	}
 	
 	
 	public function new (parent:Application):Void {
@@ -90,7 +103,7 @@ class NativeApplication {
 	
 	public function create (config:Config):Void {
 		
-		#if !macro
+		#if (!macro && lime_cffi)
 		handle = NativeCFFI.lime_application_create ( { } );
 		#end
 		
@@ -101,7 +114,9 @@ class NativeApplication {
 		
 		#if !macro
 		
+		#if lime_cffi
 		NativeCFFI.lime_application_event_manager_register (handleApplicationEvent, applicationEventInfo);
+		NativeCFFI.lime_clipboard_event_manager_register (handleClipboardEvent, clipboardEventInfo);
 		NativeCFFI.lime_drop_event_manager_register (handleDropEvent, dropEventInfo);
 		NativeCFFI.lime_gamepad_event_manager_register (handleGamepadEvent, gamepadEventInfo);
 		NativeCFFI.lime_joystick_event_manager_register (handleJoystickEvent, joystickEventInfo);
@@ -111,12 +126,12 @@ class NativeApplication {
 		NativeCFFI.lime_text_event_manager_register (handleTextEvent, textEventInfo);
 		NativeCFFI.lime_touch_event_manager_register (handleTouchEvent, touchEventInfo);
 		NativeCFFI.lime_window_event_manager_register (handleWindowEvent, windowEventInfo);
-		
 		#if (ios || android || tvos)
 		NativeCFFI.lime_sensor_event_manager_register (handleSensorEvent, sensorEventInfo);
 		#end
+		#end
 		
-		#if nodejs
+		#if (nodejs && lime_cffi)
 		
 		NativeCFFI.lime_application_init (handle);
 		
@@ -162,7 +177,7 @@ class NativeApplication {
 		
 		AudioManager.shutdown ();
 		
-		#if !macro
+		#if (!macro && lime_cffi)
 		NativeCFFI.lime_application_quit (handle);
 		#end
 		
@@ -190,6 +205,13 @@ class NativeApplication {
 				//parent.onExit.dispatch (0);
 			
 		}
+		
+	}
+	
+	
+	private function handleClipboardEvent ():Void {
+		
+		Clipboard.__update ();
 		
 	}
 	
@@ -244,17 +266,17 @@ class NativeApplication {
 			case AXIS_MOVE:
 				
 				var joystick = Joystick.devices.get (joystickEventInfo.id);
-				if (joystick != null) joystick.onAxisMove.dispatch (joystickEventInfo.index, joystickEventInfo.value);
+				if (joystick != null) joystick.onAxisMove.dispatch (joystickEventInfo.index, joystickEventInfo.x);
 			
 			case HAT_MOVE:
 				
 				var joystick = Joystick.devices.get (joystickEventInfo.id);
-				if (joystick != null) joystick.onHatMove.dispatch (joystickEventInfo.index, joystickEventInfo.x);
+				if (joystick != null) joystick.onHatMove.dispatch (joystickEventInfo.index, joystickEventInfo.value);
 			
 			case TRACKBALL_MOVE:
 				
 				var joystick = Joystick.devices.get (joystickEventInfo.id);
-				if (joystick != null) joystick.onTrackballMove.dispatch (joystickEventInfo.index, joystickEventInfo.value);
+				if (joystick != null) joystick.onTrackballMove.dispatch (joystickEventInfo.index, joystickEventInfo.x, joystickEventInfo.y);
 			
 			case BUTTON_DOWN:
 				
@@ -327,6 +349,14 @@ class NativeApplication {
 				
 			}
 			
+			#if rpi
+			if (keyCode == ESCAPE && modifier == KeyModifier.NONE && type == KEY_UP && !window.onKeyUp.canceled) {
+				
+				System.exit (0);
+				
+			}
+			#end
+			
 			#elseif mac
 			
 			if (keyCode == F) {
@@ -357,7 +387,10 @@ class NativeApplication {
 			
 			if (keyCode == APP_CONTROL_BACK && modifier == KeyModifier.NONE && type == KEY_UP && !window.onKeyUp.canceled) {
 				
-				System.exit (0);
+				var mainActivity = JNI.createStaticField ("org/haxe/extension/Extension", "mainActivity", "Landroid/app/Activity;");
+				var moveTaskToBack = JNI.createMemberMethod ("android/app/Activity", "moveTaskToBack", "(Z)Z");
+				
+				moveTaskToBack (mainActivity.get (), true);
 				
 			}
 			
@@ -418,7 +451,12 @@ class NativeApplication {
 						
 						renderer.render ();
 						renderer.onRender.dispatch ();
-						renderer.flip ();
+						
+						if (!renderer.onRender.canceled) {
+							
+							renderer.flip ();
+							
+						}
 						
 					}
 					
@@ -646,7 +684,7 @@ class NativeApplication {
 	
 	public function setFrameRate (value:Float):Float {
 		
-		#if !macro
+		#if (!macro && lime_cffi)
 		NativeCFFI.lime_application_set_frame_rate (handle, value);
 		#end
 		return frameRate = value;
@@ -732,6 +770,36 @@ private class ApplicationEventInfo {
 }
 
 
+private class ClipboardEventInfo {
+	
+	
+	public var type:ClipboardEventType;
+	
+	
+	public function new (type:ClipboardEventType = null) {
+		
+		this.type = type;
+		
+	}
+	
+	
+	public function clone ():ClipboardEventInfo {
+		
+		return new ClipboardEventInfo (type);
+		
+	}
+	
+	
+}
+
+
+@:enum private abstract ClipboardEventType(Int) {
+	
+	var UPDATE = 0;
+	
+}
+
+
 private class DropEventInfo {
 	
 	
@@ -812,12 +880,12 @@ private class JoystickEventInfo {
 	public var id:Int;
 	public var index:Int;
 	public var type:JoystickEventType;
-	public var value:Float;
-	public var x:Int;
-	public var y:Int;
+	public var value:Int;
+	public var x:Float;
+	public var y:Float;
 	
 	
-	public function new (type:JoystickEventType = null, id:Int = 0, index:Int = 0, value:Float = 0, x:Int = 0, y:Int = 0) {
+	public function new (type:JoystickEventType = null, id:Int = 0, index:Int = 0, value:Int = 0, x:Float = 0, y:Float = 0) {
 		
 		this.type = type;
 		this.id = id;

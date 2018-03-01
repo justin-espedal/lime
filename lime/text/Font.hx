@@ -10,6 +10,7 @@ import lime.graphics.ImageBuffer;
 import lime.math.Vector2;
 import lime.net.HTTPRequest;
 import lime.system.System;
+import lime.utils.Log;
 import lime.utils.UInt8Array;
 
 #if (js && html5)
@@ -39,16 +40,17 @@ import haxe.io.Path;
 class Font {
 	
 	
-	public var ascender (get, null):Int;
-	public var descender (get, null):Int;
-	public var height (get, null):Int;
+	public var ascender (default, null):Int;
+	public var descender (default, null):Int;
+	public var height (default, null):Int;
 	public var name (default, null):String;
-	public var numGlyphs (get, null):Int;
+	public var numGlyphs (default, null):Int;
 	public var src:Dynamic;
-	public var underlinePosition (get, null):Int;
-	public var underlineThickness (get, null):Int;
-	public var unitsPerEM (get, null):Int;
+	public var underlinePosition (default, null):Int;
+	public var underlineThickness (default, null):Int;
+	public var unitsPerEM (default, null):Int;
 	
+	@:noCompletion private var __fontID:String;
 	@:noCompletion private var __fontPath:String;
 	#if lime_cffi
 	@:noCompletion private var __fontPathWithoutDirectory:String;
@@ -63,7 +65,15 @@ class Font {
 			
 		}
 		
-		if (__fontPath != null) {
+		if (__fontID != null) {
+			
+			if (Assets.isLocal (__fontID)) {
+				
+				__fromBytes (Assets.getBytes (__fontID));
+				
+			}
+			
+		} else if (__fontPath != null) {
 			
 			__fromFile (__fontPath);
 			
@@ -246,184 +256,199 @@ class Font {
 	
 	public function renderGlyphs (glyphs:Array<Glyph>, fontSize:Int):Map<Glyph, Image> {
 		
-		//#if (lime_cffi && !macro)
-		//
-		//var uniqueGlyphs = new Map<Int, Bool> ();
-		//
-		//for (glyph in glyphs) {
-			//
-			//uniqueGlyphs.set (glyph, true);
-			//
-		//}
-		//
-		//var glyphList = [];
-		//
-		//for (key in uniqueGlyphs.keys ()) {
-			//
-			//glyphList.push (key);
-			//
-		//}
-		//
-		//NativeCFFI.lime_font_set_size (src, fontSize);
-		//
-		//var bytes = new ByteArray ();
-		//bytes.endian = (System.endianness == BIG_ENDIAN ? "bigEndian" : "littleEndian");
-		//
-		//if (NativeCFFI.lime_font_render_glyphs (src, glyphList, bytes)) {
-			//
-			//bytes.position = 0;
-			//
-			//var count = bytes.readUnsignedInt ();
-			//
-			//var bufferWidth = 128;
-			//var bufferHeight = 128;
-			//var offsetX = 0;
-			//var offsetY = 0;
-			//var maxRows = 0;
-			//
-			//var width, height;
-			//var i = 0;
-			//
-			//while (i < count) {
-				//
-				//bytes.position += 4;
-				//width = bytes.readUnsignedInt ();
-				//height = bytes.readUnsignedInt ();
-				//bytes.position += (4 * 2) + width * height;
-				//
-				//if (offsetX + width > bufferWidth) {
-					//
-					//offsetY += maxRows + 1;
-					//offsetX = 0;
-					//maxRows = 0;
-					//
-				//}
-				//
-				//if (offsetY + height > bufferHeight) {
-					//
-					//if (bufferWidth < bufferHeight) {
-						//
-						//bufferWidth *= 2;
-						//
-					//} else {
-						//
-						//bufferHeight *= 2;
-						//
-					//}
-					//
-					//offsetX = 0;
-					//offsetY = 0;
-					//maxRows = 0;
-					//
-					//// TODO: make this better
-					//
-					//bytes.position = 4;
-					//i = 0;
-					//continue;
-					//
-				//}
-				//
-				//offsetX += width + 1;
-				//
-				//if (height > maxRows) {
-					//
-					//maxRows = height;
-					//
-				//}
-				//
-				//i++;
-				//
-			//}
-			//
-			//var map = new Map<Int, Image> ();
-			//var buffer = new ImageBuffer (null, bufferWidth, bufferHeight, 8);
-			//var data = new ByteArray (bufferWidth * bufferHeight);
-			//
-			//bytes.position = 4;
-			//offsetX = 0;
-			//offsetY = 0;
-			//maxRows = 0;
-			//
-			//var index, x, y, image;
-			//
-			//for (i in 0...count) {
-				//
-				//index = bytes.readUnsignedInt ();
-				//width = bytes.readUnsignedInt ();
-				//height = bytes.readUnsignedInt ();
-				//x = bytes.readUnsignedInt ();
-				//y = bytes.readUnsignedInt ();
-				//
-				//if (offsetX + width > bufferWidth) {
-					//
-					//offsetY += maxRows + 1;
-					//offsetX = 0;
-					//maxRows = 0;
-					//
-				//}
-				//
-				//for (i in 0...height) {
-					//
-					//data.position = ((i + offsetY) * bufferWidth) + offsetX;
-					////bytes.readBytes (data, 0, width);
-					//
-					//for (x in 0...width) {
-						//
-						//var byte = bytes.readUnsignedByte ();
-						//data.writeByte (byte);
-						//
-					//}
-					//
-				//}
-				//
-				//image = new Image (buffer, offsetX, offsetY, width, height);
-				//image.x = x;
-				//image.y = y;
-				//
-				//map.set (index, image);
-				//
-				//offsetX += width + 1;
-				//
-				//if (height > maxRows) {
-					//
-					//maxRows = height;
-					//
-				//}
-				//
-			//}
-			//
-			//#if js
-			//buffer.data = data.byteView;
-			//#else
-			//buffer.data = new UInt8Array (data);
-			//#end
-			//
-			//return map;
-			//
-		//}
-		//
-		//#end
+		#if (lime_cffi && !macro)
+		
+		var uniqueGlyphs = new Map<Int, Bool> ();
+		
+		for (glyph in glyphs) {
+			
+			uniqueGlyphs.set (glyph, true);
+			
+		}
+		
+		var glyphList = [];
+		
+		for (key in uniqueGlyphs.keys ()) {
+			
+			glyphList.push (key);
+			
+		}
+		
+		NativeCFFI.lime_font_set_size (src, fontSize);
+		
+		var bytes = Bytes.alloc (0);
+		
+		if (NativeCFFI.lime_font_render_glyphs (src, glyphList, bytes)) {
+			
+			var bytesPosition = 0;
+			var count = bytes.getInt32 (bytesPosition); bytesPosition += 4;
+			
+			var bufferWidth = 128;
+			var bufferHeight = 128;
+			var offsetX = 0;
+			var offsetY = 0;
+			var maxRows = 0;
+			
+			var width, height;
+			var i = 0;
+			
+			while (i < count) {
+				
+				bytesPosition += 4;
+				width = bytes.getInt32 (bytesPosition); bytesPosition += 4;
+				height = bytes.getInt32 (bytesPosition); bytesPosition += 4;
+				
+				bytesPosition += (4 * 2) + width * height;
+				
+				if (offsetX + width > bufferWidth) {
+					
+					offsetY += maxRows + 1;
+					offsetX = 0;
+					maxRows = 0;
+					
+				}
+				
+				if (offsetY + height > bufferHeight) {
+					
+					if (bufferWidth < bufferHeight) {
+						
+						bufferWidth *= 2;
+						
+					} else {
+						
+						bufferHeight *= 2;
+						
+					}
+					
+					offsetX = 0;
+					offsetY = 0;
+					maxRows = 0;
+					
+					// TODO: make this better
+					
+					bytesPosition = 4;
+					i = 0;
+					continue;
+					
+				}
+				
+				offsetX += width + 1;
+				
+				if (height > maxRows) {
+					
+					maxRows = height;
+					
+				}
+				
+				i++;
+				
+			}
+			
+			var map = new Map<Int, Image> ();
+			var buffer = new ImageBuffer (null, bufferWidth, bufferHeight, 8);
+			var dataPosition = 0;
+			var data = Bytes.alloc (bufferWidth * bufferHeight);
+			
+			bytesPosition = 4;
+			offsetX = 0;
+			offsetY = 0;
+			maxRows = 0;
+			
+			var index, x, y, image;
+			
+			for (i in 0...count) {
+				
+				index = bytes.getInt32 (bytesPosition); bytesPosition += 4;
+				width = bytes.getInt32 (bytesPosition); bytesPosition += 4;
+				height = bytes.getInt32 (bytesPosition); bytesPosition += 4;
+				x = bytes.getInt32 (bytesPosition); bytesPosition += 4;
+				y = bytes.getInt32 (bytesPosition); bytesPosition += 4;
+				
+				if (offsetX + width > bufferWidth) {
+					
+					offsetY += maxRows + 1;
+					offsetX = 0;
+					maxRows = 0;
+					
+				}
+				
+				for (i in 0...height) {
+					
+					dataPosition = ((i + offsetY) * bufferWidth) + offsetX;
+					data.blit (dataPosition, bytes, bytesPosition, width);
+					bytesPosition += width;
+					
+				}
+				
+				image = new Image (buffer, offsetX, offsetY, width, height);
+				image.x = x;
+				image.y = y;
+				
+				map.set (index, image);
+				
+				offsetX += width + 1;
+				
+				if (height > maxRows) {
+					
+					maxRows = height;
+					
+				}
+				
+			}
+			
+			#if js
+			buffer.data = data.byteView;
+			#else
+			buffer.data = new UInt8Array (data);
+			#end
+			
+			return map;
+			
+		}
+		
+		#end
 		
 		return null;
 		
 	}
+	
+	
+	@:noCompletion private function __copyFrom (other:Font):Void {
 		
+		if (other != null) {
+			
+			ascender = other.ascender;
+			descender = other.descender;
+			height = other.height;
+			name = other.name;
+			numGlyphs = other.numGlyphs;
+			src = other.src;
+			underlinePosition = other.underlinePosition;
+			underlineThickness = other.underlineThickness;
+			unitsPerEM = other.unitsPerEM;
+			
+			__fontID = other.__fontID;
+			__fontPath = other.__fontPath;
+			
+			#if lime_cffi
+			__fontPathWithoutDirectory = other.__fontPathWithoutDirectory;
+			#end
+			
+		}
+		
+	}
+	
+	
 	@:noCompletion private function __fromBytes (bytes:Bytes):Void {
 		
 		__fontPath = null;
 		
 		#if (lime_cffi && !macro)
-		
 		__fontPathWithoutDirectory = null;
 		
 		src = NativeCFFI.lime_font_load (bytes);
 		
-		if (src != null && name == null) {
-			
-			name = cast NativeCFFI.lime_font_get_family_name (src);
-			
-		}
-		
+		__initializeSource ();
 		#end
 		
 	}
@@ -434,44 +459,39 @@ class Font {
 		__fontPath = path;
 		
 		#if (lime_cffi && !macro)
-		
 		__fontPathWithoutDirectory = Path.withoutDirectory (__fontPath);
 		
 		src = NativeCFFI.lime_font_load (__fontPath);
 		
-		if (src != null && name == null) {
-			
-			name = cast NativeCFFI.lime_font_get_family_name (src);
-			
-		}
-		
+		__initializeSource ();
 		#end
 		
 	}
 	
 	
-	#if (js && html5)
-	
-	private static function __makeLoaderNode (fontFamily : String) {
+	private function __initializeSource ():Void {
 		
-		var node:SpanElement = cast Browser.document.createElement ("span");
-		node.innerHTML = "giItT1WQy@!-/#";
-		var style = node.style;
-		style.position = "absolute";
-		style.left = "-10000px";
-		style.top = "-10000px";
-		style.fontSize = "300px";
-		style.fontFamily = fontFamily;
-		style.fontVariant = "normal";
-		style.fontStyle = "normal";
-		style.fontWeight = "normal";
-		style.letterSpacing = "0";
-		Browser.document.body.appendChild (node);
-		return node;
+		#if (lime_cffi && !macro)
+		if (src != null) {
+			
+			if (name == null) {
+				
+				name = cast NativeCFFI.lime_font_get_family_name (src);
+				
+			}
+			
+			ascender = NativeCFFI.lime_font_get_ascender (src);
+			descender = NativeCFFI.lime_font_get_descender (src);
+			height = NativeCFFI.lime_font_get_height (src);
+			numGlyphs = NativeCFFI.lime_font_get_num_glyphs (src);
+			underlinePosition = NativeCFFI.lime_font_get_underline_position (src);
+			underlineThickness = NativeCFFI.lime_font_get_underline_thickness (src);
+			unitsPerEM = NativeCFFI.lime_font_get_units_per_em (src);
+			
+		}
+		#end
 		
 	}
-	
-	#end
 	
 	
 	private function __loadFromName (name:String):Future<Font> {
@@ -481,73 +501,65 @@ class Font {
 		#if (js && html5)
 		
 		this.name = name;
-		var font = name;
+		
 		var ua = Browser.navigator.userAgent.toLowerCase();
+		var isSafari = (ua.indexOf(" safari/") >= 0 && ua.indexOf(" chrome/") < 0);
 		
-		// When Safari reports that font is loaded, actually font IS NOT loaded.
-		// If you try to use this font immediately after preloader completes,
-		// default font will be used instead.
-		//
-		// We detect Safari, and use old font loading for it.
-		
-		if (!(ua.indexOf(" safari/") >= 0 && ua.indexOf(" chrome/") < 0) && untyped (Browser.document).fonts && untyped (Browser.document).fonts.load) {
+		if (!isSafari && untyped (Browser.document).fonts && untyped (Browser.document).fonts.load) {
 			
-			untyped (Browser.document).fonts.load ("1em '" + font + "'").then (function (_) {
+			untyped (Browser.document).fonts.load ("1em '" + name + "'").then (function (_) {
 				
+				promise.complete (this);
+				
+			}, function (_) {
+				
+				Log.warn ("Could not load web font \"" + name + "\"");
 				promise.complete (this);
 				
 			});
 			
 		} else {
 			
-			var node1 = __makeLoaderNode("sans-serif");
-			var node2 = __makeLoaderNode("serif");
+			var node1 = __measureFontNode ("'" + name + "', sans-serif");
+			var node2 = __measureFontNode ("'" + name + "', serif");
+			
 			var width1 = node1.offsetWidth;
 			var width2 = node2.offsetWidth;
 			
-			node1.style.fontFamily = "'" + name + "', sans-serif";
-			node2.style.fontFamily = "'" + name + "', serif";
-			
-			var interval:Null<Int> = null;
-			var found = false;
+			var interval = -1;
+			var timeout = 3000;
+			var intervalLength = 50;
+			var intervalCount = 0;
+			var loaded, timeExpired;
 			
 			var checkFont = function () {
 				
-				if (node1.offsetWidth != width1 || node2.offsetWidth != width2) {
+				intervalCount++;
+				
+				loaded = (node1.offsetWidth != width1 || node2.offsetWidth != width2);
+				timeExpired = (intervalCount * intervalLength >= timeout);
+				
+				if (loaded || timeExpired) {
 					
-					// Test font was still not available yet, try waiting one more interval?
-					if (!found) {
-						
-						found = true;
-						return false;
-						
-					}
-					
-					if (interval != null) {
-						
-						Browser.window.clearInterval (interval);
-						
-					}
-					
+					Browser.window.clearInterval (interval);
 					node1.parentNode.removeChild (node1);
 					node2.parentNode.removeChild (node2);
 					node1 = null;
 					node2 = null;
 					
+					if (timeExpired) {
+						
+						Log.warn ("Could not load web font \"" + name + "\"");
+						
+					}
+					
 					promise.complete (this);
-					return true;
 					
 				}
 				
-				return false;
-				
 			}
 			
-			if (!checkFont ()) {
-				
-				interval = Browser.window.setInterval (checkFont, 50);
-				
-			}
+			interval = Browser.window.setInterval (checkFont, intervalLength);
 			
 		}
 		
@@ -562,6 +574,34 @@ class Font {
 	}
 	
 	
+	#if (js && html5)
+	private static function __measureFontNode (fontFamily:String):SpanElement {
+		
+		var node:SpanElement = cast Browser.document.createElement ("span");
+		node.setAttribute ("aria-hidden", "true");
+		var text = Browser.document.createTextNode ("BESbswy");
+		node.appendChild (text);
+		var style = node.style;
+		style.display = "block";
+		style.position = "absolute";
+		style.top = "-9999px";
+		style.left = "-9999px";
+		style.fontSize = "300px";
+		style.width = "auto";
+		style.height = "auto";
+		style.lineHeight = "normal";
+		style.margin = "0";
+		style.padding = "0";
+		style.fontVariant = "normal";
+		style.whiteSpace = "nowrap";
+		style.fontFamily = fontFamily;
+		Browser.document.body.appendChild (node);
+		return node;
+		
+	}
+	#end
+	
+	
 	@:noCompletion private function __setSize (size:Int):Void {
 		
 		#if (lime_cffi && !macro)
@@ -569,100 +609,6 @@ class Font {
 		#end
 		
 	}
-	
-	
-	
-	
-	// Get & Set Methods
-	
-	
-	
-	
-	private function get_ascender ():Int {
-		
-		#if (lime_cffi && !macro)
-		return NativeCFFI.lime_font_get_ascender (src);
-		#else
-		return 0;
-		#end
-		
-	}
-	
-	
-	private function get_descender ():Int {
-		
-		#if (lime_cffi && !macro)
-		return NativeCFFI.lime_font_get_descender (src);
-		#else
-		return 0;
-		#end
-		
-	}
-	
-	
-	private function get_height ():Int {
-		
-		#if (lime_cffi && !macro)
-		return NativeCFFI.lime_font_get_height (src);
-		#else
-		return 0;
-		#end
-		
-	}
-	
-	
-	private function get_numGlyphs ():Int {
-		
-		#if (lime_cffi && !macro)
-		return NativeCFFI.lime_font_get_num_glyphs (src);
-		#else
-		return 0;
-		#end
-		
-	}
-	
-	
-	private function get_underlinePosition ():Int {
-		
-		#if (lime_cffi && !macro)
-		return NativeCFFI.lime_font_get_underline_position (src);
-		#else
-		return 0;
-		#end
-		
-	}
-	
-	
-	private function get_underlineThickness ():Int {
-		
-		#if (lime_cffi && !macro)
-		return NativeCFFI.lime_font_get_underline_thickness (src);
-		#else
-		return 0;
-		#end
-		
-	}
-	
-	
-	private function get_unitsPerEM ():Int {
-		
-		#if (lime_cffi && !macro)
-		return NativeCFFI.lime_font_get_units_per_em (src);
-		#else
-		return 0;
-		#end
-		
-	}
-	
-	
-	
-	
-	// Native Methods
-	
-	
-	
-	
-	
 	
 	
 }
