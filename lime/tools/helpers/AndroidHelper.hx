@@ -71,61 +71,6 @@ class AndroidHelper {
 		
 	}
 	
-	public static function getBuildToolsVersion (project:HXProject):String {
-
-		var buildToolsPath = project.environment.get ("ANDROID_SDK") + "/build-tools/";
-
-		var version = ~/^(\d+)\.(\d+)\.(\d+)$/i;
-		var current = { major : 0, minor : 0, micro : 0 };
-
-		for (buildTool in FileSystem.readDirectory (buildToolsPath)) {
-
-			//gradle only likes simple version numbers (x.y.z)
-
-			if (!version.match (buildTool)) {
-
-				continue;
-
-			}
-
-			var newVersion = {
-				major: Std.parseInt (version.matched (1)),
-				minor: Std.parseInt (version.matched (2)),
-				micro: Std.parseInt (version.matched (3))
-			};
-
-			if (newVersion.major != current.major) {
-
-				if (newVersion.major > current.major) {
-
-					current = newVersion;
-
-				}
-
-			} else if (newVersion.minor != current.minor) {
-
-				if (newVersion.minor > current.minor) {
-
-					current = newVersion;
-
-				}
-
-			} else {
-
-				if (newVersion.micro > current.micro) {
-
-					current = newVersion;
-
-				}
-
-			}
-
-		}
-
-		return '${current.major}.${current.minor}.${current.micro}';
-
-	}
-
 	
 	public static function getBuildToolsVersion (project:HXProject):String {
 		
@@ -231,25 +176,6 @@ class AndroidHelper {
 		}
 		
 		return 0;
-	}
-
-	public static function getPlatformToolsVersion ():String {
-
-		var propertiesPath = adbPath + "source.properties";
-		var properties = File.getContent(propertiesPath);
-		
-		for (line in properties.split ("\n")) {
-
-			if(StringTools.startsWith (line, "Pkg.Revision")) {
-
-				return line.substr (line.indexOf ("=") + 1);
-
-			}
-
-		}
-
-		return "";
-
 	}
 	
 	
@@ -366,20 +292,14 @@ class AndroidHelper {
 			
 		}
 		
-		var args = [ "install" ];
+		var args = [ "install", "-r" ];
 		
-		var platformToolsMajorVersion = Std.parseInt(getPlatformToolsVersion ().split (".")[0]);
-
-		if (platformToolsMajorVersion >= 23) {
-
-			args.push("-rd");
-
-		} else {
-
-			args.push("-r");
-
-		}
-
+		//if (getDeviceSDKVersion (deviceID) > 16) {
+			
+			args.push ("-d");
+			
+		//}
+		
 		args.push (targetPath);
 		
 		if (deviceID != null && deviceID != "") {

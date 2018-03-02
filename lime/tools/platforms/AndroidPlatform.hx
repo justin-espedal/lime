@@ -328,7 +328,6 @@ class AndroidPlatform extends PlatformTarget {
 		context.ANDROID_INSTALL_LOCATION = project.config.getString ("android.install-location", "auto");
 		context.ANDROID_MINIMUM_SDK_VERSION = project.config.getInt ("android.minimum-sdk-version", 9);
 		context.ANDROID_TARGET_SDK_VERSION = project.config.getInt ("android.target-sdk-version", 19);
-		context.ANDROID_BUILD_TOOLS_VERSION = project.config.getString ("android.build-tools-version");
 		context.ANDROID_EXTENSIONS = project.config.getArrayString ("android.extension");
 		context.ANDROID_PERMISSIONS = project.config.getArrayString ("android.permission", [ "android.permission.WAKE_LOCK", "android.permission.INTERNET", "android.permission.VIBRATE", "android.permission.ACCESS_NETWORK_STATE" ]);
 		context.ANDROID_GRADLE_VERSION = project.config.getString ("android.gradle-version", "2.10");
@@ -345,12 +344,6 @@ class AndroidPlatform extends PlatformTarget {
 			LogHelper.error ("You must define ANDROID_SDK and ANDROID_NDK_ROOT to target Android, please run '" + command + " setup android' first");
 			Sys.exit (1);
 			
-		}
-
-		if (context.ANDROID_BUILD_TOOLS_VERSION == "") {
-
-			context.ANDROID_BUILD_TOOLS_VERSION = AndroidHelper.getBuildToolsVersion (project);
-
 		}
 		
 		if (project.config.exists ("android.gradle-build-directory")) {
