@@ -17,9 +17,12 @@ project/winrt/shaders/
 tools/*.n
 tools/*.exe
 haxedoc.xml
-docs/*.xml
-docs/xml
-docs/pages*
+docs/api/*.xml
+docs/api/xml
+docs/api/pages*
+docs/api/dump
+docs/.sass-cache
+docs/_site
 legacy/ndll/*/lime*
 legacy/ndll/*/liblime*
 legacy/project/all_objs

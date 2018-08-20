@@ -1,6 +1,9 @@
 {
-    "editor.trimAutoWhitespace": false,
+    "haxe.displayConfigurations": [
+        [ "--cwd", "tools", "tools.hxml" ]
+    ],
     "editor.insertSpaces": false,
+    "editor.trimAutoWhitespace": true,
     "codedox": {
         "commentprefix": "    ",
         "commentdescription": "",
@@ -10,16 +13,6 @@
         "returnFormat": "",
         "neverAskTemplate": true
     },
-    "files.associations": {
-        "initializer_list": "cpp",
-        "list": "cpp",
-        "type_traits": "cpp",
-        "vector": "cpp",
-        "xhash": "cpp",
-        "xstring": "cpp",
-        "xtree": "cpp",
-        "xutility": "cpp",
-        "system_error": "cpp",
-        "xfunctional": "cpp"
-    }
+    "files.trimTrailingWhitespace": true,
+    "C_Cpp.autoAddFileAssociations": false,
 }

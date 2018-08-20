@@ -4,7 +4,8 @@
 	"license": "MIT",
 	"tags": [],
 	"description": "A foundational Haxe framework for cross-platform development",
-	"version": "6.3.0",
-	"releasenote": "",
-	"contributors": [ "singmajesty" ]
+	"version": "7.0.0",
+	"releasenote": "Major API re-design, migrated core of tools to HXP, initial HashLink support",
+	"contributors": [ "singmajesty" ],
+	"classPath": "src"
 }

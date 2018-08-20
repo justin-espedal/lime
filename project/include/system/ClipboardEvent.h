@@ -2,35 +2,35 @@
 #define LIME_SYSTEM_CLIPBOARD_EVENT_H
 
 
-#include <hx/CFFI.h>
+#include <system/CFFI.h>
+#include <system/ValuePointer.h>
 
 
 namespace lime {
-	
-	
+
+
 	enum ClipboardEventType {
-		
+
 		CLIPBOARD_UPDATE
-		
+
 	};
-	
-	
-	class ClipboardEvent {
-		
-		public:
-			
-			static AutoGCRoot* callback;
-			static AutoGCRoot* eventObject;
-			
-			ClipboardEvent ();
-			
-			static void Dispatch (ClipboardEvent* event);
-			
-			ClipboardEventType type;
-		
+
+
+	struct ClipboardEvent {
+
+		hl_type* t;
+		ClipboardEventType type;
+
+		static ValuePointer* callback;
+		static ValuePointer* eventObject;
+
+		ClipboardEvent ();
+
+		static void Dispatch (ClipboardEvent* event);
+
 	};
-	
-	
+
+
 }
 
 
