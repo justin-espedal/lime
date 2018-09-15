@@ -452,6 +452,8 @@ namespace lime {
 
 	double lime_bytes_get_data_pointer_offset (value bytes, int offset) {
 
+		if (val_is_null (bytes)) return 0;
+
 		Bytes data = Bytes (bytes);
 		return (uintptr_t)data.b + offset;
 
@@ -460,6 +462,7 @@ namespace lime {
 
 	HL_PRIM double hl_lime_bytes_get_data_pointer_offset (Bytes* bytes, int offset) {
 
+		if (!bytes) return 0;
 		return (uintptr_t)bytes->b + offset;
 
 	}
@@ -701,6 +704,7 @@ namespace lime {
 
 	HL_PRIM vbyte* hl_lime_file_dialog_open_directory (hl_vstring* title, hl_vstring* filter, hl_vstring* defaultPath) {
 
+		#ifndef EMSCRIPTEN
 		#ifdef LIME_TINYFILEDIALOGS
 
 		std::wstring* _title = hxstring_to_wstring (title);
@@ -728,6 +732,7 @@ namespace lime {
 
 		}
 
+		#endif
 		#endif
 
 		return NULL;
@@ -770,6 +775,7 @@ namespace lime {
 
 	HL_PRIM vbyte* hl_lime_file_dialog_open_file (hl_vstring* title, hl_vstring* filter, hl_vstring* defaultPath) {
 
+		#ifndef EMSCRIPTEN
 		#ifdef LIME_TINYFILEDIALOGS
 
 		std::wstring* _title = hxstring_to_wstring (title);
@@ -797,6 +803,7 @@ namespace lime {
 
 		}
 
+		#endif
 		#endif
 
 		return NULL;
@@ -839,6 +846,7 @@ namespace lime {
 
 	HL_PRIM hl_varray* hl_lime_file_dialog_open_files (hl_vstring* title, hl_vstring* filter, hl_vstring* defaultPath) {
 
+		#ifndef EMSCRIPTEN
 		#ifdef LIME_TINYFILEDIALOGS
 
 		std::wstring* _title = hxstring_to_wstring (title);
@@ -868,6 +876,7 @@ namespace lime {
 
 		#else
 		hl_varray* result = hl_alloc_array (&hlt_bytes, 0);
+		#endif
 		#endif
 
 		return result;
@@ -910,6 +919,7 @@ namespace lime {
 
 	HL_PRIM vbyte* hl_lime_file_dialog_save_file (hl_vstring* title, hl_vstring* filter, hl_vstring* defaultPath) {
 
+		#ifndef EMSCRIPTEN
 		#ifdef LIME_TINYFILEDIALOGS
 
 		std::wstring* _title = hxstring_to_wstring (title);
@@ -937,6 +947,7 @@ namespace lime {
 
 		}
 
+		#endif
 		#endif
 
 		return NULL;
@@ -2635,6 +2646,8 @@ namespace lime {
 
 	HL_PRIM vbyte* hl_lime_system_get_device_model () {
 
+		#ifndef EMSCRIPTEN
+
 		std::wstring* model = System::GetDeviceModel ();
 
 		if (model) {
@@ -2646,11 +2659,11 @@ namespace lime {
 
 			return (vbyte*)result;
 
-		} else {
-
-			return 0;
-
 		}
+
+		#endif
+
+		return 0;
 
 	}
 
@@ -2676,6 +2689,8 @@ namespace lime {
 
 	HL_PRIM vbyte* hl_lime_system_get_device_vendor () {
 
+		#ifndef EMSCRIPTEN
+
 		std::wstring* vendor = System::GetDeviceVendor ();
 
 		if (vendor) {
@@ -2687,11 +2702,11 @@ namespace lime {
 
 			return (vbyte*)result;
 
-		} else {
-
-			return 0;
-
 		}
+
+		#endif
+
+		return 0;
 
 	}
 
@@ -2717,6 +2732,8 @@ namespace lime {
 
 	HL_PRIM vbyte* hl_lime_system_get_directory (int type, hl_vstring* company, hl_vstring* title) {
 
+		#ifndef EMSCRIPTEN
+
 		std::wstring* path = System::GetDirectory ((SystemDirectory)type, company ? (char*)hl_to_utf8 ((const uchar*)company->bytes) : NULL, title ? (char*)hl_to_utf8 ((const uchar*)title->bytes) : NULL);
 
 		if (path) {
@@ -2728,11 +2745,11 @@ namespace lime {
 
 			return (vbyte*)result;
 
-		} else {
-
-			return 0;
-
 		}
+
+		#endif
+
+		return 0;
 
 	}
 
@@ -2809,6 +2826,8 @@ namespace lime {
 
 	HL_PRIM vbyte* hl_lime_system_get_platform_label () {
 
+		#ifndef EMSCRIPTEN
+
 		std::wstring* label = System::GetPlatformLabel ();
 
 		if (label) {
@@ -2820,11 +2839,11 @@ namespace lime {
 
 			return (vbyte*)result;
 
-		} else {
-
-			return 0;
-
 		}
+
+		#endif
+
+		return 0;
 
 	}
 
@@ -2850,6 +2869,8 @@ namespace lime {
 
 	HL_PRIM vbyte* hl_lime_system_get_platform_name () {
 
+		#ifndef EMSCRIPTEN
+
 		std::wstring* name = System::GetPlatformName ();
 
 		if (name) {
@@ -2861,11 +2882,11 @@ namespace lime {
 
 			return (vbyte*)result;
 
-		} else {
-
-			return 0;
-
 		}
+
+		#endif
+
+		return 0;
 
 	}
 
@@ -2891,6 +2912,8 @@ namespace lime {
 
 	HL_PRIM vbyte* hl_lime_system_get_platform_version () {
 
+		#ifndef EMSCRIPTEN
+
 		std::wstring* version = System::GetPlatformVersion ();
 
 		if (version) {
@@ -2902,11 +2925,11 @@ namespace lime {
 
 			return (vbyte*)result;
 
-		} else {
-
-			return 0;
-
 		}
+
+		#endif
+
+		return 0;
 
 	}
 
