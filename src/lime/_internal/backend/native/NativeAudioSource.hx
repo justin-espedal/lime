@@ -281,25 +281,29 @@ class NativeAudioSource {
 
 			var buffersProcessed:Int = AL.getSourcei (handle, AL.BUFFERS_PROCESSED);
 
-			if (buffersProcessed > 0) {
+			if (AL.getError() == 0) {
+			
+				if (buffersProcessed > 0) {
 
-				vorbisFile = parent.buffer.__srcVorbisFile;
-				position = Int64.toInt (vorbisFile.pcmTell ());
+					vorbisFile = parent.buffer.__srcVorbisFile;
+					position = Int64.toInt (vorbisFile.pcmTell ());
 
-				if (position < dataLength) {
+					if (position < dataLength) {
 
-					buffers = AL.sourceUnqueueBuffers (handle, buffersProcessed);
+						buffers = AL.sourceUnqueueBuffers (handle, buffersProcessed);
 
+					}
+
+				} else {
+					
+					if (playing && handle != null && AL.getSourcei (handle, AL.SOURCE_STATE) != AL.PLAYING) {
+
+						setCurrentTime (getCurrentTime ());
+					
+					}
+					
 				}
-
-			} else {
-				
-				if (playing && handle != null && AL.getSourcei (handle, AL.SOURCE_STATE) != AL.PLAYING) {
-
-					setCurrentTime (getCurrentTime ());
-				
-				}
-				
+			
 			}
 
 		}
