@@ -280,7 +280,7 @@ class NativeAudioSource {
 		if (buffers == null) {
 
 			var buffersProcessed:Int = AL.getSourcei (handle, AL.BUFFERS_PROCESSED);
-
+		
 			if (AL.getError() == 0) {
 			
 				if (buffersProcessed > 0) {
@@ -291,19 +291,25 @@ class NativeAudioSource {
 					if (position < dataLength) {
 
 						buffers = AL.sourceUnqueueBuffers (handle, buffersProcessed);
-
+		
 					}
 
-				}
-
-				if (playing && handle != null && AL.getSourcei (handle, AL.SOURCE_STATE) != AL.PLAYING) {
-
-					setCurrentTime (getCurrentTime ());
-				
 				}
 			
 			}
 
+		}
+
+		var resume = playing && stream && handle != null && AL.getSourcei (handle, AL.SOURCE_STATE) != AL.PLAYING;
+		
+		if (resume) {
+
+			var time = parent.buffer.__srcVorbisFile.timeTell () + AL.getSourcef (handle, AL.SEC_OFFSET);
+			AL.sourceStop (handle);
+			parent.buffer.__srcVorbisFile.timeSeek (time + parent.offset);
+
+			AL.sourcei (handle, AL.BUFFER, 0);
+			buffers = this.buffers;
 		}
 
 		if (buffers != null) {
@@ -339,7 +345,12 @@ class NativeAudioSource {
 			}
 
 			AL.sourceQueueBuffers (handle, numBuffers, buffers);
+		
+		}
 
+		if (resume)
+		{
+			AL.sourcePlay (handle);
 		}
 
 		#end
@@ -457,11 +468,13 @@ class NativeAudioSource {
 			if (stream) {
 
 				AL.sourceStop (handle);
+				var resume = playing; playing = false;
 
 				parent.buffer.__srcVorbisFile.timeSeek ((value + parent.offset) / 1000);
 				AL.sourceUnqueueBuffers (handle, STREAM_NUM_BUFFERS);
 				refillBuffers (buffers);
 
+				playing = resume;
 				if (playing) AL.sourcePlay (handle);
 
 			} else if (parent.buffer != null) {
