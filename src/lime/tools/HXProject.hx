@@ -46,6 +46,7 @@ class HXProject extends Script {
 	public var javaPaths:Array<String>;
 	public var keystore:Keystore;
 	public var languages:Array<String>;
+	public var launchStoryboard:LaunchStoryboard;
 	public var libraries:Array<Library>;
 	public var libraryHandlers:Map<String, String>;
 	public var meta:MetaData;
@@ -401,6 +402,12 @@ class HXProject extends Script {
 		}
 
 		project.languages = languages.copy ();
+		
+		if (launchStoryboard != null) {
+
+			project.launchStoryboard = launchStoryboard.clone ();
+
+		}
 
 		for (library in libraries) {
 
@@ -947,6 +954,16 @@ class HXProject extends Script {
 
 			}
 
+			if (launchStoryboard == null) {
+			
+				launchStoryboard = project.launchStoryboard;
+			
+			} else {
+			
+				launchStoryboard.merge (project.launchStoryboard);
+			
+			}
+			
 			languages = ArrayTools.concatUnique (languages, project.languages, true);
 			libraries = ArrayTools.concatUnique (libraries, project.libraries, true);
 

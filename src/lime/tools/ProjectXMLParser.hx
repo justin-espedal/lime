@@ -1570,6 +1570,49 @@ class ProjectXMLParser extends HXProject {
 						}
 
 						splashScreens.push (splashScreen);
+						
+					case "launchStoryboard":
+					
+						if (launchStoryboard == null) {
+						
+							launchStoryboard = new LaunchStoryboard ();
+						
+						}
+					
+						if (element.has.path) {
+
+							launchStoryboard.path = Path.combine (extensionPath, substitute (element.att.path));
+
+						} else {
+
+							launchStoryboard.path = Path.combine (extensionPath, substitute (element.att.name));
+
+						}
+						
+						if (element.has.assetsPath) {
+
+							launchStoryboard.assetsPath = Path.combine (extensionPath, substitute (element.att.assetsPath));
+
+						}
+						
+						for (childElement in element.elements) {
+
+							var isValid = isValidElement (childElement, "");
+
+							if (isValid) {
+							
+								switch(childElement.name) {
+								
+									case "imageset":
+									
+										var name = substitute (childElement.att.name);
+										launchStoryboard.assets.push (new LaunchStoryboard.ImageSet (name));
+								
+								}
+							
+							}
+							
+						}
 
 					case "icon":
 
