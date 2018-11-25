@@ -1,17 +1,24 @@
 package lime.tools;
 
 
+import hxp.ObjectTools;
+
+
 class LaunchStoryboard {
 
 
 	public var assetsPath:String;
 	public var assets:Array<LaunchStoryboardAsset>;
 	public var path:String;
+	
+	public var template:String;
+	public var templateContext:Dynamic;
 
 
 	public function new () {
 		
 		assets = [];
+		templateContext = {};
 		
 	}
 
@@ -22,6 +29,8 @@ class LaunchStoryboard {
 		launchStoryboard.assetsPath = assetsPath;
 		launchStoryboard.assets = assets.copy ();
 		launchStoryboard.path = path;
+		launchStoryboard.template = template;
+		launchStoryboard.templateContext = ObjectTools.copyFields (templateContext, {});
 		
 		return launchStoryboard;
 
@@ -35,6 +44,8 @@ class LaunchStoryboard {
 			if (launchStoryboard.assetsPath != null) assetsPath = launchStoryboard.assetsPath;
 			if (launchStoryboard.assets != null) assets = launchStoryboard.assets;
 			if (launchStoryboard.path != null) path = launchStoryboard.path;
+			if (launchStoryboard.template != null) template = launchStoryboard.template;
+			if (launchStoryboard.templateContext != null) templateContext = launchStoryboard.templateContext;
 			
 		}
 
@@ -64,6 +75,8 @@ class ImageSet extends LaunchStoryboardAsset {
 	
 	
 	public var name:String;
+	public var width = 0;
+	public var height = 0;
 	
 	
 	public function new (name:String) {

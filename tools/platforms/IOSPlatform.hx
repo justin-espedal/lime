@@ -16,6 +16,7 @@ import hxp.System;
 import hxp.Haxelib;
 import lime.tools.Icon;
 import lime.tools.IconHelper;
+import lime.tools.ImageHelper;
 import lime.tools.IOSHelper;
 import lime.tools.Keystore;
 import lime.tools.LaunchStoryboard;
@@ -546,22 +547,21 @@ class IOSPlatform extends PlatformTarget {
 
 		}
 
-		if(project.launchStoryboard != null) {
+		if (project.launchStoryboard != null) {
 			
-			var name = Path.withoutDirectory (Path.withoutExtension (project.launchStoryboard.path));
-			context.IOS_LAUNCH_STORYBOARD = name;
+			var sb = project.launchStoryboard;
 			
-			System.copyFile (project.launchStoryboard.path, projectDirectory + name + ".storyboard");
+			var assetsPath = sb.assetsPath;
+			var imagesets = [];
 			
-			var assetsPath = project.launchStoryboard.assetsPath;
-			
-			for (asset in project.launchStoryboard.assets) {
+			for (asset in sb.assets) {
 			
 				switch (asset.type) {
 				
 					case "imageset":
 					
 						var imageset = cast (asset, ImageSet);
+						imagesets.push (imageset);
 						
 						var imagesetPath = Path.combine (projectDirectory, "Images.xcassets/" + imageset.name + ".imageset");
 						System.mkdir (imagesetPath);
@@ -577,6 +577,15 @@ class IOSPlatform extends PlatformTarget {
 							
 								images.push ({idiom: "universal", filename: filename, scale: scale});
 								System.copyFile (Path.combine (assetsPath, filename), Path.combine (imagesetPath, filename));
+								
+								if (imageset.width == 0 || imageset.height == 0) {
+								
+									var dim = ImageHelper.readPNGImageSize (Path.combine (assetsPath, filename));
+									var scaleValue = Std.parseInt (scale.charAt (0));
+									imageset.width = Std.int (dim.width / scaleValue);
+									imageset.height = Std.int (dim.height / scaleValue);
+									
+								}
 								
 							}
 						
@@ -596,6 +605,30 @@ class IOSPlatform extends PlatformTarget {
 					
 				}
 			
+			}
+			
+			if (sb.template != null) {
+			
+				sb.templateContext.imagesets = [];
+				
+				for (imageset in imagesets) {
+				
+					sb.templateContext.imagesets.push ({
+						name: imageset.name,
+						width: imageset.width,
+						height: imageset.height,
+					});
+					
+				}
+				
+				System.copyFileTemplate (project.templatePaths, "ios/storyboards/" + sb.template, projectDirectory + sb.template, sb.templateContext, true, true);
+				context.IOS_LAUNCH_STORYBOARD = Path.withoutExtension (sb.template);
+				
+			} else {
+			
+				System.copyFile (sb.path, projectDirectory + Path.withoutDirectory (sb.path));
+				context.IOS_LAUNCH_STORYBOARD = Path.withoutDirectory (Path.withoutExtension (sb.path));
+				
 			}
 			
 		} else {

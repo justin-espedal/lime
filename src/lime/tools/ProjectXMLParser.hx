@@ -1583,10 +1583,34 @@ class ProjectXMLParser extends HXProject {
 
 							launchStoryboard.path = Path.combine (extensionPath, substitute (element.att.path));
 
-						} else {
+						} else if (element.has.name) {
 
 							launchStoryboard.path = Path.combine (extensionPath, substitute (element.att.name));
 
+						} else if (element.has.template) {
+						
+							launchStoryboard.template = substitute (element.att.template);
+							launchStoryboard.templateContext = {};
+							
+							for (attr in element.x.attributes()) {
+							
+								if (attr == "assetsPath") continue;
+								
+								var value = element.x.get (attr);
+								Reflect.setField (launchStoryboard.templateContext, attr, value);
+								
+								if (value.length == 8 && value.substr (0,2) == "0x") {
+								
+									var c = Std.parseInt (value);
+									
+									Reflect.setField (launchStoryboard.templateContext, attr + "_red", ((c >> 16) & 0xFF) / 255);
+									Reflect.setField (launchStoryboard.templateContext, attr + "_green", ((c >> 8) & 0xFF) / 255);
+									Reflect.setField (launchStoryboard.templateContext, attr + "_blue", (c & 0xFF) / 255);
+								
+								}
+							
+							}
+						
 						}
 						
 						if (element.has.assetsPath) {
@@ -1606,8 +1630,15 @@ class ProjectXMLParser extends HXProject {
 									case "imageset":
 									
 										var name = substitute (childElement.att.name);
-										launchStoryboard.assets.push (new LaunchStoryboard.ImageSet (name));
-								
+										var imageset = new LaunchStoryboard.ImageSet (name);
+										
+										if (childElement.has.width)
+											imageset.width = Std.parseInt (substitute (childElement.att.width));
+										if (childElement.has.height)
+											imageset.height = Std.parseInt (substitute (childElement.att.height));
+										
+										launchStoryboard.assets.push (imageset);
+									
 								}
 							
 							}
