@@ -4,6 +4,7 @@ package lime.text;
 import haxe.Utf8;
 import lime._internal.unifill.Unifill;
 import lime._internal.unifill.CodePoint;
+import lime.system.Locale;
 
 
 abstract UTF8String(String) from String to String {
@@ -123,7 +124,7 @@ abstract UTF8String(String) from String to String {
 
 		If `str` cannot be found, -1 is returned.
 	**/
-	public function lastIndexOf(str:String, ?startIndex:Int):Int {
+	public function lastIndexOf (str:String, ?startIndex:Int):Int {
 
 		return Unifill.uLastIndexOf (this, str, startIndex);
 
@@ -209,22 +210,33 @@ abstract UTF8String(String) from String to String {
 		Returns a String where all characters of `this` String are lower case.
 
 		Affects the characters `A-Z`. Other characters remain unchanged.
+		
+		If `language` is specified, language-specific casing rules will be followed.
 	**/
-	public function toLowerCase ():String {
+	public function toLowerCase (locale:Locale = null):String {
 
 		#if sys
 
 		if (lowercaseMap == null) {
 
 			lowercaseMap = new Map<Int, Int> ();
-			Utf8Ext.fillUpperToLowerMap (uppercaseMap);
-
+			Utf8Ext.fillUpperToLowerMap (lowercaseMap);
+			
 		}
 
 		var r = new Utf8 ();
 
 		Utf8.iter (this, function (v) {
 
+			if (locale != null)
+			{
+				var v2 = toLowerCaseLocaleFixes (v, locale);
+				if (v2 != v)
+				{
+					r.addChar (v2);
+					return;
+				}
+			}
 			r.addChar (lowercaseMap.exists (v) ? lowercaseMap[v] : v);
 
 		});
@@ -237,6 +249,21 @@ abstract UTF8String(String) from String to String {
 
 		#end
 
+	}
+
+
+	private static function toLowerCaseLocaleFixes (v:Int, locale:Locale):Int
+	{
+		return switch (locale.language)
+		{
+			case "tr":
+				switch (v)
+				{
+					case 0xC4B0: 0x69; //İ-->i (large dotted İ to small i) //probably redundant and can be removed, presented here for logical symmtery for when genuine cases are needed
+					default: v;
+				}
+			default: v;
+		}
 	}
 
 
@@ -254,8 +281,10 @@ abstract UTF8String(String) from String to String {
 		Returns a String where all characters of `this` String are upper case.
 
 		Affects the characters `a-z`. Other characters remain unchanged.
+		
+		If `language` is specified, language-specific casing rules will be followed.
 	**/
-	public function toUpperCase ():String {
+	public function toUpperCase (locale:Locale = null):String {
 
 		#if sys
 
@@ -263,13 +292,22 @@ abstract UTF8String(String) from String to String {
 
 			uppercaseMap = new Map<Int, Int> ();
 			Utf8Ext.fillLowerToUpperMap (uppercaseMap);
-
+		
 		}
 
 		var r = new Utf8 ();
 
-		Utf8.iter (this, function(v) {
+		Utf8.iter (this, function (v) {
 
+			if (locale != null)
+			{
+				var v2 = toUpperCaseLocaleFixes (v, locale);
+				if (v2 != v)
+				{
+					r.addChar (v2);
+					return;
+				}
+			}
 			r.addChar (uppercaseMap.exists (v) ? uppercaseMap[v] : v);
 
 		});
@@ -282,6 +320,21 @@ abstract UTF8String(String) from String to String {
 
 		#end
 
+	}
+
+
+	private static function toUpperCaseLocaleFixes (v:Int, locale:Locale):Int
+	{
+		return switch (locale.language)
+		{
+			case "tr":
+				switch (v)
+				{
+					case 0x69: 0xC4B0; //i-->İ (small i to large dotted İ)
+					default: v;
+				}
+			default: v;
+		}
 	}
 
 

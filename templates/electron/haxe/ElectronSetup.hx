@@ -46,6 +46,10 @@ class ElectronSetup {
 			if (height == 0) height = 600;
 			var frame:Bool = window.borderless == false;
 
+			var commandLine = Reflect.getProperty(electron.main.App, "commandLine");
+			var appendSwitch:haxe.Constraints.Function = Reflect.getProperty(commandLine, "appendSwitch");
+			appendSwitch('--autoplay-policy','no-user-gesture-required');
+			
 			electron.main.App.on( 'ready', function(e) {
 				var config:Dynamic = {
 					fullscreen: window.fullscreen,
@@ -64,7 +68,7 @@ class ElectronSetup {
 				});
 
 				ElectronSetup.window.loadURL( 'file://' + js.Node.__dirname + '/index.html' );
-				#if debug
+				#if (debug && !suppress_devtools)
 					ElectronSetup.window.webContents.openDevTools();
 				#end
 			});

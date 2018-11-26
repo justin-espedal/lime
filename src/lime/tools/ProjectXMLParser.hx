@@ -1,7 +1,6 @@
 package lime.tools;
 
 
-import haxe.xml.Fast;
 import hxp.*;
 import lime.tools.CommandHelper;
 import lime.tools.ModuleHelper;
@@ -14,6 +13,12 @@ import lime.utils.AssetManifest;
 #end
 import sys.io.File;
 import sys.FileSystem;
+
+#if (haxe_ver >= 4)
+import haxe.xml.Access in Fast;
+#else
+import haxe.xml.Fast;
+#end
 
 
 class ProjectXMLParser extends HXProject {
@@ -1565,6 +1570,80 @@ class ProjectXMLParser extends HXProject {
 						}
 
 						splashScreens.push (splashScreen);
+						
+					case "launchStoryboard":
+					
+						if (launchStoryboard == null) {
+						
+							launchStoryboard = new LaunchStoryboard ();
+						
+						}
+					
+						if (element.has.path) {
+
+							launchStoryboard.path = Path.combine (extensionPath, substitute (element.att.path));
+
+						} else if (element.has.name) {
+
+							launchStoryboard.path = Path.combine (extensionPath, substitute (element.att.name));
+
+						} else if (element.has.template) {
+						
+							launchStoryboard.template = substitute (element.att.template);
+							launchStoryboard.templateContext = {};
+							
+							for (attr in element.x.attributes()) {
+							
+								if (attr == "assetsPath") continue;
+								
+								var value = element.x.get (attr);
+								Reflect.setField (launchStoryboard.templateContext, attr, value);
+								
+								if (value.length == 8 && value.substr (0,2) == "0x") {
+								
+									var c = Std.parseInt (value);
+									
+									Reflect.setField (launchStoryboard.templateContext, attr + "_red", ((c >> 16) & 0xFF) / 255);
+									Reflect.setField (launchStoryboard.templateContext, attr + "_green", ((c >> 8) & 0xFF) / 255);
+									Reflect.setField (launchStoryboard.templateContext, attr + "_blue", (c & 0xFF) / 255);
+								
+								}
+							
+							}
+						
+						}
+						
+						if (element.has.assetsPath) {
+
+							launchStoryboard.assetsPath = Path.combine (extensionPath, substitute (element.att.assetsPath));
+
+						}
+						
+						for (childElement in element.elements) {
+
+							var isValid = isValidElement (childElement, "");
+
+							if (isValid) {
+							
+								switch(childElement.name) {
+								
+									case "imageset":
+									
+										var name = substitute (childElement.att.name);
+										var imageset = new LaunchStoryboard.ImageSet (name);
+										
+										if (childElement.has.width)
+											imageset.width = Std.parseInt (substitute (childElement.att.width));
+										if (childElement.has.height)
+											imageset.height = Std.parseInt (substitute (childElement.att.height));
+										
+										launchStoryboard.assets.push (imageset);
+									
+								}
+							
+							}
+							
+						}
 
 					case "icon":
 
@@ -2184,19 +2263,23 @@ class ProjectXMLParser extends HXProject {
 
 					value = StringTools.replace (value, "#", "");
 
-					if (value.indexOf ("0x") == -1) {
-
-						value = "0x" + value;
-
-					}
-
-					if (value == "0x" || (value.length == 10 && StringTools.startsWith (value, "0x00"))) {
+					if (value == "null" || value == "transparent" || value == "") {
 
 						windows[id].background = null;
 
 					} else {
 
-						windows[id].background = Std.parseInt (value);
+						if (value.indexOf ("0x") == -1) value = "0x" + value;
+
+						if (value.length == 10 && StringTools.startsWith (value, "0x00")) {
+
+							windows[id].background = null;
+
+						} else {
+
+							windows[id].background = Std.parseInt (value);
+
+						}
 
 					}
 
