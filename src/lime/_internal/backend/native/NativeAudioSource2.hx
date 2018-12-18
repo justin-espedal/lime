@@ -23,7 +23,7 @@ typedef FillBufferResult = {
 #end
 
 @:access(lime.media.AudioBuffer)
-class NativeAudioSource2 {
+class NativeAudioSource2 implements NativeAudioSourceImpl {
 
 	static inline var BUFFER_LENGTH = 176000;
 	static inline var BUFFER_NUMBER = 2;
@@ -35,7 +35,6 @@ class NativeAudioSource2 {
 
 	var loops:Int = 0;
 	var position:Vector4 = new Vector4();
-	var length:Null<Int> = null;
 
 	var playing:Bool = false;
 	var dataLength:Int = 0;
@@ -329,17 +328,11 @@ class NativeAudioSource2 {
 	}
 
 	public function getLength() {
-		/*
-		// TODO I don't know what lime/openfl uses this for. I couldn't understand it so I haven't yet implemented it
-		if(length != null) {
-			return length;
-		}
-		*/
 		return Std.int(bytesToSeconds(dataLength) * 1000 - audioSource.offset);
 	}
 
 	public function setLength(value:Int) {
-		return length = value;
+		return getLength();
 	}
 
 	public function getLoops() {

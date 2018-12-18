@@ -35,8 +35,15 @@ class AudioSource {
 		this.buffer = buffer;
 		this.offset = offset;
 
+		#if (flash || (js && html5))
 		__backend = new AudioSourceBackend (this);
-
+		#else
+		@:privateAccess if(buffer.__srcVorbisFile == null)
+			__backend = new lime._internal.backend.native.NativeAudioSource (this);
+		else
+			__backend = new lime._internal.backend.native.NativeAudioSource2 (this);
+		#end
+		
 		if (length != null && length != 0) {
 
 			this.length = length;
@@ -181,5 +188,5 @@ class AudioSource {
 #elseif (js && html5)
 @:noCompletion private typedef AudioSourceBackend = lime._internal.backend.html5.HTML5AudioSource;
 #else
-@:noCompletion private typedef AudioSourceBackend = lime._internal.backend.native.NativeAudioSource2;
+@:noCompletion private typedef AudioSourceBackend = lime._internal.backend.native.NativeAudioSourceImpl;
 #end

@@ -20,7 +20,7 @@ import lime.utils.UInt8Array;
 @:access(lime.media.AudioBuffer)
 
 
-class NativeAudioSource {
+class NativeAudioSource implements NativeAudioSourceImpl {
 
 
 	private static var STREAM_BUFFER_SIZE = 48000;
@@ -143,6 +143,11 @@ class NativeAudioSource {
 
 		samples = Std.int ((dataLength * 8) / (parent.buffer.channels * parent.buffer.bitsPerSample));
 
+	}
+	
+	
+	public function update ():Void {
+	
 	}
 
 
