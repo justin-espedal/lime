@@ -43,6 +43,8 @@ class NativeAudioSource2 implements NativeAudioSourceImpl {
 
 	var vorbisFile:VorbisFile;
 
+	var timeBlock1:Float;
+	var timeBlock2:Float;
 
 	public function new(audioSource:AudioSource) {
 		this.audioSource = audioSource;
@@ -254,7 +256,7 @@ class NativeAudioSource2 implements NativeAudioSourceImpl {
 	}
 
 	inline function seek(value:Float) {
-		vorbisFile.timeSeek (value + audioSource.offset);
+		vorbisFile.timeSeek (value);
 	}
 
 	inline function bytesToSeconds(bytes:Int) {
@@ -267,6 +269,8 @@ class NativeAudioSource2 implements NativeAudioSourceImpl {
 
 	function readVorbisFile(length:Int = BUFFER_LENGTH):FillBufferResult {
 		var read = 0, total = 0, readMax = 0;
+		timeBlock1 = timeBlock2;
+		timeBlock2 = vorbisFile.timeTell();
 		while(total < length) {
 			readMax = 4096;
 			if(readMax > length - total) {
@@ -288,7 +292,7 @@ class NativeAudioSource2 implements NativeAudioSourceImpl {
 	// GETTERS AND SETTERS
 
 	public function getCurrentTime() {
-		var time = vorbisFile.timeTell() * 1000 + AL.getSourcef(handle, AL.SEC_OFFSET) * 1000 - audioSource.offset;
+		var time = timeBlock1 * 1000 + AL.getSourcef(handle, AL.SEC_OFFSET) * 1000 - audioSource.offset;
 		return time > 0 ? Std.int(time) : 0;
 	}
 
