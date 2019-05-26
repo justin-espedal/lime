@@ -20,7 +20,7 @@
                         <subviews>
                             <imageView userInteractionEnabled="NO" contentMode="::contentMode::" horizontalHuggingPriority="251" verticalHuggingPriority="251" fixedFrame="YES" translatesAutoresizingMaskIntoConstraints="NO" id="Oxd-N2-wEZ">
                                 <rect key="frame" x="0.0" y="0.0" width="834" height="1194"/>
-                                <autoresizingMask key="autoresizingMask" flexibleMinX="YES" flexibleMaxX="YES" flexibleMinY="YES" flexibleMaxY="YES"/>
+                                <autoresizingMask key="autoresizingMask" widthSizable="YES" heightSizable="YES"/>
                                 ::if portrait::<variation key="heightClass=regular-widthClass=compact" image="::portrait::"/>::end::
                                 ::if landscape::<variation key="heightClass=compact-widthClass=regular" image="::landscape::"/>
                                 <variation key="heightClass=compact-widthClass=compact" image="::landscape::"/>::end::
