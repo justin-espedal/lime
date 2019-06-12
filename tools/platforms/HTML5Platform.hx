@@ -81,10 +81,13 @@ class HTML5Platform extends PlatformTarget {
 
 			if (project.targetFlags.exists ("minify") || type == "final") {
 
-				HTML5Helper.minify (project, targetDirectory + "/bin/" + project.app.file + ".js");
+				HTML5Helper.minify (project, outputFile);
 
 			}
-
+			
+			var context = project.templateContext;
+			context.APP_FILE_SIZE = FileSystem.stat (outputFile).size;
+			
 		}
 
 	}
@@ -335,15 +338,17 @@ class HTML5Platform extends PlatformTarget {
 
 			if (StringTools.endsWith (dependency.name, ".js")) {
 
-				context.linkedLibraries.push (dependency.name);
+				context.linkedLibraries.push ({name: dependency.name, size: 0});
 
 			} else if (StringTools.endsWith (dependency.path, ".js") && FileSystem.exists (dependency.path)) {
 
 				var name = Path.withoutDirectory (dependency.path);
+				var llname = "./" + dependencyPath + "/" + name;
+				var llpath = Path.combine (destination, Path.combine (dependencyPath, name));
 
-				context.linkedLibraries.push ("./" + dependencyPath + "/" + name);
-				System.copyIfNewer (dependency.path, Path.combine (destination, Path.combine (dependencyPath, name)));
-
+				System.copyIfNewer (dependency.path, llpath);
+				context.linkedLibraries.push ({name: llname, size: FileSystem.stat (llpath).size });
+				
 			}
 
 		}
