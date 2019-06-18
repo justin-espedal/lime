@@ -85,9 +85,10 @@ class HTML5Platform extends PlatformTarget {
 
 			}
 			
-			var context = project.templateContext;
-			context.APP_FILE_SIZE = FileSystem.stat (outputFile).size;
+			var indexFile = targetDirectory + "/bin/index.html";
 			
+			System.replaceText (indexFile, "APP_FILE_SIZE", "" + FileSystem.stat (outputFile).size);
+
 		}
 
 	}
