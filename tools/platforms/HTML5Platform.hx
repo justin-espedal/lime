@@ -374,8 +374,11 @@ class HTML5Platform extends PlatformTarget
 			{
 				if ( /*asset.embed != true &&*/ asset.type != AssetType.FONT)
 				{
-					System.mkdir(Path.directory(path));
-					AssetHelper.copyAssetIfNewer(asset, path);
+					if (asset.targetPath != null)
+					{
+						System.mkdir(Path.directory(path));
+						AssetHelper.copyAssetIfNewer(asset, path);
+					}
 				}
 				else if (asset.type == AssetType.FONT && useWebfonts)
 				{
