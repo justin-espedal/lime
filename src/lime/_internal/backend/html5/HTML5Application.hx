@@ -397,11 +397,11 @@ class HTML5Application
 		{
 			// space and arrow keys
 
-			// switch (event.keyCode) {
+			switch (event.keyCode) {
 
-			// 	case 32, 37, 38, 39, 40: event.preventDefault ();
+				case 32, 37, 38, 39, 40: event.preventDefault ();
 
-			// }
+			}
 
 			// TODO: Use event.key instead where supported
 
