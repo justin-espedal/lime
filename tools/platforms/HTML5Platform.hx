@@ -43,7 +43,8 @@ class HTML5Platform extends PlatformTarget
 			{
 				var buildCommand = "build:" + (project.targetFlags.exists("final") ? "prod" : "dev");
 				System.runCommand(targetDirectory + "/bin", "npm", ["run", buildCommand, "-s"]);
-			} else
+			}
+			else
 			{
 				return;
 			}
@@ -299,9 +300,15 @@ class HTML5Platform extends PlatformTarget
 
 		if (npm)
 		{
+			var path;
 			for (i in 0...project.sources.length)
 			{
-				project.sources[i] = Path.tryFullPath(project.sources[i]);
+				path = project.sources[i];
+				if (StringTools.startsWith(path, targetDirectory) && !FileSystem.exists(Path.directory(path)))
+				{
+					System.mkdir(Path.directory(path));
+				}
+				project.sources[i] = Path.tryFullPath(path);
 			}
 		}
 
@@ -366,6 +373,9 @@ class HTML5Platform extends PlatformTarget
 			}
 		}
 
+		var createdDirectories = new Map<String, Bool>();
+		var dir = null;
+
 		for (asset in project.assets)
 		{
 			var path = Path.combine(destination, asset.targetPath);
@@ -374,11 +384,13 @@ class HTML5Platform extends PlatformTarget
 			{
 				if ( /*asset.embed != true &&*/ asset.type != AssetType.FONT)
 				{
-					if (asset.targetPath != null)
+					dir = Path.directory(path);
+					if (!createdDirectories.exists(dir))
 					{
-						System.mkdir(Path.directory(path));
-						AssetHelper.copyAssetIfNewer(asset, path);
+						System.mkdir(dir);
+						createdDirectories.set(dir, true);
 					}
+					AssetHelper.copyAssetIfNewer(asset, path);
 				}
 				else if (asset.type == AssetType.FONT && useWebfonts)
 				{
