@@ -16,6 +16,8 @@ import flash.display.BitmapData;
 import flash.media.Sound;
 #end
 
+using StringTools;
+
 #if !lime_debug
 @:fileXml('tags="haxe,release"')
 @:noDebug
@@ -243,7 +245,7 @@ import flash.media.Sound;
 			{
 				var basePath = rootPath;
 				if (basePath == null) basePath = "";
-				if (basePath != "") basePath += "/";
+				if (basePath != "" && !basePath.endsWith("/")) basePath += "/";
 
 				var path = basePath + (paths.exists(id) ? paths.get(id) : id);
 				path = __cacheBreak(path);
