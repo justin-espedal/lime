@@ -364,16 +364,19 @@ class Window
 
 	public function close():Void
 	{
+		trace('window.close()');
 		__backend.close();
 	}
 
 	public function focus():Void
 	{
+		trace('window.focus()');
 		__backend.focus();
 	}
 
 	public function move(x:Int, y:Int):Void
 	{
+		trace('window.move($x, $y)');
 		__backend.move(x, y);
 
 		__x = x;
@@ -387,6 +390,7 @@ class Window
 
 	public function resize(width:Int, height:Int):Void
 	{
+		trace('window.resize($width, $height)');
 		__backend.resize(width, height);
 
 		__width = width;
@@ -446,6 +450,7 @@ class Window
 
 	@:noCompletion private function set_borderless(value:Bool):Bool
 	{
+		trace('window.borderless = $value');
 		return __borderless = __backend.setBorderless(value);
 	}
 
@@ -466,6 +471,7 @@ class Window
 
 	@:noCompletion private function set_fullscreen(value:Bool):Bool
 	{
+		trace('window.fullscreen = $value');
 		return __fullscreen = __backend.setFullscreen(value);
 	}
 
@@ -476,6 +482,7 @@ class Window
 
 	@:noCompletion private function set_height(value:Int):Int
 	{
+		trace('window.height = $value');
 		resize(__width, value);
 		return __height;
 	}
@@ -492,6 +499,7 @@ class Window
 
 	@:noCompletion private inline function set_maximized(value:Bool):Bool
 	{
+		trace('window.maximized = $value');
 		__minimized = false;
 		return __maximized = __backend.setMaximized(value);
 	}
@@ -503,6 +511,7 @@ class Window
 
 	@:noCompletion private function set_minimized(value:Bool):Bool
 	{
+		trace('window.minimized = $value');
 		__maximized = false;
 		return __minimized = __backend.setMinimized(value);
 	}
@@ -525,6 +534,7 @@ class Window
 
 	@:noCompletion private function set_resizable(value:Bool):Bool
 	{
+		trace('window.resizable = $value');
 		__resizable = __backend.setResizable(value);
 		return __resizable;
 	}
@@ -561,6 +571,7 @@ class Window
 
 	@:noCompletion private function set_width(value:Int):Int
 	{
+		trace('window.width = $value');
 		resize(value, __height);
 		return __width;
 	}
@@ -572,6 +583,7 @@ class Window
 
 	@:noCompletion private function set_x(value:Int):Int
 	{
+		trace('window.x = $value');
 		move(value, __y);
 		return __x;
 	}
@@ -583,6 +595,7 @@ class Window
 
 	@:noCompletion private function set_y(value:Int):Int
 	{
+		trace('window.y = $value');
 		move(__x, value);
 		return __y;
 	}

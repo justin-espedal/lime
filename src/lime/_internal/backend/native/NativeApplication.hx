@@ -509,40 +509,51 @@ class NativeApplication
 			switch (windowEventInfo.type)
 			{
 				case WINDOW_ACTIVATE:
+					trace("WINDOW_ACTIVATE");
 					advanceTimer();
 					window.onActivate.dispatch();
 					AudioManager.resume();
 
 				case WINDOW_CLOSE:
+					trace("WINDOW_CLOSE");
 					window.close();
 
 				case WINDOW_DEACTIVATE:
+					trace("WINDOW_DEACTIVATE");
 					window.onDeactivate.dispatch();
 					AudioManager.suspend();
 					pauseTimer = System.getTimer();
 
 				case WINDOW_ENTER:
+					trace("WINDOW_ENTER");
 					window.onEnter.dispatch();
 
 				case WINDOW_EXPOSE:
+					trace("WINDOW_EXPOSE");
 					window.onExpose.dispatch();
 
 				case WINDOW_FOCUS_IN:
+					trace("WINDOW_FOCUS_IN");
 					window.onFocusIn.dispatch();
 
 				case WINDOW_FOCUS_OUT:
+					trace("WINDOW_FOCUS_OUT");
 					window.onFocusOut.dispatch();
 
 				case WINDOW_LEAVE:
+					trace("WINDOW_LEAVE");
 					window.onLeave.dispatch();
 
 				case WINDOW_MAXIMIZE:
+					trace("WINDOW_MAXIMIZE");
+					//ON MAC OS, THIS HAPPENS AT THE END OF FULLSCREENING.
 					window.__maximized = true;
 					window.__fullscreen = false;
 					window.__minimized = false;
 					window.onMaximize.dispatch();
 
 				case WINDOW_MINIMIZE:
+					trace("WINDOW_MINIMIZE");
 					window.__minimized = true;
 					window.__maximized = false;
 					window.__fullscreen = false;
@@ -555,16 +566,19 @@ class NativeApplication
 					window.onMinimize.dispatch();
 
 				case WINDOW_MOVE:
+					trace("WINDOW_MOVE " + windowEventInfo.x + ", " + windowEventInfo.y);
 					window.__x = windowEventInfo.x;
 					window.__y = windowEventInfo.y;
 					window.onMove.dispatch(windowEventInfo.x, windowEventInfo.y);
 
 				case WINDOW_RESIZE:
+					trace("WINDOW_RESIZE " + windowEventInfo.width + ", " + windowEventInfo.height);
 					window.__width = windowEventInfo.width;
 					window.__height = windowEventInfo.height;
 					window.onResize.dispatch(windowEventInfo.width, windowEventInfo.height);
 
 				case WINDOW_RESTORE:
+					trace("WINDOW_RESTORE");
 					window.__fullscreen = false;
 					window.__minimized = false;
 					#if windows

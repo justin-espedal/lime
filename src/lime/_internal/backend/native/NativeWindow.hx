@@ -190,6 +190,7 @@ class NativeWindow
 
 	public function close():Void
 	{
+		trace('NativeWindow.close()');
 		if (!closing)
 		{
 			closing = true;
@@ -232,6 +233,7 @@ class NativeWindow
 
 	public function focus():Void
 	{
+		trace('NativeWindow.focus()');
 		if (handle != null)
 		{
 			#if (!macro && lime_cffi)
@@ -313,6 +315,7 @@ class NativeWindow
 
 	public function move(x:Int, y:Int):Void
 	{
+		trace('NativeWindow.move($x, $y)');
 		if (handle != null)
 		{
 			#if (!macro && lime_cffi)
@@ -441,6 +444,7 @@ class NativeWindow
 
 	public function resize(width:Int, height:Int):Void
 	{
+		trace('NativeWindow.resize($width, $height)');
 		if (handle != null)
 		{
 			#if (!macro && lime_cffi)
@@ -451,6 +455,7 @@ class NativeWindow
 
 	public function setBorderless(value:Bool):Bool
 	{
+		trace('NativeWindow.setBorderless($value)');
 		if (handle != null)
 		{
 			#if (!macro && lime_cffi)
@@ -573,6 +578,7 @@ class NativeWindow
 
 	public function setFullscreen(value:Bool):Bool
 	{
+		trace('NativeWindow.setFullscreen($value)');
 		if (handle != null)
 		{
 			#if (!macro && lime_cffi)
@@ -586,6 +592,7 @@ class NativeWindow
 
 			if (value)
 			{
+				trace("NativeWindow.setFullScreen succeeded, dispatching event");
 				parent.onFullscreen.dispatch();
 			}
 		}
@@ -605,6 +612,7 @@ class NativeWindow
 
 	public function setMaximized(value:Bool):Bool
 	{
+		trace('NativeWindow.setMaximized($value)');
 		if (handle != null)
 		{
 			#if (!macro && lime_cffi)
@@ -617,6 +625,7 @@ class NativeWindow
 
 	public function setMinimized(value:Bool):Bool
 	{
+		trace('NativeWindow.setMinimized($value)');
 		if (handle != null)
 		{
 			#if (!macro && lime_cffi)
@@ -629,6 +638,7 @@ class NativeWindow
 
 	public function setResizable(value:Bool):Bool
 	{
+		trace('NativeWindow.setResizable($value)');
 		if (handle != null)
 		{
 			#if (!macro && lime_cffi)
