@@ -24,6 +24,15 @@ import lime.text.Font;
 class HXProject extends Script
 {
 	public var app:ApplicationData;
+
+	/**
+		For native platforms, the architectures this project should be built with.
+
+		Sources:
+		- Default architectures vary by platform. See `HXProject.new`.
+		- `<architecture name="" />` and `<architecture exclude="" />` in project xml.
+		- `CommandLineTools.overrides` (`-32`, `-64`, `-arm64`, etc., on command line) -- these override everything else.
+	**/
 	public var architectures:Array<Architecture>;
 	public var assets:Array<Asset>;
 	// public var command:String;
@@ -32,15 +41,106 @@ class HXProject extends Script
 	// public var defines:Map<String, Dynamic>;
 	public var dependencies:Array<Dependency>;
 	public var environment:Map<String, String>;
+
+	/**
+		The `-Ddefine=value` flags passed to the Haxe compiler. Also passed to native compilers.
+
+		Sources:
+		- `CommandLineTools.userDefines` (`-D something=value` on command line)
+		- `CommandLineTools.overrides` (`--haxedef=something` on command line)
+		- `<haxedef name="" (value="") />` in project xml.
+		- `<define name="" (value="") />` in project xml.
+		- Various haxedefs added as appropriate by the tools.
+
+		Haxedefs also manifest in the template context. `-D someKey=someValue` --> `DEFINE_SOME_KEY=someValue`.
+	**/
 	public var haxedefs:Map<String, Dynamic>;
+
+	/**
+		The options passed to the Haxe compiler, minus the defines (`-Ddefine`) which are collected in `haxedefs`.
+
+		Sources:
+		- `CommandLineTools.overrides` (some recognized flags, and in general: `--haxeflag=something` and `--something` on command line)
+		- `<haxeflag name="" (value="") />` in project.xml
+		- `<compilerflag name="" (value="") />` in project.xml
+
+		Haxeflags also manifest in the template context if they're `-lib` flags. `-lib myLib` --> `LIB_MY_LIB=true`.
+	**/
 	public var haxeflags:Array<String>;
+
+	/**
+		The libraries used by this project.
+
+		Sources:
+		- `CommandLineTools.overrides` (`--haxelib=libname` and `--haxelib=libname:libversion` on command line)
+		- `<haxelib name="" (version="") (path="") />` in project.xml
+
+		Haxelibs also manifest in compiler flags and the template context.
+		`--haxelib=myLib:1.0.0`:
+		- context: `LIB_MY_LIB=true`
+		- compilerflags: `-D myLib=1.0.0 // -cp /path/to/library`
+
+		TODO: what we actually get above looks like it may be inconsistent depending on the state of the haxelib and
+		whether it's overridden. Look into this.
+
+		TODO: look into how/when haxelib projects are merged. For `<haxelib/>`, it happens at parse time.
+		For `--haxelib`? What's `processHaxelibs`?
+	**/
 	public var haxelibs:Array<Haxelib>;
+
 	public var host(get, null):Platform;
+
+	/**
+		The icons for this project.
+
+		Sources:
+		- `<icon name/path="" (width="" height="")/(size="") />` in project.xml
+	**/
 	public var icons:Array<Icon>;
+
+	/**
+		The java paths for this project.
+
+		Each path may be one of:
+		- a directory of `.java` source files
+		- an individual `.java` source file
+		- an individual java `.jar` file
+
+		Sources:
+		- `<java path="" />` in project.xml
+	**/
 	public var javaPaths:Array<String>;
+
 	public var keystore:Keystore;
+
+	/**
+		Human languages supported by this project.
+
+		Sources:
+		- `<language name="" />` in project.xml
+
+		Languages should be provided by the user as their ISO 639-1 id.
+		If the language is not identified under the ISO 639-1 standard,
+		ISO 639-2 may be used instead.
+
+		http://www.loc.gov/standards/iso639-2/php/English_list.php
+	**/
 	public var languages:Array<String>;
+
+	/**
+		Storyboard file used as a launch screen for iOS apps.
+
+		Sources:
+		- `<launchStoryboard name/path/template="" />` in project.xml
+	**/
 	public var launchStoryboard:LaunchStoryboard;
+
+	/**
+		Asset libraries.
+
+		Sources:
+		- `<library ... />` and `<swf ... />` in project.xml
+	**/
 	public var libraries:Array<Library>;
 	public var libraryHandlers:Map<String, String>;
 	public var meta:MetaData;
@@ -53,6 +153,19 @@ class HXProject extends Script
 	public var sources:Array<String>;
 	public var splashScreens:Array<SplashScreen>;
 	public var target:Platform;
+
+	/**
+		Flags that determine options related to the selected target. Each
+		individual platform target determines what flags are available and
+		what they do.
+
+		Sources:
+		- `CommandLineTools.targetFlags` (in general: `-someFlag` on command line)
+		- In some circumstances, `CommandLineTools.projectDefines` (`--someDefine`) may also be included.
+		- Some `targetFlags` may be treated by lime as aliases. For example, if `winjs` is defined, `uwp`
+		  will also be set automatically. Apart from this, `targetFlags` is never modified beyond what the user
+		  has explicitly specified.
+	**/
 	public var targetFlags:Map<String, String>;
 	public var targetHandlers:Map<String, String>;
 	public var templateContext(get, null):Dynamic;

@@ -25,19 +25,170 @@ class CommandLineTools
 	public static var defaultLibrary = "lime";
 	public static var defaultLibraryName = "Lime";
 
+	/**
+		Additional arguments are arguments that are passed on to the generated program when running it.
+
+		In a parsed command, `additionalArguments` is everything after either an `-args` or `--` argument.
+
+		Example, with additional arguments in (): `lime test windows -v -- (more arguments are here)`
+
+		Further arguments may be added by each platform as appropriate.
+
+		Given the above example, `additionalArguments` would be equal to `["more", "arguments", "are", "here"]`.
+		The windows executable would then be started like this: `myGame.exe more arguments are here -verbose -livereload`.
+	**/
 	private var additionalArguments:Array<String>;
+
+	/**
+		In a parsed command, `command` is the first word.
+
+		Example, with the command in (): `lime (test) neko`
+	**/
 	private var command:String;
+
+	/**
+		Whether or not the `-debug` targetFlag has been set.
+
+		Example: `lime test neko (-debug)`
+
+		@see targetFlags
+	**/
 	private var debug:Bool;
+
+	/**
+		The environment used when running lime.
+	**/
 	private var environment:Map<String, String>;
+
+	/**
+		In a parsed command, `includePaths` are arguments that begin with `-I`.
+
+		Example: `lime test neko (-Imy/path/to/include)`
+
+		Given the above example, `"my/path/to/include"` would be found in `includePaths`.
+	**/
 	private var includePaths:Array<String>;
+
+	/**
+		`overrides` represents options passed on the commandline which should either
+		a) take precedence over anything found in the `project.xml` or `project.hxp`,
+		and in library `include.xml` files, or
+		b) simply make additions to the existing data.
+
+		*In general*, overrides are passed by the form `--someProperty=someValue`.
+		If the given argument isn't recognized as an override argument, it would
+		instead be passed into `projectDefines`. From there, it may override certain
+		project defines dynamically. If not, it will be copied into `targetFlags`.
+
+		Some arguments should be treated as **additions** to the base project.
+		- `--haxedef=[...]` > `<haxedef/>`. Added to overrides.haxedefs.
+		- `--haxeflag=[...]` > `<haxeflag/>`. Added to overrides.haxeflags.
+		- `--haxelib=[...]:[...]` > `<haxelib/>`. Added to overrides.haxelibs.
+		- `--haxelib=[...]` > `<haxelib/>`. Added to overrides.haxelibs.
+		- `--source=[...]` > `<source/>`. Added to overrides.sources.
+		- `--dependency=[...]` > `<dependency/>`. Added to overrides.dependencies.
+
+		Other arguments should be treated as **replacements** for existing project settings.
+		- `--certificate-[...]=[...]` > `<certificate/>` settings in `overrides.keystore` and sometimes `config`: `"ios.identity"`, `"tvos.identity"`
+		- `--app-[...]=[...]` > `<app/>` settings. Changes overrides.app.[...].
+		- `--meta-[...]=[...]` > `<meta/>` settings. Changes overrides.meta.[...].
+		- `--window-[...]=[...]` > `<window/>` settings. Changes overrides.window.[...].
+		- `--build-library=[...]` > `"cpp.buildLibrary"` config.
+
+		- `--haxelib-somelib=[...]` > Haxelib.setOverridePath(new Haxelib("somelib", Path.tryFullPath([...])));
+
+		haxeflags may also be overridden:
+		- `--remap [...]`
+		- `--connect [...]`
+		- `-dce [...]`
+		- `--[...]`
+		Both parts (including dashes) are added to overrides.haxeflags
+
+		architectures may be overridden:
+		- `-arm[...]`, `-32`, `-64` > overrides.architectures.push([...]);
+	**/
 	private var overrides:HXProject;
+
 	private var project:HXProject;
+
+	/**
+		In a parsed command, `projectDefines` are arguments of the form `--myProjectDefine=myValue`, except where the key is used
+		as an override marker.
+
+		`projectDefines` is a secondary mechanism for overriding the base project.
+
+		**additions**
+		- `--template-path=[...]` > `<template path="[...]"/>`
+
+		**replacements**
+		- `--config-ios.some-config-field=[...]` > `<config:ios someConfigField="..."/>` (Note that this scheme makes it impossible to set the majority of config strings)
+		- `--fieldName-sub-field-name=[...]` > `project.fieldName.subFieldName=[...];`
+
+		Example, with project define in (): `lime test neko --haxelib=hxp (--myProjectDefine=myValue) myUserDefine=myValue`
+
+		Given the above example, `projectDefines` would be equal to `["myProjectDefine" => "myValue"]`.
+
+		Any project defines that aren't recognized are copied to `targetFlags`.
+
+		@see overrides
+	**/
 	private var projectDefines:Map<String, String>;
+
 	private var runFromHaxelib:Bool;
+
+	/**
+		In a parsed command, `targetFlags` are arguments of the form `-someFlag`.
+
+		Some target flags may have additional effects.
+
+		- `-arm...`, `-32`, `-64`: these flags add the specified architecture to `overrides.architectures`.
+		- `-verbose`, `-v`: these flags set `Log.verbose` to `true`, unless `command` is `display`. Always added to `targetFlags` as `verbose`, not `v`.
+		- `-force-verbose`: this sets `Log.verbose` to `true`, no matter the command.
+		- `-dryrun`: this sets `System.dryrun` to `true`.
+		- `-notrace`: this sets `traceEnabled` to `false`.
+		- `-debug`: this sets `debug` to `true`.
+		- `-nocolor`: this flag sets `Log.enableColor` to `false`.
+
+		In addition to the single-dash target flags, there exists one double-dash target flag.
+
+		- `--device=[...]`
+
+		Example, with target flags in (): `lime test windows (-debug -v -64)`
+
+		Given the above example, `targetFlags` would be equal to `["debug" => "", "verbose" => "", "64" => ""]`.
+
+		----
+
+		After a successful run of `initializeProject`, targetFlags will be augmented by any of the `projectDefines`
+		which don't correlate to existing project fields (see `projectDefines` for more info).
+	**/
 	private var targetFlags:Map<String, String>;
+
 	private var traceEnabled:Bool;
+
+	/**
+		In a parsed command, `userDefines` are arguments of the form `-D someDefine`,
+		`-D someDefine=someValue`, or `someDefine=someValue`. For the forms that include
+		`-D`, the space is optional.
+
+		Example, with user defines in (): `lime test neko (myUserDefine=myValue -DmyOtherDefine -D myThird=3)`
+
+		Given the above example, `userDefines` would be equal to `["myUserDefine" => "myValue", "myOtherDefine" => "", "myThird" => "3"]`.
+
+		After a successful run of `initializeProject`, `userDefines` will be added to the project's haxedefs. In fact, you
+		could consider `-Dmydefine` to be shorthand for `--haxedef=mydefine`.
+	**/
 	private var userDefines:Map<String, Dynamic>;
+
 	private var version:String;
+
+	/**
+		In a parsed command, `words` are all arguments that don't begin with a dash, minus the first one (the command).
+
+		Example, with words in (): `lime build (/path/to/my/project neko) -debug`
+
+		Given the above example, `words` would be equal to `["/path/to/my/project", "neko"]`.
+	**/
 	private var words:Array<String>;
 
 	public function new()
@@ -132,270 +283,7 @@ class CommandLineTools
 					return;
 				}
 
-				if (words.length == 1)
-				{
-					var haxelibPath = Haxelib.getPath(new Haxelib(words[0]), false);
-
-					if (haxelibPath != "" && haxelibPath != null)
-					{
-						words.push("tools");
-					}
-				}
-
-				if (words.length < 2)
-				{
-					if (targetFlags.exists("openfl"))
-					{
-						words.unshift("openfl");
-					}
-					else
-					{
-						words.unshift("lime");
-					}
-				}
-
-				var targets = words[1].split(",");
-
-				var haxelib = null;
-				var path = null;
-				var hxmlPath = null;
-				var project = null;
-
-				if (!FileSystem.exists(words[0]))
-				{
-					var fullPath = Path.tryFullPath(words[0]);
-
-					if (FileSystem.exists(fullPath))
-					{
-						path = Path.combine(fullPath, "project");
-						hxmlPath = Path.combine(fullPath, "rebuild.hxml");
-					}
-					else
-					{
-						haxelib = new Haxelib(words[0]);
-					}
-				}
-				else
-				{
-					if (FileSystem.isDirectory(words[0]))
-					{
-						if (FileSystem.exists(Path.combine(words[0], "Build.xml")))
-						{
-							path = words[0];
-						}
-						else
-						{
-							path = Path.combine(words[0], "project/Build.xml");
-						}
-
-						hxmlPath = Path.combine(words[0], "rebuild.hxml");
-					}
-					else
-					{
-						path = words[0];
-
-						if (Path.extension(words[0]) == "hxml")
-						{
-							hxmlPath = words[0];
-						}
-					}
-
-					var haxelibPath = Haxelib.getPath(new Haxelib(words[0]));
-
-					if (!FileSystem.exists(path) && haxelibPath != null)
-					{
-						haxelib = new Haxelib(words[0]);
-					}
-				}
-
-				if (haxelib != null)
-				{
-					var haxelibPath = Haxelib.getPath(haxelib, true);
-
-					switch (haxelib.name)
-					{
-						case "hxcpp":
-							hxmlPath = Path.combine(haxelibPath, "tools/hxcpp/compile.hxml");
-
-						case "haxelib":
-							hxmlPath = Path.combine(haxelibPath, "../client.hxml");
-
-						default:
-							hxmlPath = Path.combine(haxelibPath, "rebuild.hxml");
-					}
-				}
-
-				for (targetName in targets)
-				{
-					var target:Platform = null;
-
-					switch (targetName)
-					{
-						case "cpp":
-							target = cast System.hostPlatform;
-							targetFlags.set("cpp", "");
-
-						case "neko":
-							target = cast System.hostPlatform;
-							targetFlags.set("neko", "");
-
-						case "hl", "hashlink":
-							target = cast System.hostPlatform;
-							targetFlags.set("hl", "");
-
-						case "cppia":
-							target = cast System.hostPlatform;
-							targetFlags.set("cppia", "");
-
-						case "java":
-							target = cast System.hostPlatform;
-							targetFlags.set("java", "");
-
-						case "nodejs":
-							target = cast System.hostPlatform;
-							targetFlags.set("nodejs", "");
-
-						case "cs":
-							target = cast System.hostPlatform;
-							targetFlags.set("cs", "");
-
-						case "iphone", "iphoneos":
-							target = Platform.IOS;
-
-						case "iphonesim":
-							target = Platform.IOS;
-							targetFlags.set("simulator", "");
-
-						case "electron":
-							target = Platform.HTML5;
-							targetFlags.set("electron", "");
-
-						case "firefox", "firefoxos":
-							target = Platform.FIREFOX;
-							overrides.haxedefs.set("firefoxos", "");
-
-						case "appletv", "appletvos":
-							target = Platform.TVOS;
-
-						case "appletvsim":
-							target = Platform.TVOS;
-							targetFlags.set("simulator", "");
-
-						case "mac", "macos":
-							target = Platform.MAC;
-
-						case "rpi", "raspberrypi":
-							target = Platform.LINUX;
-							targetFlags.set("rpi", "");
-
-						case "webassembly", "wasm":
-							target = Platform.EMSCRIPTEN;
-							targetFlags.set("webassembly", "");
-
-						default:
-							target = cast targetName.toLowerCase();
-					}
-
-					if (target == cast "tools")
-					{
-						if (hxmlPath != null && FileSystem.exists(hxmlPath))
-						{
-							var cacheValue = Sys.getEnv("HAXELIB_PATH");
-							Sys.putEnv("HAXELIB_PATH", Haxelib.getRepositoryPath());
-
-							System.runCommand(Path.directory(hxmlPath), "haxe", [Path.withoutDirectory(hxmlPath)]);
-
-							if (cacheValue != null)
-							{
-								Sys.putEnv("HAXELIB_PATH", cacheValue);
-							}
-						}
-					}
-					else
-					{
-						HXProject._command = command;
-						HXProject._environment = environment;
-						HXProject._debug = debug;
-						HXProject._target = target;
-						HXProject._targetFlags = targetFlags;
-						HXProject._userDefines = userDefines;
-
-						var project = null;
-
-						if (haxelib != null)
-						{
-							userDefines.set("rebuild", 1);
-							project = HXProject.fromHaxelib(haxelib, userDefines);
-
-							if (project == null)
-							{
-								project = new HXProject();
-								project.config.set("project.rebuild.path", Path.combine(Haxelib.getPath(haxelib), "project"));
-							}
-							else
-							{
-								project.config.set("project.rebuild.path", Path.combine(Haxelib.getPath(haxelib), project.config.get("project.rebuild.path")));
-							}
-						}
-						else
-						{
-							// project =  HXProject.fromPath (path);
-
-							if (project == null)
-							{
-								project = new HXProject();
-
-								if (FileSystem.isDirectory(path))
-								{
-									project.config.set("project.rebuild.path", path);
-								}
-								else
-								{
-									project.config.set("project.rebuild.path", Path.directory(path));
-									project.config.set("project.rebuild.file", Path.withoutDirectory(path));
-								}
-							}
-						}
-
-						// this needs to be improved
-
-						var rebuildPath = project.config.get("project.rebuild.path");
-						var rebuildFile = project.config.get("project.rebuild.file");
-
-						project.merge(overrides);
-
-						for (haxelib in overrides.haxelibs)
-						{
-							var includeProject = HXProject.fromHaxelib(haxelib, project.defines);
-
-							if (includeProject != null)
-							{
-								for (ndll in includeProject.ndlls)
-								{
-									if (ndll.haxelib == null)
-									{
-										ndll.haxelib = haxelib;
-									}
-								}
-
-								project.merge(includeProject);
-							}
-						}
-
-						project.config.set("project.rebuild.path", rebuildPath);
-						project.config.set("project.rebuild.file", rebuildFile);
-
-						// TODO: Fix use of initialize without resetting reference?
-
-						project = initializeProject(project, targetName);
-						buildProject(project);
-
-						if (Log.verbose)
-						{
-							Log.println("");
-						}
-					}
-				}
+				rebuildLibrary();
 
 			case "publish":
 				if (words.length < 1 || words.length > 2)
@@ -2284,6 +2172,301 @@ class CommandLineTools
 				// FirefoxMarketplace.publish (project);
 				//
 				// }
+		}
+	}
+
+	/**
+		`lime rebuild` takes two arguments, although one may be ommitted in some cases:
+		- 1) `library`: a project to rebuild.
+		- 2) `targets`: a comma-separated list of targets to rebuild.
+
+		If only one arguments is specified:
+		- If that argument is the name of a haxelib (ex: `hxcpp`), the second argument will be `"tools"`.
+		- Otherwise the given argument is treated as a target list, and we try to figure out the correct library.
+			- we check if we're within a native project folder (ex: hxcpp/project).
+			- otherwise we assume the library to be rebuilt is `"lime"`, or if `-openfl` was passed, `"openfl"`.
+
+		Examples:
+		- `lime rebuild hxcpp windows,hl,cppia` //`targets` may be a list
+		- `lime rebuild path/to/hxcpp windows` //`library` may be the root of a library containing project/Build.xml
+		- `lime rebuild path/to/hxcpp/project windows` //`library` may be a folder containing an xml file path
+		- `lime rebuild path/to/hxcpp/project/Build.xml windows` //`library` may be an xml file path
+
+		Examples with a single argument:
+		- `cd path/to/hxcpp/project & lime rebuild windows` -> `library`: hxcpp, `target`: windows
+		- `lime rebuild windows` -> `library`: lime, `target`: windows
+		- `lime rebuild lime` -> `library`: lime, `target`: tools
+		- `lime rebuild tools` -> `library`: lime, `target`: tools
+		- `lime rebuild windows -openfl` -> `library`: openfl, `target`: windows
+
+		Passing options:
+		- `lime rebuild windows -Dlegacy` //flags can be passed by userDefines
+		- `lime rebuild hxcpp linux -rpi -64 -static -clean` //flags can be passed by targetFlags
+	**/
+	private function rebuildLibrary():Void
+	{
+		if (words.length == 1)
+		{
+			var haxelibPath = Haxelib.getPath(new Haxelib(words[0]), false);
+
+			if (haxelibPath != "" && haxelibPath != null)
+			{
+				words.push("tools");
+			}
+		}
+
+		if (words.length < 2)
+		{
+			if (targetFlags.exists("openfl"))
+			{
+				words.unshift("openfl");
+			}
+			else
+			{
+				words.unshift("lime");
+			}
+		}
+
+		var targets = words[1].split(",");
+
+		var haxelib = null;
+		var path = null;
+		var hxmlPath = null;
+
+		if (!FileSystem.exists(words[0]))
+		{
+			var fullPath = Path.tryFullPath(words[0]);
+
+			if (FileSystem.exists(fullPath))
+			{
+				path = Path.combine(fullPath, "project");
+				hxmlPath = Path.combine(fullPath, "rebuild.hxml");
+			}
+			else
+			{
+				haxelib = new Haxelib(words[0]);
+			}
+		}
+		else
+		{
+			if (FileSystem.isDirectory(words[0]))
+			{
+				if (FileSystem.exists(Path.combine(words[0], "Build.xml")))
+				{
+					path = words[0];
+				}
+				else
+				{
+					path = Path.combine(words[0], "project/Build.xml");
+				}
+
+				hxmlPath = Path.combine(words[0], "rebuild.hxml");
+			}
+			else
+			{
+				path = words[0];
+
+				if (Path.extension(words[0]) == "hxml")
+				{
+					hxmlPath = words[0];
+				}
+			}
+
+			var haxelibPath = Haxelib.getPath(new Haxelib(words[0]));
+
+			if (!FileSystem.exists(path) && haxelibPath != null)
+			{
+				haxelib = new Haxelib(words[0]);
+			}
+		}
+
+		if (haxelib != null)
+		{
+			var haxelibPath = Haxelib.getPath(haxelib, true);
+
+			switch (haxelib.name)
+			{
+				case "hxcpp":
+					hxmlPath = Path.combine(haxelibPath, "tools/hxcpp/compile.hxml");
+
+				case "haxelib":
+					hxmlPath = Path.combine(haxelibPath, "../client.hxml");
+
+				default:
+					hxmlPath = Path.combine(haxelibPath, "rebuild.hxml");
+			}
+		}
+
+		for (targetName in targets)
+		{
+			var target:Platform = null;
+
+			switch (targetName)
+			{
+				case "cpp":
+					target = cast System.hostPlatform;
+					targetFlags.set("cpp", "");
+
+				case "neko":
+					target = cast System.hostPlatform;
+					targetFlags.set("neko", "");
+
+				case "hl", "hashlink":
+					target = cast System.hostPlatform;
+					targetFlags.set("hl", "");
+
+				case "cppia":
+					target = cast System.hostPlatform;
+					targetFlags.set("cppia", "");
+
+				case "java":
+					target = cast System.hostPlatform;
+					targetFlags.set("java", "");
+
+				case "nodejs":
+					target = cast System.hostPlatform;
+					targetFlags.set("nodejs", "");
+
+				case "cs":
+					target = cast System.hostPlatform;
+					targetFlags.set("cs", "");
+
+				case "iphone", "iphoneos":
+					target = Platform.IOS;
+
+				case "iphonesim":
+					target = Platform.IOS;
+					targetFlags.set("simulator", "");
+
+				case "electron":
+					target = Platform.HTML5;
+					targetFlags.set("electron", "");
+
+				case "firefox", "firefoxos":
+					target = Platform.FIREFOX;
+					overrides.haxedefs.set("firefoxos", "");
+
+				case "appletv", "appletvos":
+					target = Platform.TVOS;
+
+				case "appletvsim":
+					target = Platform.TVOS;
+					targetFlags.set("simulator", "");
+
+				case "mac", "macos":
+					target = Platform.MAC;
+
+				case "rpi", "raspberrypi":
+					target = Platform.LINUX;
+					targetFlags.set("rpi", "");
+
+				case "webassembly", "wasm":
+					target = Platform.EMSCRIPTEN;
+					targetFlags.set("webassembly", "");
+
+				default:
+					target = cast targetName.toLowerCase();
+			}
+
+			if (target == cast "tools")
+			{
+				if (hxmlPath != null && FileSystem.exists(hxmlPath))
+				{
+					var cacheValue = Sys.getEnv("HAXELIB_PATH");
+					Sys.putEnv("HAXELIB_PATH", Haxelib.getRepositoryPath());
+
+					System.runCommand(Path.directory(hxmlPath), "haxe", [Path.withoutDirectory(hxmlPath)]);
+
+					if (cacheValue != null)
+					{
+						Sys.putEnv("HAXELIB_PATH", cacheValue);
+					}
+				}
+			}
+			else
+			{
+				HXProject._command = command;
+				HXProject._environment = environment;
+				HXProject._debug = debug;
+				HXProject._target = target;
+				HXProject._targetFlags = targetFlags;
+				HXProject._userDefines = userDefines;
+
+				var project = null;
+
+				if (haxelib != null)
+				{
+					userDefines.set("rebuild", 1);
+					project = HXProject.fromHaxelib(haxelib, userDefines);
+
+					if (project == null)
+					{
+						project = new HXProject();
+						project.config.set("project.rebuild.path", Path.combine(Haxelib.getPath(haxelib), "project"));
+					}
+					else
+					{
+						project.config.set("project.rebuild.path", Path.combine(Haxelib.getPath(haxelib), project.config.get("project.rebuild.path")));
+					}
+				}
+				else
+				{
+					// project =  HXProject.fromPath (path);
+
+					if (project == null)
+					{
+						project = new HXProject();
+
+						if (FileSystem.isDirectory(path))
+						{
+							project.config.set("project.rebuild.path", path);
+						}
+						else
+						{
+							project.config.set("project.rebuild.path", Path.directory(path));
+							project.config.set("project.rebuild.file", Path.withoutDirectory(path));
+						}
+					}
+				}
+
+				// this needs to be improved
+
+				var rebuildPath = project.config.get("project.rebuild.path");
+				var rebuildFile = project.config.get("project.rebuild.file");
+
+				project.merge(overrides);
+
+				for (haxelib in overrides.haxelibs)
+				{
+					var includeProject = HXProject.fromHaxelib(haxelib, project.defines);
+
+					if (includeProject != null)
+					{
+						for (ndll in includeProject.ndlls)
+						{
+							if (ndll.haxelib == null)
+							{
+								ndll.haxelib = haxelib;
+							}
+						}
+
+						project.merge(includeProject);
+					}
+				}
+
+				project.config.set("project.rebuild.path", rebuildPath);
+				project.config.set("project.rebuild.file", rebuildFile);
+
+				// TODO: Fix use of initialize without resetting reference?
+
+				project = initializeProject(project, targetName);
+				buildProject(project);
+
+				if (Log.verbose)
+				{
+					Log.println("");
+				}
+			}
 		}
 	}
 

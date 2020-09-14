@@ -125,6 +125,14 @@ class CPPHelper
 		}
 	}
 
+	/**
+		Rebuild a project and all dependencies.
+
+		@param project the project to rebuild
+		@param commands a list of commands to run. Each command is itself a list of `-Ddefines` to pass to the compiler when run.
+		@param path The path of the native project to rebuild. Defaults to `"project.rebuild.path"` from the given project's config.
+		@param buildFile
+	**/
 	public static function rebuild(project:HXProject, commands:Array<Array<String>>, path:String = null, buildFile:String = null):Void
 	{
 		var buildRelease = (!project.targetFlags.exists("debug"));
@@ -194,6 +202,20 @@ class CPPHelper
 		}
 	}
 
+	/**
+		Builds a single project with one set of flags.
+
+		The build library used to build the project is `hxcpp`, unless otherwise
+		specified by the `"cpp.buildLibrary"` value from the given project's config.
+
+		If no build path is specified, either by passing `path` or by the `"project.rebuild.path"`
+		value from the given project's config, nothing is built.
+
+		@param project the project to rebuild.
+		@param flags a list of `-Ddefines` to pass to the compiler.
+		@param path The path of the native project to rebuild. Defaults to `"project.rebuild.path"` from the given project's config.
+		@param buildFile The buildFile found at `path`. Defaults to `"project.rebuild.file"` from the given project's config, or to `Build.xml`.
+	**/
 	public static function rebuildSingle(project:HXProject, flags:Array<String> = null, path:String = null, buildFile:String = null):Void
 	{
 		if (path == null)

@@ -9,6 +9,9 @@ import sys.io.File;
 import sys.io.Process;
 import sys.FileSystem;
 
+/**
+	TODO: what is this? Is this a class you're supposed to use when setting up your own target handlers?
+**/
 class PlatformTargetMain
 {
 	private static var additionalArguments = new Array<String>();
