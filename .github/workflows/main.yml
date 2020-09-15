@@ -68,6 +68,45 @@ jobs:
         Expand-Archive android-ndk.zip -DestinationPath $Env:ANDROID_NDK_ROOT/..
         rm android-ndk.zip
 
+    - name: Configure HXCPP compilation (Linux and macOS)
+      if: ${{ !startsWith(matrix.os, 'windows-') }}
+      run: |
+        cat << EOF > ~/.hxcpp_config.xml
+        <xml>
+          <section id="vars">
+            <section if="HXCPP_COMPILE_CACHE_ENABLED">
+              <set name="HXCPP_COMPILE_CACHE" value="~/hxcpp_cache"/>
+              <set name="HXCPP_CACHE_MB" value="10240" />
+            </section>
+          </section>
+          <section id="exes">
+            <compiler>
+              <flag value="-O0" />
+            </compiler>
+          </section>
+        </xml>
+        EOF
+
+    - name: Configure HXCPP compilation (Windows)
+      if: ${{ startsWith(matrix.os, 'windows-') }}
+      run: |
+        $HxcppConfig = @"
+        <xml>
+          <section id="vars">
+            <section if="HXCPP_COMPILE_CACHE_ENABLED">
+              <set name="HXCPP_COMPILE_CACHE" value="$Env:USERPROFILE\hxcpp_cache" />
+              <set name="HXCPP_CACHE_MB" value="10240" />
+            </section>
+          </section>
+          <section id="exes">
+            <compiler>
+              <flag value="-O0" />
+            </compiler>
+          </section>
+        </xml>
+        "@
+        echo $HxcppConfig > ~\.hxcpp_config.xml
+
     - name: Install "lime" command alias (Linux and macOS)
       if: ${{ !startsWith(matrix.os, 'windows-') }}
       run: |
@@ -131,6 +170,9 @@ jobs:
       run: |
         lime rebuild windows -32 -release -verbose -nocolor
         lime rebuild windows -64 -release -verbose -nocolor
+
+    - name: Enable HXCPP compile cache
+      run: echo "::set-env name=HXCPP_COMPILE_CACHE_ENABLED::true"
 
     - name: Create Lime Samples
       run: |
