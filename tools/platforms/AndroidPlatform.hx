@@ -274,6 +274,7 @@ class AndroidPlatform extends PlatformTarget
 
 	public override function rebuild():Void
 	{
+		var rebuildExplicit = project.targetFlags.exists("only_archs");
 		var armv5 = (command == "rebuild"
 			|| ArrayTools.containsValue(project.architectures, Architecture.ARMV5)
 			|| ArrayTools.containsValue(project.architectures, Architecture.ARMV6));
@@ -281,6 +282,14 @@ class AndroidPlatform extends PlatformTarget
 		var arm64 = (command == "rebuild" || ArrayTools.containsValue(project.architectures, Architecture.ARM64));
 		var x86 = (command == "rebuild" || ArrayTools.containsValue(project.architectures, Architecture.X86));
 		var x64 = ( /*command == "rebuild" ||*/ ArrayTools.containsValue(project.architectures, Architecture.X64));
+
+		if(rebuildExplicit) {
+			armv5 = project.targetFlags.exists("armv5");
+			armv7 = project.targetFlags.exists("armv7");
+			arm64 = project.targetFlags.exists("arm64");
+			x86 = project.targetFlags.exists("32");
+			x64 = project.targetFlags.exists("64");
+		}
 
 		var commands = [];
 
