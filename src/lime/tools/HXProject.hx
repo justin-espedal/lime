@@ -236,12 +236,11 @@ class HXProject extends Script
 				{
 					if (targetFlags.exists("simulator") || targetFlags.exists("emulator"))
 					{
-						architectures = [Architecture.X86];
+						architectures = [Architecture.X86, Architecture.X64];
 					}
 					else
 					{
-						architectures = [Architecture.ARMV7];
-						if (target == ANDROID) architectures.push(Architecture.ARM64);
+						architectures = [Architecture.ARMV7, Architecture.ARM64];
 					}
 				}
 				else if (target == Platform.TVOS)
