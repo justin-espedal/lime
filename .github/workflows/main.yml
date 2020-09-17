@@ -99,7 +99,10 @@ jobs:
             </section>
           </section>
           <section id="exes">
-            <compiler>
+            <compiler if="isMsvc">
+              <flag value="/Od" />
+            </compiler>
+            <compiler unless="isMsvc">
               <flag value="-O0" />
             </compiler>
           </section>
