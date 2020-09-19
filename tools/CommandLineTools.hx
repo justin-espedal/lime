@@ -2193,7 +2193,7 @@ class CommandLineTools
 				{
 					overrides.haxeflags.push(argument);
 
-					if (argument == "--remap" || argument == "--connect" || argument == "-dce")
+					if (argument == "--remap" || argument == "--connect" || argument == "--macro" || argument == "-dce")
 					{
 						catchHaxeFlag = true;
 					}
