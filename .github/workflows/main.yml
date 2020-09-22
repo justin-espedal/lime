@@ -81,7 +81,7 @@ jobs:
           </section>
           <section id="exes">
             <compiler>
-              <flag value="-O0" />
+              <flag value="-O0" tag="optim-none" />
             </compiler>
           </section>
         </xml>
@@ -99,11 +99,9 @@ jobs:
             </section>
           </section>
           <section id="exes">
-            <compiler if="isMsvc">
-              <flag value="/Od" />
-            </compiler>
-            <compiler unless="isMsvc">
-              <flag value="-O0" />
+            <compiler>
+              <flag value="/Od" if="isMsvc" tag="optim-none" />
+              <flag value="-O0" unless="isMsvc" tag="optim-none" />
             </compiler>
           </section>
         </xml>
@@ -216,34 +214,34 @@ jobs:
 
     - name: Build Lime Samples (android)
       run: |
-        lime build HelloWorld android -release -verbose -nocolor
-        lime build SimpleImage android -release -verbose -nocolor
-        lime build SimpleAudio android -release -verbose -nocolor
+        lime build HelloWorld android -release -verbose -nocolor -D openfl_debug -D lime_debug --macro "addGlobalMetadata('', '@:fileXml(\'tags=\"haxe,optim-none\"\')')"
+        lime build SimpleImage android -release -verbose -nocolor -D openfl_debug -D lime_debug --macro "addGlobalMetadata('', '@:fileXml(\'tags=\"haxe,optim-none\"\')')"
+        lime build SimpleAudio android -release -verbose -nocolor -D openfl_debug -D lime_debug --macro "addGlobalMetadata('', '@:fileXml(\'tags=\"haxe,optim-none\"\')')"
 
     - name: Build Lime Samples (linux)
       if: ${{ startsWith(matrix.os, 'ubuntu-') }}
       run: |
-        lime build HelloWorld linux -release -verbose -nocolor
-        lime build SimpleImage linux -release -verbose -nocolor
-        lime build SimpleAudio linux -release -verbose -nocolor
+        lime build HelloWorld linux -release -verbose -nocolor -D openfl_debug -D lime_debug --macro "addGlobalMetadata('', '@:fileXml(\'tags=\"haxe,optim-none\"\')')"
+        lime build SimpleImage linux -release -verbose -nocolor -D openfl_debug -D lime_debug --macro "addGlobalMetadata('', '@:fileXml(\'tags=\"haxe,optim-none\"\')')"
+        lime build SimpleAudio linux -release -verbose -nocolor -D openfl_debug -D lime_debug --macro "addGlobalMetadata('', '@:fileXml(\'tags=\"haxe,optim-none\"\')')"
 
     - name: Build Lime Samples (mac)
       if: ${{ startsWith(matrix.os, 'macos-') }}
       run: |
-        lime build HelloWorld mac -release -verbose -nocolor
-        lime build SimpleImage mac -release -verbose -nocolor
-        lime build SimpleAudio mac -release -verbose -nocolor
+        lime build HelloWorld mac -release -verbose -nocolor -D openfl_debug -D lime_debug --macro "addGlobalMetadata('', '@:fileXml(\'tags=\"haxe,optim-none\"\')')"
+        lime build SimpleImage mac -release -verbose -nocolor -D openfl_debug -D lime_debug --macro "addGlobalMetadata('', '@:fileXml(\'tags=\"haxe,optim-none\"\')')"
+        lime build SimpleAudio mac -release -verbose -nocolor -D openfl_debug -D lime_debug --macro "addGlobalMetadata('', '@:fileXml(\'tags=\"haxe,optim-none\"\')')"
 
     - name: Build Lime Samples (ios)
       if: ${{ startsWith(matrix.os, 'macos-') }}
       run: |
-        lime build HelloWorld ios -simulator -release -verbose -nocolor
-        lime build SimpleImage ios -simulator -release -verbose -nocolor
-        lime build SimpleAudio ios -simulator -release -verbose -nocolor
+        lime build HelloWorld ios -simulator -release -verbose -nocolor -D openfl_debug -D lime_debug --macro "addGlobalMetadata('', '@:fileXml(\'tags=\"haxe,optim-none\"\')')"
+        lime build SimpleImage ios -simulator -release -verbose -nocolor -D openfl_debug -D lime_debug --macro "addGlobalMetadata('', '@:fileXml(\'tags=\"haxe,optim-none\"\')')"
+        lime build SimpleAudio ios -simulator -release -verbose -nocolor -D openfl_debug -D lime_debug --macro "addGlobalMetadata('', '@:fileXml(\'tags=\"haxe,optim-none\"\')')"
 
     - name: Build Lime Samples (windows)
       if: ${{ startsWith(matrix.os, 'windows-') }}
       run: |
-        lime build HelloWorld windows -release -verbose -nocolor
-        lime build SimpleImage windows -release -verbose -nocolor
-        lime build SimpleAudio windows -release -verbose -nocolor
+        lime build HelloWorld windows -release -verbose -nocolor -D openfl_debug -D lime_debug --macro "addGlobalMetadata('', '@:fileXml(\'tags=\"haxe,optim-none\"\')')"
+        lime build SimpleImage windows -release -verbose -nocolor -D openfl_debug -D lime_debug --macro "addGlobalMetadata('', '@:fileXml(\'tags=\"haxe,optim-none\"\')')"
+        lime build SimpleAudio windows -release -verbose -nocolor -D openfl_debug -D lime_debug --macro "addGlobalMetadata('', '@:fileXml(\'tags=\"haxe,optim-none\"\')')"
