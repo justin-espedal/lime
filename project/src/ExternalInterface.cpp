@@ -1005,7 +1005,7 @@ namespace lime {
 
 		#ifdef LIME_EFSW
 		FileWatcher* watcher = (FileWatcher*)val_data (handle);
-		watcher->RemoveDirectory (val_int (watchID));
+		watcher->RemoveDirectory1 (val_int (watchID));
 		#endif
 
 	}
@@ -1015,7 +1015,7 @@ namespace lime {
 
 		#ifdef LIME_EFSW
 		FileWatcher* watcher = (FileWatcher*)handle->ptr;
-		watcher->RemoveDirectory (watchID);
+		watcher->RemoveDirectory1 (watchID);
 		#endif
 
 	}

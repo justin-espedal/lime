@@ -90,7 +90,7 @@ namespace lime {
 	}
 
 
-	void FileWatcher::RemoveDirectory (long watchID) {
+	void FileWatcher::RemoveDirectory1 (long watchID) {
 
 		((efsw::FileWatcher*)fileWatcher)->removeWatch (watchID);
 

@@ -36,7 +36,7 @@ namespace lime {
 
 			long AddDirectory (const std::string directory, bool recursive);
 			void QueueEvent (FileWatcherEvent event);
-			void RemoveDirectory (long watchID);
+			void RemoveDirectory1 (long watchID);
 			void Update ();
 
 
