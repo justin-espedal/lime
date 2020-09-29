@@ -52,7 +52,7 @@ class WindowsPlatform extends PlatformTarget
 		else if (project.targetFlags.exists("hl"))
 		{
 			targetType = "hl";
-			is64 = false;
+			is64 = true;
 		}
 		else if (project.targetFlags.exists("cppia"))
 		{
@@ -556,16 +556,12 @@ class WindowsPlatform extends PlatformTarget
 			var commands = [];
 
 			if (!targetFlags.exists("64")
+				&& (targetType != "hl")
 				&& (command == "rebuild" || System.hostArchitecture == X86 || (targetType != "cpp" && targetType != "winrt")))
 			{
 				if (targetType == "winrt")
 				{
 					commands.push(["-Dwinrt", "-DHXCPP_M32"]);
-				}
-				else if (targetType == "hl")
-				{
-					// TODO: Support single binary
-					commands.push(["-Dwindows", "-DHXCPP_M32", "-Dhashlink"]);
 				}
 				else
 				{
@@ -579,12 +575,16 @@ class WindowsPlatform extends PlatformTarget
 
 			if (!targetFlags.exists("32")
 				&& System.hostArchitecture == X64
-				&& (command != "rebuild" || targetType == "cpp" || targetType == "winrt")
-				&& targetType != "hl")
+				&& (command != "rebuild" || targetType == "cpp" || targetType == "winrt" || targetType == "hl"))
 			{
 				if (targetType == "winrt")
 				{
 					commands.push(["-Dwinrt", "-DHXCPP_M64"]);
+				}
+				else if (targetType == "hl")
+				{
+					// TODO: Support single binary
+					commands.push(["-Dwindows", "-DHXCPP_M64", "-Dhashlink"]);
 				}
 				else
 				{
