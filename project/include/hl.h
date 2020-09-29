@@ -211,9 +211,9 @@ typedef unsigned long long uint64;
 
 #if defined(HL_WIN) && !defined(HL_LLVM)
 #if defined(HL_WIN_DESKTOP) && !defined(HL_MINGW)
-// #	include <Windows.h>
+#	include <Windows.h>
 #elif defined(HL_WIN_DESKTOP) && defined(HL_MINGW)
-// #	include<windows.h>
+#	include<windows.h>
 #else
 #	include <xdk.h>
 #endif
