@@ -1,0 +1,32 @@
+From f762dbea78e78343eab0b2a25879adf278a94a93 Mon Sep 17 00:00:00 2001
+From: Justin Espedal <justin.espedal@gmail.com>
+Date: Tue, 29 Sep 2020 16:37:38 +0900
+Subject: [PATCH] Compile fix
+
+Fixed an issue whereby Windows applications that used libjpeg-turbo would
+fail to compile if the Windows system headers were included before jpeglib.h.
+This issue was caused by a conflict in the definition of the INT32 type.
+
+https://github.com/libjpeg-turbo/libjpeg-turbo/commit/eed08614a61f0a7c23e4eae0b50efd8d11194c40
+
+diff --git a/jconfig.vc b/jconfig.vc
+index e9d33e5..6a6455f 100644
+--- a/jconfig.vc
++++ b/jconfig.vc
+@@ -28,6 +28,13 @@ typedef unsigned char boolean;
+ #endif
+ #define HAVE_BOOLEAN		/* prevent jmorecfg.h from redefining it */
+ 
++/* Define "INT32" as int, not long, per Windows custom */
++#if !(defined(_BASETSD_H_) || defined(_BASETSD_H))   /* don't conflict if basetsd.h already read */
++typedef short INT16;
++typedef signed int INT32;
++#endif
++#define XMD_H                   /* prevent jmorecfg.h from redefining it */
++
+ 
+ #ifdef JPEG_INTERNALS
+ 
+-- 
+2.28.0.windows.1
+
