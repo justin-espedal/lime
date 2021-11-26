@@ -29,7 +29,9 @@ class IOSHelper
 		}
 		else
 		{
-			commands.push("build");
+			commands.push("build-for-testing");
+			commands.push("-scheme");
+			commands.push(project.app.file);
 		}
 
 		if (additionalArguments != null)
