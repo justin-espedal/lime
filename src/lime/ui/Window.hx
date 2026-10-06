@@ -513,6 +513,16 @@ class Window
 		__backend.setIcon(image);
 	}
 
+	public function registerCursor(name:String, cursor:MouseCursorData):Void
+	{
+		__backend.registerCursor(name, cursor);
+	}
+
+	public function unregisterCursor(name:String):Void
+	{
+		__backend.unregisterCursor(name);
+	}
+
 	public function toString():String
 	{
 		return "[object Window]";

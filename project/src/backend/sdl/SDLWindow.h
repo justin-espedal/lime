@@ -6,6 +6,8 @@
 #include <graphics/ImageBuffer.h>
 #include <ui/Cursor.h>
 #include <ui/Window.h>
+#include <map>
+#include <string>
 
 
 namespace lime {
@@ -46,6 +48,9 @@ namespace lime {
 			virtual void SetMaximumSize (int width, int height);
 			virtual bool SetBorderless (bool borderless);
 			virtual void SetCursor (Cursor cursor);
+			virtual void SetCustomCursor (const char* name);
+			virtual void RegisterCursor (const char* name, ImageBuffer *imageBuffer, int hotSpotX, int hotSpotY);
+			virtual void UnregisterCursor (const char* name);
 			virtual void SetDisplayMode (DisplayMode* displayMode);
 			virtual bool SetFullscreen (bool fullscreen);
 			virtual void SetIcon (ImageBuffer *imageBuffer);
@@ -68,6 +73,8 @@ namespace lime {
 			SDL_GLContext context;
 			int contextHeight;
 			int contextWidth;
+			std::map<std::string, SDL_Cursor*> customCursors;
+			std::string currentCustomCursor;
 
 	};
 
