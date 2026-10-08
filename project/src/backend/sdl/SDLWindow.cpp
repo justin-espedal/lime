@@ -960,7 +960,27 @@ namespace lime {
 
 		if (!name || !imageBuffer) return;
 
-		SDL_Surface *surface = SDL_CreateRGBSurfaceFrom (imageBuffer->data->buffer->b, imageBuffer->width, imageBuffer->height, imageBuffer->bitsPerPixel, imageBuffer->Stride (), 0x000000FF, 0x0000FF00, 0x00FF0000, 0xFF000000);
+		SDL_PixelFormatEnum pixelFormat;
+
+		switch (imageBuffer->format) {
+
+			case ARGB32:
+
+				pixelFormat = SDL_PIXELFORMAT_ARGB32;
+				break;
+
+			case BGRA32:
+
+				pixelFormat = SDL_PIXELFORMAT_BGRA32;
+				break;
+
+			default:
+
+				pixelFormat = SDL_PIXELFORMAT_RGBA32;
+
+		}
+
+		SDL_Surface *surface = SDL_CreateRGBSurfaceWithFormatFrom (imageBuffer->data->buffer->b, imageBuffer->width, imageBuffer->height, imageBuffer->bitsPerPixel, imageBuffer->Stride (), pixelFormat);
 
 		if (surface) {
 
